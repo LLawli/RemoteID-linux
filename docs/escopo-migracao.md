@@ -231,9 +231,18 @@ check` atual). Nenhuma fase muda comportamento observável até a fase 5.
   - **Pendente da Fase 1 (levar para a Fase 2):** deduplicar o nome do app e os
     caminhos de diretório ainda hardcoded no GTK; isso casa com a introdução da
     porta `Ambiente`/config. O endereço do servidor já é fonte única.
-- **Fase 2 — definir as portas e os adaptadores padrão.** Criar `remoteid-portas`
-  e implementar `store-json`, `chave-pem`, `http`, `diag-jsonl`, `relogio`,
-  `ambiente`. Redação de segredos vai para o núcleo.
+- **Fase 2 — definir as portas e os adaptadores padrão. [CONCLUÍDA]**
+  `remoteid-portas` define os 7 contratos (RepositorioEstado, CofreDeChave,
+  TransporteRemoteId, Diagnostico, Relogio, Ambiente, Prompter) + `IdInstalacao`.
+  Adaptadores padrão, um crate cada: `store-json` (RepositorioEstado, com prova
+  de troca por um RepositorioMemoria em teste), `chave-pem` (CofreDeChave, chave
+  nunca sai do cofre), `http` (TransporteRemoteId, ureq), `diag-jsonl`
+  (Diagnostico), `relogio-sistema`, `ambiente-sistema`. A redação de segredos
+  virou o crate puro `remoteid-redacao`; os fatos de host deixaram de estar
+  duplicados no motor (fonte única). As fachadas do core delegam aos adaptadores
+  (backdep temporária, invertida na Fase 3). 21 crates, 109 testes verdes.
+  - **Pendente menor:** o default `nome_aplicacao` do GTK ainda repete a
+    constante; deduplicar quando o motor passar a consumir aquele config.
 - **Fase 3 — motor genérico.** Refatorar `engine`/`Servico` para a crate de
   aplicação, parametrizada pelas portas. `Prompter` e `Relogio` entram como
   portas de primeira classe.
