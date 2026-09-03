@@ -16,6 +16,7 @@ remoteid-assinatura = { path = "../remoteid-assinatura" }
 remoteid-protocolo-servidor = { path = "../remoteid-protocolo-servidor" }
 remoteid-store-json = { path = "../remoteid-store-json" }
 remoteid-chave-pem = { path = "../remoteid-chave-pem" }
+remoteid-redacao = { path = "../remoteid-redacao" }
 base64.workspace = true
 rand.workspace = true
 rsa.workspace = true

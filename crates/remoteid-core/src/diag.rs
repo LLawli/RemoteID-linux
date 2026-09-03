@@ -48,12 +48,6 @@ use crate::error::Result;
 /// Quantos arquivos de execução manter antes de apagar os mais antigos.
 const MANTER_EXECUCOES: usize = 20;
 
-/// Campos cujo valor nunca é gravado, nem com `REMOTEID_DIAG_RAW`.
-const SEGREDOS: &[&str] = &["senha", "password", "passwd", "pwd", "pin", "otp"];
-
-/// Campos gravados como impressão digital, a menos que `REMOTEID_DIAG_RAW=1`.
-const CREDENCIAIS: &[&str] = &["token", "sessiontoken", "authorization", "chaveprivada"];
-
 pub struct Diag {
     arquivo: Option<Mutex<fs::File>>,
     caminho: Option<PathBuf>,
@@ -139,26 +133,9 @@ impl Diag {
         }
     }
 
-    /// Aplica a política de redação a um valor arbitrário, recursivamente.
+    /// Aplica a política de redação (pura, em [`remoteid_redacao`]) a um valor.
     pub fn redigir(&self, valor: &Value) -> Value {
-        match valor {
-            Value::Object(m) => {
-                let mut out = Map::new();
-                for (k, v) in m {
-                    let chave = k.to_lowercase();
-                    if SEGREDOS.iter().any(|s| chave == *s) {
-                        out.insert(k.clone(), json!(mascara_segredo(v)));
-                    } else if !self.cru && CREDENCIAIS.iter().any(|s| chave == *s) {
-                        out.insert(k.clone(), json!(impressao_digital(v)));
-                    } else {
-                        out.insert(k.clone(), self.redigir(v));
-                    }
-                }
-                Value::Object(out)
-            }
-            Value::Array(a) => Value::Array(a.iter().map(|v| self.redigir(v)).collect()),
-            outro => outro.clone(),
-        }
+        remoteid_redacao::redigir(valor, self.cru)
     }
 
     /// Registra a canônica de forma segura: só o hash e o tamanho.
@@ -178,29 +155,6 @@ impl Diag {
             }),
         );
     }
-}
-
-/// Segredo: nem o tamanho é informado (o tamanho de um PIN já é dica).
-fn mascara_segredo(v: &Value) -> String {
-    match v {
-        Value::String(s) if s.is_empty() => "<vazio>".into(),
-        Value::Null => "<ausente>".into(),
-        _ => "<redigido>".into(),
-    }
-}
-
-/// Credencial: tamanho e hash, o suficiente para comparar duas ocorrências.
-fn impressao_digital(v: &Value) -> String {
-    let texto = match v {
-        Value::String(s) => s.clone(),
-        Value::Null => return "<ausente>".into(),
-        outro => outro.to_string(),
-    };
-    if texto.is_empty() {
-        return "<vazio>".into();
-    }
-    let h = hex(&sha256(texto.as_bytes()));
-    format!("<oculto len={} sha256={}>", texto.len(), &h[..8])
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -275,49 +229,8 @@ mod tests {
         assert_eq!(iso8601(1_709_208_000), "2024-02-29T12:00:00Z");
     }
 
-    #[test]
-    fn pin_e_otp_nunca_aparecem_nem_no_modo_cru() {
-        let mut d = Diag::inerte();
-        d.cru = true;
-        let corpo = serde_json::json!({
-            "desktopCode": "DC", "pin": "1234", "otp": "999999", "push": false
-        });
-        let saida = d.redigir(&corpo).to_string();
-        assert!(!saida.contains("1234"), "o PIN vazou: {saida}");
-        assert!(!saida.contains("999999"), "o OTP vazou: {saida}");
-        // O que não é segredo continua legível, senão o log não serve.
-        assert!(saida.contains("DC"));
-    }
-
-    #[test]
-    fn token_vira_impressao_digital_estavel() {
-        let d = Diag::inerte();
-        let a = d.redigir(&serde_json::json!({"token": "sessaoAssinatura;327989;..."}));
-        let b = d.redigir(&serde_json::json!({"token": "sessaoAssinatura;327989;..."}));
-        let c = d.redigir(&serde_json::json!({"token": "outro"}));
-        assert_eq!(a, b, "o mesmo token tem de dar a mesma impressão digital");
-        assert_ne!(a, c, "tokens diferentes têm de se distinguir no log");
-        assert!(!a.to_string().contains("327989"));
-        assert!(a.to_string().contains("sha256="));
-    }
-
-    #[test]
-    fn redige_dentro_de_estruturas_aninhadas() {
-        let d = Diag::inerte();
-        let v = serde_json::json!({"request": {"body": {"senha": "s3cr3t"}}});
-        assert!(!d.redigir(&v).to_string().contains("s3cr3t"));
-    }
-
-    #[test]
-    fn distingue_campo_vazio_de_ausente() {
-        // A diferença importa: foi ela que o harness usou para provar que o
-        // servidor cobrava o fator, e não o formato do JSON.
-        let d = Diag::inerte();
-        let vazio = d.redigir(&serde_json::json!({"otp": ""}));
-        let nulo = d.redigir(&serde_json::json!({"otp": null}));
-        assert!(vazio.to_string().contains("<vazio>"));
-        assert!(nulo.to_string().contains("<ausente>"));
-    }
+    // A redação de segredos agora é pura, em `remoteid-redacao`, e é lá que
+    // ficam os testes de "PIN/OTP nunca vazam". Aqui só o que é do sink.
 
     #[test]
     fn poda_mantendo_os_mais_recentes() {

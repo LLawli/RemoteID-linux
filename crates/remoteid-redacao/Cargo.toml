@@ -1,0 +1,12 @@
+[package]
+name = "remoteid-redacao"
+description = "Política de redação de segredos do RemoteID-linux (núcleo puro): PIN/OTP/senha nunca vazam; tokens viram impressão digital"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+remoteid-cripto = { path = "../remoteid-cripto" }
+serde_json.workspace = true
