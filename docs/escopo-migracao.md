@@ -214,15 +214,23 @@ Cada fase termina na porta de validação do projeto:
 `cargo test && cargo clippy --all-targets && cargo build --release` (o `make
 check` atual). Nenhuma fase muda comportamento observável até a fase 5.
 
-- **Fase 0 — esqueleto.** Clonar o conteúdo para `RemoteID-linux`, montar o
-  workspace novo e renomear tudo `desktopid-*` → `remoteid-*` (crates,
-  binários, `DESKTOPID_*`, diretórios `desktopid`), **sem camada de
-  compatibilidade** (repositório novo, começa limpo; instalações atuais
-  reinstalam). Portar `Makefile`, `docs/`, `tools/`, testes.
-- **Fase 1 — extrair o núcleo puro.** Mover os módulos puros para os crates de
-  domínio, sem mudar lógica. Levar os testes junto. `protocolo-servidor` ganha
-  testes de ouro. Ao fim, o núcleo compila sem `ureq`, sem `std::fs`, sem
-  `std::env`.
+- **Fase 0 — esqueleto. [CONCLUÍDA]** Clonado para `RemoteID-linux`, workspace
+  renomeado `desktopid-*` → `remoteid-*` (crates, binários, `REMOTEID_*`,
+  diretórios), **sem compat**. Protocolo do servidor preservado byte a byte
+  (URL `/api/manager/desktopid/`, `USER_AGENT`, campos). Porta de validação
+  verde.
+- **Fase 1 — extrair o núcleo puro. [CONCLUÍDA]** Seis crates de domínio, um por
+  domínio, um commit cada: `remoteid-tipos`, `remoteid-cripto`,
+  `remoteid-autorizacao`, `remoteid-estado`, `remoteid-assinatura`,
+  `remoteid-protocolo-servidor`. Todos puros (sem `ureq`, `std::fs`, `std::env`).
+  O I/O que estava misturado (chave PEM, `state.json`, dirs XDG) virou fachada no
+  core (`crate::chave`, `crate::estado_fs`), semente dos adaptadores da Fase 2. O
+  core re-exporta os domínios com os nomes antigos para a borda não mudar ainda.
+  `remoteid-core` ficou só com a casca imperativa: `engine`, `http`, `diag`.
+  Grafo de domínios sem ciclos; 104 testes verdes.
+  - **Pendente da Fase 1 (levar para a Fase 2):** deduplicar o nome do app e os
+    caminhos de diretório ainda hardcoded no GTK; isso casa com a introdução da
+    porta `Ambiente`/config. O endereço do servidor já é fonte única.
 - **Fase 2 — definir as portas e os adaptadores padrão.** Criar `remoteid-portas`
   e implementar `store-json`, `chave-pem`, `http`, `diag-jsonl`, `relogio`,
   `ambiente`. Redação de segredos vai para o núcleo.
