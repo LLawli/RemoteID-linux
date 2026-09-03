@@ -16,9 +16,9 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
-use crate::config;
-use crate::diag::Diag;
-use crate::error::{Error, Result, ServerError};
+use remoteid_protocolo_servidor::config;
+use remoteid_portas::{Diagnostico, RequisicaoHttp, RespostaHttp, TransporteRemoteId};
+use remoteid_tipos::{Error, Result, ServerError};
 
 pub struct Resposta {
     pub status: u16,
@@ -73,11 +73,11 @@ impl Resposta {
 
 pub struct Http {
     agente: ureq::Agent,
-    diag: Arc<Diag>,
+    diag: Arc<dyn Diagnostico>,
 }
 
 impl Http {
-    pub fn novo(diag: Arc<Diag>, timeout: Duration) -> Http {
+    pub fn novo(diag: Arc<dyn Diagnostico>, timeout: Duration) -> Http {
         let cfg = ureq::Agent::config_builder()
             // Sem isso o corpo de um 4xx/5xx some, e é nele que está a razão.
             .http_status_as_error(false)
@@ -170,6 +170,23 @@ impl Http {
     }
 }
 
+/// A porta de transporte: recebe a requisição já montada (corpo serializado,
+/// Bearer calculado) e devolve o par status+corpo cru. A interpretação
+/// ("HTTP 200 pode ser erro") é do domínio, não do transporte.
+impl TransporteRemoteId for Http {
+    fn requisitar(&self, req: &RequisicaoHttp) -> Result<RespostaHttp> {
+        let r = Http::requisitar(
+            self,
+            &req.metodo,
+            &req.url,
+            req.corpo.as_ref(),
+            req.bearer.as_deref(),
+            &req.rotulo,
+        )?;
+        Ok(RespostaHttp { status: r.status, corpo: r.corpo })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -187,7 +204,7 @@ mod tests {
             Error::Servidor(s) => {
                 assert_eq!(s.http_status, 200);
                 assert_eq!(s.message, "Informe o Pin");
-                assert_eq!(s.origem, crate::error::Origem::Usuario);
+                assert_eq!(s.origem, remoteid_tipos::Origem::Usuario);
                 assert!(s.hint.is_some());
             }
             outro => panic!("classificou errado: {outro}"),
@@ -215,7 +232,7 @@ mod tests {
             r#"{"exception":"UsuarioSenhaInvalidoException","message":"Usuário ou senha inválidos"}"#,
         );
         match r.ok_json().unwrap_err() {
-            Error::Servidor(s) => assert_eq!(s.origem, crate::error::Origem::Usuario),
+            Error::Servidor(s) => assert_eq!(s.origem, remoteid_tipos::Origem::Usuario),
             outro => panic!("esperava erro de servidor: {outro}"),
         }
     }

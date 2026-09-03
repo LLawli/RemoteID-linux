@@ -1,0 +1,15 @@
+[package]
+name = "remoteid-http"
+description = "Adaptador de transporte HTTP (ureq) até o servidor RemoteID — implementa TransporteRemoteId"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+remoteid-tipos = { path = "../remoteid-tipos" }
+remoteid-protocolo-servidor = { path = "../remoteid-protocolo-servidor" }
+remoteid-portas = { path = "../remoteid-portas" }
+serde_json.workspace = true
+ureq.workspace = true

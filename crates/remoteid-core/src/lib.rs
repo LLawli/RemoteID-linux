@@ -35,12 +35,13 @@
 //! [`crate::crypto`] e [`crate::state`] (sementes dos adaptadores da Fase 2).
 
 pub mod engine;
-pub mod http;
+
 
 mod chave;
 mod estado_fs;
 
 pub use remoteid_diag_jsonl as diag;
+pub use remoteid_http as http;
 pub use remoteid_tipos as error;
 pub use remoteid_autorizacao as authmode;
 pub use remoteid_assinatura as pkcs7;

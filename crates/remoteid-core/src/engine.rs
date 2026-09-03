@@ -87,7 +87,12 @@ impl Motor {
         let diag = Arc::new(Diag::abrir(&opcoes.dir_diag));
         let estado = state::carregar(&state::caminho_estado(&opcoes.dir_dados))?;
         let chave = crate::crypto::carregar_ou_gerar(&state::caminho_chave(&opcoes.dir_dados))?;
-        let http = Http::novo(Arc::clone(&diag), opcoes.timeout);
+        // O transporte fala com o diag pela porta `Diagnostico`, não pelo tipo
+        // concreto: por isso o `Arc<Diag>` é coagido para `Arc<dyn Diagnostico>`
+        // aqui (a canônica, que o motor loga direto, não está na porta e usa o
+        // `Diag` concreto guardado em `self.diag`).
+        let diag_transporte: Arc<dyn remoteid_portas::Diagnostico> = diag.clone();
+        let http = Http::novo(diag_transporte, opcoes.timeout);
 
         diag.evento(
             "sessao.inicio",

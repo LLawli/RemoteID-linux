@@ -18,6 +18,8 @@ remoteid-store-json = { path = "../remoteid-store-json" }
 remoteid-chave-pem = { path = "../remoteid-chave-pem" }
 remoteid-redacao = { path = "../remoteid-redacao" }
 remoteid-diag-jsonl = { path = "../remoteid-diag-jsonl" }
+remoteid-http = { path = "../remoteid-http" }
+remoteid-portas = { path = "../remoteid-portas" }
 base64.workspace = true
 rand.workspace = true
 rsa.workspace = true
