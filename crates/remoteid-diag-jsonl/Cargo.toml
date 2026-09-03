@@ -1,0 +1,15 @@
+[package]
+name = "remoteid-diag-jsonl"
+description = "Adaptador de diagnóstico em JSONL (um arquivo por execução) do RemoteID-linux — implementa Diagnostico"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+remoteid-tipos = { path = "../remoteid-tipos" }
+remoteid-cripto = { path = "../remoteid-cripto" }
+remoteid-redacao = { path = "../remoteid-redacao" }
+remoteid-portas = { path = "../remoteid-portas" }
+serde_json.workspace = true

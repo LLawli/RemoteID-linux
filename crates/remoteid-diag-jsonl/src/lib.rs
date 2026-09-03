@@ -42,8 +42,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Map, Value};
 
-use crate::crypto::sha256;
-use crate::error::Result;
+use remoteid_cripto::sha256;
+use remoteid_tipos::Result;
 
 /// Quantos arquivos de execução manter antes de apagar os mais antigos.
 const MANTER_EXECUCOES: usize = 20;
@@ -154,6 +154,15 @@ impl Diag {
                 "bearer_bytes": bearer.len(),
             }),
         );
+    }
+}
+
+impl remoteid_portas::Diagnostico for Diag {
+    fn evento(&self, tipo: &str, campos: Value) {
+        Diag::evento(self, tipo, campos)
+    }
+    fn caminho(&self) -> Option<std::path::PathBuf> {
+        Diag::caminho(self).map(|p| p.to_path_buf())
     }
 }
 
