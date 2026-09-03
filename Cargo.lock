@@ -1166,6 +1166,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "remoteid-portas"
+version = "0.1.0"
+dependencies = [
+ "remoteid-autorizacao",
+ "remoteid-estado",
+ "remoteid-tipos",
+ "serde_json",
+]
+
+[[package]]
 name = "remoteid-protocolo"
 version = "0.1.0"
 dependencies = [

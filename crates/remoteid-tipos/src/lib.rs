@@ -9,6 +9,39 @@ use std::fmt;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// Identidade de uma instalação/conta.
+///
+/// Existe para que as portas de estado e de chave sejam endereçadas por conta,
+/// não por uma instalação global única. No desktop é um singleton
+/// ([`IdInstalacao::local`]); numa futura versão central em Postgres endereça
+/// cada conta guardada. Desenhar assim desde já evita uma mudança quebradora
+/// quando essa versão existir.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct IdInstalacao(pub String);
+
+impl IdInstalacao {
+    /// A instalação única desta máquina (o caso desktop).
+    pub fn local() -> Self {
+        IdInstalacao("local".into())
+    }
+
+    pub fn como_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Default for IdInstalacao {
+    fn default() -> Self {
+        IdInstalacao::local()
+    }
+}
+
+impl fmt::Display for IdInstalacao {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
 /// De quem é a culpa por uma resposta de erro do backend.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Origem {
