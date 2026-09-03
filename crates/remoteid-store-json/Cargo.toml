@@ -1,0 +1,17 @@
+[package]
+name = "remoteid-store-json"
+description = "Adaptador de armazenamento do estado em JSON (state.json) do RemoteID-linux — implementa RepositorioEstado"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+remoteid-tipos = { path = "../remoteid-tipos" }
+remoteid-estado = { path = "../remoteid-estado" }
+remoteid-portas = { path = "../remoteid-portas" }
+serde_json.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
