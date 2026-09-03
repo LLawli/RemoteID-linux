@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+
+<html>
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+		<title>Remote-ID Oauth</title>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900" />
+		<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+		<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+		<style>
+			* {
+				margin: 0;
+				padding: 0;
+				font-family: Inter;
+				box-sizing: border-box;
+			}
+			.certisign {
+				width: 100dvw;
+				display: flex;
+				height: 100dvh;
+				overflow: hidden;
+				align-items: center;
+				flex-direction: column;
+				justify-content: space-between;
+				background: linear-gradient(180deg, #4732cc 0%, #593eff 100%);
+			}
+			body.swal2-height-auto {
+				height: 100dvh !important;
+			}
+			.hidden {
+				display: none !important;
+			}
+			.container {
+				gap: 40px;
+				width: 330px;
+				color: #fff;
+				display: flex;
+				padding-top: 40px;
+				align-items: center;
+				flex-direction: column;
+			}
+			.container .logo {
+				height: 60px;
+			}
+			.container h2 {
+				margin: 0;
+				padding: 0;
+				width: 100%;
+				font-size: 22px;
+				font-weight: 400;
+				line-height: 28px;
+			}
+			.container .form {
+				gap: 16px;
+				width: 100%;
+				display: flex;
+				flex-direction: column;
+			}
+			.container .form .input {
+				width: 100%;
+				height: 40px;
+				position: relative;
+				border-radius: 4px;
+				color: #fff;
+				background: #4732cc;
+				border: 1px solid #f5f5f5;
+			}
+			.container .form .input select {
+				margin: 0;
+				padding: 0;
+				width: 100%;
+				height: 100%;
+				border: none;
+				color: #fff;
+				outline: none;
+				font-size: 14px;
+				font-weight: 400;
+				line-height: 20px;
+				padding: 10px 16px;
+				cursor: pointer;
+				box-sizing: border-box;
+				appearance: none;
+				-moz-appearance: none;
+				-webkit-appearance: none;
+				border-radius: 4px;
+				background: #4732cc;
+				background-repeat: no-repeat;
+				background-position-y: center;
+				background-position-x: right;
+			}
+			.container .form .input label {
+				top: 3px;
+				left: 10px;
+				cursor: text;
+				padding: 6px;
+				opacity: 0.75;
+				font-size: 14px;
+				font-weight: 400;
+				line-height: 20px;
+				position: absolute;
+				background: #4732cc;
+				transition: all ease-in-out 0.3s;
+			}
+			.container .form .input span.error {
+				font-size: 12px;
+				padding-left: 8px;
+			}
+			.container .form .input label.up,
+			.container .form .input:focus-within label,
+			.container .form .input:has(input:not(:placeholder-shown)) label {
+				top: -11px;
+				opacity: 1;
+				font-size: 12px;
+				line-height: 10px;
+				border-radius: 8px;
+			}
+			.container .form .input input {
+				margin: 0;
+				padding: 0;
+				width: 100%;
+				height: 100%;
+				border: none;
+				color: #fff;
+				outline: none;
+				font-size: 14px;
+				font-weight: 400;
+				line-height: 20px;
+				padding: 10px 16px;
+				box-sizing: border-box;
+				background: transparent;
+			}
+			.container .form .input input:is(:-webkit-autofill, :autofill) {
+				border: none !important;
+				outline: none !important;
+				color: #fff !important;
+				background: transparent !important;
+			}
+			.container .form .input input:is(:disabled) {
+				color: #ccc;
+			}
+			.container > span {
+				width: 100%;
+				font-size: 14px;
+				font-weight: 400;
+				line-height: 20px;
+			}
+			.container button {
+				width: 100%;
+				height: 40px;
+				border: none;
+				outline: none;
+				cursor: pointer;
+				font-size: 14px;
+				color: #4732cc;
+				font-weight: 600;
+				line-height: 20px;
+				padding: 10px 16px;
+				border-radius: 8px;
+				background-color: #fff;
+			}
+			.container #loadingButton {
+				padding: 8px;
+				pointer-events: none;
+			}
+			.container #loadingButton .loading {
+				height: 100%;
+			}
+			.container button.disabled {
+				cursor: not-allowed;
+				background-color: #ccc;
+			}
+			.footer {
+				width: 100dvw;
+			}
+			@media (max-width: 768px) {
+				.container {
+					width: calc(100dvw - 32px);
+				}
+				.footer {
+					height: 160px;
+				}
+			}
+		</style>
+		<script type="text/javascript">
+			/*<![CDATA[*/
+			var params = {};
+			var pushCanceled = false;
+			window.onload = () => {
+				var urlParams = new URLSearchParams(window.location.search);
+				urlParams.forEach((value, key) => {
+					params[key] = value;
+				});
+				
+				params['state'] = params['state'] || "";
+				params['scope'] = 'single_signature';
+				params['request_Id'] = null;
+				params['redirect_uri'] = 'https://sso.acesso.gov.br/login-oauth2-pkce';
+
+				var accounts = null;
+				if (accounts !== null) {
+					changeToLegacyFlow(false);
+					setAccounts(accounts);
+				}
+				changeArrows();
+			};
+			function changeArrows() {
+				var selects = document.querySelectorAll('.container .form .input select');
+				selects.forEach((select) => {
+					select.style.backgroundImage = "url('" + window.location.origin + "/api/image/arrow.svg')";
+				});
+			}
+			function setAccounts(accounts) {
+				if (accounts.length > 1) {
+					var accountInput = document.getElementById("accounts");
+					for(var i = 0; i < accounts.length; i++) {
+						var option = document.createElement('option');
+						option.value = accounts[i].userId +"|"+ accounts[i].hasCell;
+						option.text = accounts[i].email;
+						accountInput.add(option);
+					}
+					document.getElementById("input-accounts").classList.remove("hidden");
+				} else {
+					selectAccount(accounts[0]);
+					document.getElementById("input-email").classList.remove("hidden");
+				}
+			}
+			function changeToLegacyFlow(withoutCpf) {
+				document.getElementById("input-cpf").classList.add("hidden");
+				document.getElementById("cpfButton").classList.add("hidden");
+				document.getElementById("oauthButton").classList.remove("hidden");
+				if (withoutCpf) {
+					document.getElementById("email").removeAttribute("disabled");
+					document.getElementById("input-email").classList.remove("hidden");
+					document.getElementById("input-pin").classList.remove("hidden");
+					document.getElementById("input-totp").classList.remove("hidden");
+				}
+			}
+			function toogleLoading(show) {
+				if (show) {
+					document.getElementById("oauthButton").classList.add("hidden");
+					document.getElementById("loadingButton").classList.remove("hidden");
+				} else {
+					document.getElementById("loadingButton").classList.add("hidden");
+					document.getElementById("oauthButton").classList.remove("hidden");
+				}
+			}
+			function getParams() {
+				return {
+					...params,
+					pin: document.getElementById("pin").value,
+					otp: document.getElementById("totp").value,
+					certificate_id: document.getElementById("certificados").value || "",
+					email: document.getElementById("email").value || "",
+				};
+			}
+			function showModal() {
+				authenticationPush();
+				Swal.fire({
+					html: `
+						<span style="display:block;margin:0px 0px 1.25rem;font-size:2.5em;font-weight:600;">Login com Push</span>
+						Aguardando Confirmação do Push
+						<span style="display:block;font-size:2em;margin:.5rem 0px;letter-spacing:1rem;">${params['request_Id']}</span>
+						Confirme o Push enviado para o seu celular ou clique em Cancelar para fazer login com PIN e e-Token.
+					`,
+					allowEscapeKey: false,
+					allowOutsideClick: false,
+					confirmButtonText: 'Cancelar',
+				}).then((result) => {
+					if (result.isConfirmed) {
+						pushCanceled = true;
+						apiRequest('/api/v0/oauth/rejectauthenticatepush', 'POST', {request_Id: params['request_Id']}, (data, error) => {
+							if (error) {
+								console.error('Erro ao rejeitar autenticação push:', error);
+							}
+						});
+					}
+				});
+			}
+			function removeEmptyAccountOption() {
+				var select = document.getElementById("accounts");
+				var options = select.options;
+				for (var i = 0; i < options.length; i++) {
+					if (options[i].value === "") {
+						select.removeChild(options[i]);
+						return;
+					}
+				}
+			}
+			function selectAccount(account) {
+				params['user_id'] = account.userId;
+				document.getElementById("email").value = account.email;
+				document.getElementById("input-pin").classList.remove("hidden");
+				document.getElementById("input-totp").classList.remove("hidden");
+				document.getElementById('accounts-error').classList.add('hidden');
+				removeEmptyAccountOption();
+				if (account.hasCell == "true") {
+					showModal();
+				}
+			}
+			function changeAccount(input) {
+				var value = input.options[input.selectedIndex].value;
+				if (value != ""){
+					var values = value.split("|")
+					selectAccount({
+						userId: values[0],
+						hasCell: values[1],
+						email: input.options[input.selectedIndex].text,
+					});
+				}
+			}
+			function applyCpfMask(input) {
+				var value = input.value.replace(/\D/g, '');
+				value = value.replace(/(\d{3})(\d)/, '$1.$2');
+				value = value.replace(/(\d{3})(\d)/, '$1.$2');
+				value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+				input.value = value;
+				if (value.length >= 14) {
+					if (isCPFValid(value)) {
+						document.getElementById('cpfButton').classList.remove('disabled');
+					} else {
+						document.getElementById('cpf-error').classList.remove('hidden');
+					}
+				} else {
+					document.getElementById('cpf-error').classList.add('hidden');
+					document.getElementById('cpfButton').classList.add('disabled');
+				}
+			}
+			function applyTOTPMask(input) {
+				input.value = input.value.replace(/\D/g, '');
+			}
+			function isCPFValid(cpf) {
+				cpf = cpf.replace(/\D/g, '');
+				if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) {
+					return false;
+				}
+				var sum = 0;
+				for (var i = 0; i < 9; i++) {
+					sum += parseInt(cpf.charAt(i)) * (10 - i);
+				}
+				var firstCheckDigit = 11 - (sum % 11);
+				if (firstCheckDigit >= 10) firstCheckDigit = 0;
+				if (firstCheckDigit !== parseInt(cpf.charAt(9))) {
+					return false;
+				}
+				sum = 0;
+				for (var j = 0; j < 10; j++) {
+					sum += parseInt(cpf.charAt(j)) * (11 - j);
+				}
+				var secondCheckDigit = 11 - (sum % 11);
+				if (secondCheckDigit >= 10) secondCheckDigit = 0;
+				if (secondCheckDigit !== parseInt(cpf.charAt(10))) {
+					return false;
+				}
+				return true;
+			}
+			function apiRequest(url, method = 'GET', body = null, callback = () => {}) {
+				var XHR = new XMLHttpRequest();
+				XHR.open(method, url);
+				XHR.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded;charset=UTF-8');
+				XHR.onreadystatechange = function () {
+					if (XHR.readyState === 4) {
+						if (XHR.status >= 200 && XHR.status < 300) {
+							callback(XHR.responseText, null);
+						} else {
+							callback(null, {status: XHR.status, response: XHR.responseText});
+						}
+					}
+				};
+				XHR.send(body ? new URLSearchParams(body).toString() : null);
+			}
+			function verifyNewUser() {
+				var params = getParams();
+				var cpf = document.getElementById('cpf').value;
+				if (isCPFValid(cpf)) {
+					cpf = cpf.replace(/\D/g, '');
+					apiRequest(`/api/v0/oauth/verify-user?cpf=${cpf}&client_id=${params.client_id}`, 'GET', null, (data, error) => {
+						if (data === "certisign") {
+							params['cpf'] = cpf;
+							var remoteIdUrlV2 = 'https://remote-api.certisign.com.br';
+							window.location.replace(`${remoteIdUrlV2}/api/v1/oauth/authorize?${new URLSearchParams(params).toString()}`);
+						} else if (data === "remoteid") {
+							params['login_hint'] = cpf;
+							window.location.replace(`/api/v0/oauth/authorize?${new URLSearchParams(params).toString()}`);
+						} else {
+							changeToLegacyFlow(true);
+						}
+					});
+				}
+			}
+			function authenticationPush() {
+				pushCanceled = true;
+				var params = getParams();
+				apiRequest('/api/v0/oauth/authenticatepush', 'POST', params, (data, error) => {
+					Swal.close();
+					if (data) {
+						var response = JSON.parse(data);
+						handleResponse(response, true);
+					} else if (error && !pushCanceled) {
+						Swal.fire(
+							'Erro na autenticação',
+							'Por favor, utilize o Pin e e-token para se autenticar.',
+							'error'
+						);
+					}
+				});
+			}
+			function handleResponse(response, isPushFlow = false) {
+				if (response.oauth_do_login_error != "no_error") {
+					Swal.fire({
+						icon: 'error',
+						title: 'Erro na autenticação',
+						text: response.message,
+					});
+					toogleLoading(false);
+				} else {
+					document.getElementById("input-pin").classList.add("hidden");
+					document.getElementById("input-totp").classList.add("hidden");
+					document.getElementById("input-email").classList.add("hidden");
+					document.getElementById("input-accounts").classList.add("hidden");
+
+					params['authentication_Id'] = response.authenticationId || "";
+					var certificates = response.certificates;
+
+					// usuario não possui certificado
+					if (certificates.length == 0) {
+						Swal.fire({
+							icon: 'error',
+							title: 'Nenhum certificado encontrado',
+							text: 'Nenhum certificado foi encontrado para o usuário autenticado.',
+						});
+						toogleLoading(false);
+					} else {
+						// usuario possui apenas um certificado
+						var inputCertificados = document.getElementById("certificados");
+						if (certificates.length == 1) {
+							var option = document.createElement('option');
+							option.value = certificates[0].id;
+							option.text = certificates[0].alias;
+							inputCertificados.add(option);
+							inputCertificados.value = certificates[0].id;
+							getCodeAuthorization(isPushFlow);
+						} else {
+						// usuario possui vários certificados
+							document.getElementById("input-certificados").classList.remove("hidden");
+							for (var i = 0; i < certificates.length; i++) {
+								var option = document.createElement('option');
+								option.value = certificates[i].id;
+								option.text = certificates[i].alias;
+								inputCertificados.add(option);
+							}
+							document.getElementById("oauthButton").innerHTML = "Selecionar Certificado";
+							toogleLoading(false);
+						}
+					}
+				}
+			}
+			function oauth() {
+				toogleLoading(true);
+				var params = getParams();
+				if (params.email == "") {
+					document.getElementById('accounts-error').classList.remove('hidden');
+					toogleLoading(false);
+					return;
+				}
+				if (params.certificate_id == "") {
+					authentication();
+				} else {
+					getCodeAuthorization(params.authentication_Id != "");
+				}
+			}
+			function authentication() {
+				apiRequest('/api/v0/oauth/authenticate', 'POST', getParams(), (data, error) => {
+					if (error) {
+						Swal.fire(
+							'Erro na autenticação',
+							`${JSON.parse(error.response || "{}").message || 'Ocorreu um erro ao autenticar o usuário.'}`,
+							'error'
+						);
+						toogleLoading(false);
+					} else {
+						var response = JSON.parse(data);
+						handleResponse(response);
+					}
+				});
+			}
+			function getCodeAuthorization(isPushFlow = false) {
+				var url = "/api/v0/oauth/getcodeauthorization" + (isPushFlow ? "push" : "");
+				var form = document.createElement("form");
+			    form.setAttribute("method", "post");
+			    form.setAttribute("action", url);
+				form.style.display = "none";
+				var params = getParams();
+			    for (var key in params) {
+			        if (params.hasOwnProperty(key)) {
+			            var hiddenField = document.createElement("input");
+			            hiddenField.setAttribute("type", "hidden");
+			            hiddenField.setAttribute("name", key);
+			            hiddenField.setAttribute("value", params[key]);
+			            form.appendChild(hiddenField);
+					}
+			    }
+			    document.body.appendChild(form);
+			    form.submit();
+			}
+			/*]]>*/
+		</script>
+	</head>
+	<body>
+		<div class="certisign">
+			<div class="container">
+				<img class="logo" src="/api/image/logo.svg" />
+				<h2>Acesso com certificado em nuvem</h2>
+				<div class="form">
+					<div class="input" id="input-cpf">
+						<label for="cpf">Digite seu CPF</label>
+						<input id="cpf" type="text" placeholder="" maxlength="14" oninput="applyCpfMask(this)" />
+						<span id="cpf-error" class="error hidden">O CPF que você digitou é inválido.</span>
+					</div>
+					<div class="input hidden" id="input-email">
+						<label for="email">Email</label>
+						<input id="email" type="email" placeholder="" disabled="" />
+					</div>
+					<div class="input hidden" id="input-accounts">
+						<label for="accounts" class="up">Selecione um Email</label>
+						<select id="accounts" onchange="changeAccount(this)">
+							<option value=""></option>
+						</select>
+						<span id="accounts-error" class="error hidden">É obrigatório selecionar um email para continuar.</span>
+					</div>
+					<div class="input hidden" id="input-certificados">
+						<label for="certificados" class="up">Selecione um Certificado</label>
+						<select id="certificados"></select>
+					</div>
+					<div class="input hidden" id="input-pin">
+						<label for="pin">Digite o pin do seu certificado</label>
+						<input id="pin" type="password" placeholder="" />
+					</div>
+					<div class="input hidden" id="input-totp">
+						<label for="totp">Digite seu e-token</label>
+						<input id="totp" type="text" placeholder="" maxlength="6" oninput="applyTOTPMask(this)" />
+					</div>
+				</div>
+				<span>
+					Você autoriza o
+					<b><span>Ministério da Economia</span></b> a realizar
+					<span class="font-italic">uma assinatura</span>
+					
+					
+					
+					utilizando seu certificado em nuvem?
+				</span>
+				<button id="cpfButton" class="disabled" onclick="verifyNewUser()">
+					Autorizar acesso
+				</button>
+				<button id="oauthButton" class="hidden" onclick="oauth()">
+					Autenticar
+				</button>
+				<button id="loadingButton" class="hidden">
+					<img class="loading" src="/api/image/loading.svg" />
+				</button>
+			</div>
+			<img class="footer" src="/api/image/background.svg" />
+		</div>
+	</body>
+</html>

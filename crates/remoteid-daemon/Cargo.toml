@@ -1,0 +1,26 @@
+[package]
+name = "remoteid-daemon"
+# Nome mantido por histórico. NÃO é mais um processo separado: virou a lib da
+# camada de serviço (o `Servico`, o socket e o trait `Prompter`), consumida
+# in-process pelo app `remoteid-app` (crate `remoteid-gtk`). Sem binário, e
+# livre de GTK — os testes de integração (`fluxo_otimista`) voltam a rodar sem
+# GTK. Ver [[remoteid-app-unificado]].
+description = "Camada de serviço do RemoteID-linux (Servico + socket + Prompter), consumida in-process pelo app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "remoteid_daemon"
+path = "src/lib.rs"
+
+[dependencies]
+remoteid-core = { path = "../remoteid-core" }
+remoteid-protocolo = { path = "../remoteid-protocolo" }
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+# O teste de integração sobe um servidor HTTP local; sem features extras.

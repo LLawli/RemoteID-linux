@@ -1,0 +1,31 @@
+[package]
+name = "remoteid-core"
+description = "Motor do certificado em nuvem RemoteID (Certisign) para Linux"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+base64.workspace = true
+rand.workspace = true
+rsa.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+cms.workspace = true
+der.workspace = true
+ureq.workspace = true
+x509-cert.workspace = true
+
+[dev-dependencies]
+# `builder` só nos testes: permite forjar um certificado autoassinado e provar
+# que a verificação aceita a assinatura certa e recusa a errada.
+x509-cert = { version = "0.2", features = ["builder"] }
+rsa = { version = "0.9", features = ["sha2"] }
+sha2 = "0.10"
+rand = "0.8"
+cms = { version = "0.2", features = ["alloc"] }
+der = "0.7"

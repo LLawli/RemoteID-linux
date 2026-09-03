@@ -1,0 +1,23 @@
+# Instaladores oficiais e material de análise (grandes; não redistribuir)
+vendor/
+
+# Build do Rust
+/target/
+
+# Logs de runs reais do harness (token de sessão, certificado, CPF, nome, e-mail)
+.logs/
+
+# Relatórios do harness (identificam o titular do certificado)
+desktopid-harness-*.txt
+desktopid-harness-*.installation-key.pem
+remoteid-harness-*.txt
+remoteid-harness-*.installation-key.pem
+*.installation-key.pem
+
+# Estado local e diagnóstico da instalação (sensíveis)
+state.json
+diag/
+
+# Bytecode do tools/extract-payloads.py
+__pycache__/
+*.pyc

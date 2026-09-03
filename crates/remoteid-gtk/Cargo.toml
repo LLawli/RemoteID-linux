@@ -1,0 +1,28 @@
+[package]
+name = "remoteid-gtk"
+description = "O app RemoteID-linux: janela GTK4 + servidor do socket in-process (assina enquanto a janela está aberta)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+# As telas como funções puras de UI (recebem modelos planos, devolvem widgets).
+# Esta lib só depende de GTK; o app (bin) é quem junta motor + socket + telas.
+name = "remoteid_gtk"
+path = "src/lib.rs"
+
+[[bin]]
+# Binário ÚNICO do app (unificação de 03/09/2026): janela + servidor do socket
+# no mesmo processo, sem daemon separado. Ver [[remoteid-app-unificado]].
+name = "remoteid-app"
+path = "src/main.rs"
+
+[dependencies]
+gtk = { package = "gtk4", version = "0.9" }
+remoteid-core = { path = "../remoteid-core" }
+# A camada de serviço (Servico + socket + Prompter), consumida in-process.
+remoteid-daemon = { path = "../remoteid-daemon" }
+remoteid-protocolo = { path = "../remoteid-protocolo" }
+serde_json.workspace = true

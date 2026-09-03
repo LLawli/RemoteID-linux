@@ -1,0 +1,16 @@
+[package]
+name = "remoteid-cli"
+description = "CLI do motor RemoteID-linux"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "remoteid"
+path = "src/main.rs"
+
+[dependencies]
+remoteid-core = { path = "../remoteid-core" }
+serde_json.workspace = true

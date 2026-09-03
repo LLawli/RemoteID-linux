@@ -1,0 +1,19 @@
+[package]
+name = "remoteid-mock"
+description = "Servidor RemoteID FALSO para teste local: fluxo completo com certificado e OTP/PIN fixos, sem tocar na produção da Certisign"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "remoteid-mock"
+path = "src/main.rs"
+
+[dependencies]
+# Reusa o crypto do motor para carregar a chave falsa e assinar o digest do
+# requestHash exatamente como o HSM da Certisign faria (PKCS#1 v1.5 sobre
+# SHA-256), para que a assinatura verifique contra o certificado falso.
+remoteid-core = { path = "../remoteid-core" }
+serde_json.workspace = true
