@@ -1,0 +1,13 @@
+[package]
+name = "remoteid-chave-pem"
+description = "Adaptador da chave da instalação em arquivo PEM do RemoteID-linux — implementa CofreDeChave"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+remoteid-tipos = { path = "../remoteid-tipos" }
+remoteid-cripto = { path = "../remoteid-cripto" }
+remoteid-portas = { path = "../remoteid-portas" }
