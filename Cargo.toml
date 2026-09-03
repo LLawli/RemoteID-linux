@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/remoteid-core", "crates/remoteid-cli", "crates/remoteid-pkcs11", "crates/remoteid-daemon", "crates/remoteid-protocolo", "crates/remoteid-gtk", "crates/remoteid-mock"]
+members = ["crates/remoteid-tipos", "crates/remoteid-core", "crates/remoteid-cli", "crates/remoteid-pkcs11", "crates/remoteid-daemon", "crates/remoteid-protocolo", "crates/remoteid-gtk", "crates/remoteid-mock"]
 
 [workspace.package]
 version = "0.1.0"

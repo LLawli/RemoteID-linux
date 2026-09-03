@@ -28,11 +28,15 @@ pub mod config;
 pub mod crypto;
 pub mod diag;
 pub mod engine;
-pub mod error;
 pub mod http;
 pub mod pkcs7;
 pub mod protocol;
 pub mod state;
+
+// Domínio puro extraído para crates próprios (Fase 1). O core os re-exporta com
+// os nomes de módulo antigos para não quebrar os consumidores enquanto a borda
+// não passa a depender diretamente dos domínios.
+pub use remoteid_tipos as error;
 
 pub use authmode::{Estado as EstadoAuth, Fatores, Modo};
 pub use engine::{Motor, Opcoes};
