@@ -1,0 +1,22 @@
+[package]
+name = "remoteid-cripto"
+description = "Primitivas de criptografia do RemoteID-linux (núcleo puro): SHA-256, base64, RSA PKCS#1 v1.5"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+remoteid-tipos = { path = "../remoteid-tipos" }
+base64.workspace = true
+rand.workspace = true
+rsa.workspace = true
+sha2.workspace = true
+x509-cert.workspace = true
+
+[dev-dependencies]
+x509-cert = { version = "0.2", features = ["builder"] }
+rsa = { version = "0.9", features = ["sha2"] }
+sha2 = "0.10"
+rand = "0.8"

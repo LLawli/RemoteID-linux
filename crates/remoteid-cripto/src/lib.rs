@@ -9,17 +9,13 @@
 //! (`-----BEGIN PUBLIC KEY-----`, SubjectPublicKeyInfo). Base64 do DER cru é
 //! recusado com ConstraintViolation.
 
-use std::fs;
-use std::io::Write;
-use std::path::Path;
-
 use base64::Engine as _;
 use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey, LineEnding};
 use rsa::{Pkcs1v15Sign, RsaPrivateKey, RsaPublicKey};
 use sha2::{Digest, Sha256};
 
-use crate::error::{Error, Result};
+use remoteid_tipos::{Error, Result};
 
 pub const KEY_BITS: usize = 2048;
 
@@ -46,40 +42,23 @@ pub struct ChaveInstalacao {
 }
 
 impl ChaveInstalacao {
-    /// Carrega a chave de `caminho`, gerando-a se ainda não existir.
-    ///
-    /// Aceita PKCS#8 e PKCS#1 na leitura: as instalações feitas pelo harness em
-    /// Python usavam `openssl genrsa`, que escreve PKCS#1
-    /// (`-----BEGIN RSA PRIVATE KEY-----`). Chaves novas são gravadas em PKCS#8.
-    pub fn carregar_ou_gerar(caminho: &Path) -> Result<Self> {
-        if caminho.exists() {
-            return Self::carregar(caminho);
-        }
-        if let Some(pai) = caminho.parent() {
-            fs::create_dir_all(pai)?;
-        }
+    /// Gera um par RSA novo (sem tocar em disco). Quem persiste é a borda de
+    /// I/O (a fachada `crate::chave` no core, futuro adaptador `chave-pem`).
+    pub fn gerar() -> Result<Self> {
         let mut rng = rand::thread_rng();
         let inner = RsaPrivateKey::new(&mut rng, KEY_BITS)
             .map_err(|e| Error::cripto(format!("não gerou a chave RSA: {e}")))?;
-        let pem = inner
-            .to_pkcs8_pem(LineEnding::LF)
-            .map_err(|e| Error::cripto(format!("não serializou a chave: {e}")))?;
-        escrever_privado(caminho, pem.as_bytes())?;
         Ok(Self { inner })
     }
 
-    /// Carrega uma chave existente. Falha se o arquivo não existir.
-    pub fn carregar(caminho: &Path) -> Result<Self> {
-        let pem = fs::read_to_string(caminho)?;
-        let inner = RsaPrivateKey::from_pkcs8_pem(&pem)
-            .or_else(|_| RsaPrivateKey::from_pkcs1_pem(&pem))
-            .map_err(|e| {
-                Error::cripto(format!(
-                    "{} não é uma chave RSA em PEM (PKCS#8 nem PKCS#1): {e}",
-                    caminho.display()
-                ))
-            })?;
-        Ok(Self { inner })
+    /// Serializa a chave privada em PKCS#8 PEM, para a borda gravar em disco.
+    /// Chaves novas são sempre gravadas em PKCS#8 (a leitura aceita PKCS#1 por
+    /// compatibilidade com o `openssl genrsa` do harness antigo, ver [`Self::de_pem`]).
+    pub fn to_pkcs8_pem(&self) -> Result<String> {
+        self.inner
+            .to_pkcs8_pem(LineEnding::LF)
+            .map(|z| z.to_string())
+            .map_err(|e| Error::cripto(format!("não serializou a chave: {e}")))
     }
 
     /// Carrega a chave de um PEM já em memória (PKCS#8 ou PKCS#1). Usado pelo
@@ -178,34 +157,13 @@ pub fn verificar_com_certificado(
         .is_ok())
 }
 
-/// Grava um arquivo com 0600 DESDE A CRIAÇÃO.
-///
-/// Criar aberto e ajustar depois deixa uma janela em que a chave privada existe
-/// legível por outros.
-fn escrever_privado(caminho: &Path, conteudo: &[u8]) -> Result<()> {
-    let mut opts = fs::OpenOptions::new();
-    opts.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        opts.mode(0o600);
-    }
-    let mut f = opts.open(caminho)?;
-    f.write_all(conteudo)?;
-    f.sync_all()?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn assina_digest_com_256_bytes_e_verifica() {
-        let dir = std::env::temp_dir().join(format!("dtid-cripto-{}", std::process::id()));
-        let caminho = dir.join("k.pem");
-        let _ = fs::remove_dir_all(&dir);
-        let chave = ChaveInstalacao::carregar_ou_gerar(&caminho).unwrap();
+        let chave = ChaveInstalacao::gerar().unwrap();
 
         // O tamanho importa: a signatureBase64 do servidor tem 256 bytes pelo
         // mesmo motivo (RSA-2048), e é isso que o C_Sign do PKCS#11 devolve.
@@ -220,23 +178,18 @@ mod tests {
         let b = chave.bearer_assinado("mesmo corpo").unwrap();
         assert_eq!(a, b);
         assert_ne!(a, chave.bearer_assinado("outro corpo").unwrap());
-
-        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
-    fn reusa_a_chave_existente_em_vez_de_gerar_outra() {
-        let dir = std::env::temp_dir().join(format!("dtid-reuso-{}", std::process::id()));
-        let caminho = dir.join("k.pem");
-        let _ = fs::remove_dir_all(&dir);
-
-        let pub1 = ChaveInstalacao::carregar_ou_gerar(&caminho).unwrap().publica_pem().unwrap();
-        let pub2 = ChaveInstalacao::carregar_ou_gerar(&caminho).unwrap().publica_pem().unwrap();
-        // Gerar uma chave nova invalidaria o codigoDesktop já registrado.
-        assert_eq!(pub1, pub2);
-        assert!(pub1.starts_with("-----BEGIN PUBLIC KEY-----"));
-
-        let _ = fs::remove_dir_all(&dir);
+    fn chave_gerada_serializa_e_reabre_igual() {
+        // A chave nova sai em PKCS#8 PEM, e reabri-la pelo PEM dá a mesma chave
+        // pública. É o contrato de que a borda de I/O depende para persistir.
+        let chave = ChaveInstalacao::gerar().unwrap();
+        let pem = chave.to_pkcs8_pem().unwrap();
+        assert!(pem.contains("PRIVATE KEY"));
+        let reaberta = ChaveInstalacao::de_pem(&pem).unwrap();
+        assert_eq!(chave.publica_pem().unwrap(), reaberta.publica_pem().unwrap());
+        assert!(chave.publica_pem().unwrap().starts_with("-----BEGIN PUBLIC KEY-----"));
     }
 
     /// Forja um certificado autoassinado com a chave dada, para poder testar a
@@ -288,18 +241,5 @@ mod tests {
         // de parse, o outro seria acusação de assinatura inválida.
         assert!(verificar_com_certificado(b"isto nao e um certificado", &[0u8; 32], &[0u8; 256])
             .is_err());
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn a_chave_nasce_0600() {
-        use std::os::unix::fs::PermissionsExt;
-        let dir = std::env::temp_dir().join(format!("dtid-perm-{}", std::process::id()));
-        let caminho = dir.join("k.pem");
-        let _ = fs::remove_dir_all(&dir);
-        ChaveInstalacao::carregar_ou_gerar(&caminho).unwrap();
-        let modo = fs::metadata(&caminho).unwrap().permissions().mode() & 0o777;
-        assert_eq!(modo, 0o600, "a chave privada não pode nascer legível");
-        let _ = fs::remove_dir_all(&dir);
     }
 }

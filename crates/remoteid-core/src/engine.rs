@@ -86,7 +86,7 @@ impl Motor {
     pub fn abrir(opcoes: Opcoes) -> Result<Motor> {
         let diag = Arc::new(Diag::abrir(&opcoes.dir_diag));
         let estado = Estado::carregar(&state::caminho_estado(&opcoes.dir_dados))?;
-        let chave = ChaveInstalacao::carregar_ou_gerar(&state::caminho_chave(&opcoes.dir_dados))?;
+        let chave = crate::crypto::carregar_ou_gerar(&state::caminho_chave(&opcoes.dir_dados))?;
         let http = Http::novo(Arc::clone(&diag), opcoes.timeout);
 
         diag.evento(

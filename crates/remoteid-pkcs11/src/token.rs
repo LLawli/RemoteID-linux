@@ -70,7 +70,7 @@ impl Token {
         // implementado e vai passar pelo motor.
         let caminho_chave = caminho_chave_teste(&dir);
         if caminho_chave.exists() {
-            match ChaveInstalacao::carregar(&caminho_chave) {
+            match remoteid_core::crypto::carregar(&caminho_chave) {
                 Ok(chave) => token.instalar_chave_teste(chave)?,
                 Err(e) => return Err(format!("chave-assinatura.pem ilegível: {e}")),
             }

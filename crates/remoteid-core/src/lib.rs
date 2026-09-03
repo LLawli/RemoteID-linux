@@ -25,7 +25,6 @@
 pub mod authmode;
 pub mod canonical;
 pub mod config;
-pub mod crypto;
 pub mod diag;
 pub mod engine;
 pub mod http;
@@ -33,10 +32,20 @@ pub mod pkcs7;
 pub mod protocol;
 pub mod state;
 
+mod chave;
+
 // Domínio puro extraído para crates próprios (Fase 1). O core os re-exporta com
 // os nomes de módulo antigos para não quebrar os consumidores enquanto a borda
 // não passa a depender diretamente dos domínios.
 pub use remoteid_tipos as error;
+
+/// Fachada de criptografia: as primitivas puras de [`remoteid_cripto`] mais os
+/// helpers de I/O da chave ([`crate::chave`], futuro adaptador `chave-pem`). O
+/// nome `crypto` é mantido para os consumidores atuais.
+pub mod crypto {
+    pub use crate::chave::{carregar, carregar_ou_gerar};
+    pub use remoteid_cripto::*;
+}
 
 pub use authmode::{Estado as EstadoAuth, Fatores, Modo};
 pub use engine::{Motor, Opcoes};

@@ -18,7 +18,7 @@ use std::time::Duration;
 
 use remoteid_core::authmode::{Fatores, Modo};
 use remoteid_core::canonical::canonical;
-use remoteid_core::crypto::{b64, de_b64, sha256, ChaveInstalacao};
+use remoteid_core::crypto::{b64, de_b64, sha256};
 use remoteid_core::{Motor, Opcoes};
 use serde_json::{json, Value};
 
@@ -200,7 +200,7 @@ fn motor_preparado(amb: &Ambiente, srv: &Servidor) -> Motor {
 
 /// Confere que o Bearer daquela requisição é a assinatura da canônica do corpo.
 fn conferir_bearer(amb: &Ambiente, req: &Requisicao) {
-    let chave = ChaveInstalacao::carregar(
+    let chave = remoteid_core::crypto::carregar(
         &remoteid_core::state::caminho_chave(&amb.dir.join("dados")),
     )
     .unwrap();
