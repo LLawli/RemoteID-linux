@@ -1053,6 +1053,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "remoteid-autorizacao"
+version = "0.1.0"
+
+[[package]]
 name = "remoteid-cli"
 version = "0.1.0"
 dependencies = [
@@ -1068,6 +1072,7 @@ dependencies = [
  "cms",
  "der",
  "rand",
+ "remoteid-autorizacao",
  "remoteid-cripto",
  "remoteid-tipos",
  "rsa",

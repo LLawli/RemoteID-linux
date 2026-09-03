@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 remoteid-tipos = { path = "../remoteid-tipos" }
 remoteid-cripto = { path = "../remoteid-cripto" }
+remoteid-autorizacao = { path = "../remoteid-autorizacao" }
 base64.workspace = true
 rand.workspace = true
 rsa.workspace = true

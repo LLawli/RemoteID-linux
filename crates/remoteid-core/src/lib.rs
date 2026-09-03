@@ -22,7 +22,7 @@
 //! não um PKCS#7. É de propósito: é o contrato que o `C_Sign` do PKCS#11 tem de
 //! cumprir, e é sobre ele que um assinador de PDF monta o CAdES.
 
-pub mod authmode;
+
 pub mod canonical;
 pub mod config;
 pub mod diag;
@@ -38,6 +38,7 @@ mod chave;
 // os nomes de módulo antigos para não quebrar os consumidores enquanto a borda
 // não passa a depender diretamente dos domínios.
 pub use remoteid_tipos as error;
+pub use remoteid_autorizacao as authmode;
 
 /// Fachada de criptografia: as primitivas puras de [`remoteid_cripto`] mais os
 /// helpers de I/O da chave ([`crate::chave`], futuro adaptador `chave-pem`). O
