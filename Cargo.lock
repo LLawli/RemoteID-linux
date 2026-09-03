@@ -1074,6 +1074,7 @@ dependencies = [
  "rand",
  "remoteid-autorizacao",
  "remoteid-cripto",
+ "remoteid-estado",
  "remoteid-tipos",
  "rsa",
  "serde",
@@ -1102,6 +1103,16 @@ version = "0.1.0"
 dependencies = [
  "remoteid-core",
  "remoteid-protocolo",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "remoteid-estado"
+version = "0.1.0"
+dependencies = [
+ "remoteid-autorizacao",
+ "remoteid-tipos",
  "serde",
  "serde_json",
 ]

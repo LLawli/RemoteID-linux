@@ -1,0 +1,16 @@
+[package]
+name = "remoteid-estado"
+description = "Estado da instalação e política de cache de sessão do RemoteID-linux (núcleo puro, sem I/O)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+remoteid-tipos = { path = "../remoteid-tipos" }
+remoteid-autorizacao = { path = "../remoteid-autorizacao" }
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

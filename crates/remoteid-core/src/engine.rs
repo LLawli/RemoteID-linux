@@ -85,7 +85,7 @@ pub struct Motor {
 impl Motor {
     pub fn abrir(opcoes: Opcoes) -> Result<Motor> {
         let diag = Arc::new(Diag::abrir(&opcoes.dir_diag));
-        let estado = Estado::carregar(&state::caminho_estado(&opcoes.dir_dados))?;
+        let estado = state::carregar(&state::caminho_estado(&opcoes.dir_dados))?;
         let chave = crate::crypto::carregar_ou_gerar(&state::caminho_chave(&opcoes.dir_dados))?;
         let http = Http::novo(Arc::clone(&diag), opcoes.timeout);
 
@@ -109,7 +109,7 @@ impl Motor {
     }
 
     pub fn salvar_estado(&self) -> Result<()> {
-        self.estado.salvar(&state::caminho_estado(&self.opcoes.dir_dados))
+        state::salvar(&self.estado, &state::caminho_estado(&self.opcoes.dir_dados))
     }
 
     pub fn chave_publica_pem(&self) -> Result<String> {

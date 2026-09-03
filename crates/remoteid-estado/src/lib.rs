@@ -1,94 +1,22 @@
-//! Estado local da instalação: onde ficam os arquivos e o que persiste.
+//! Estado da instalação e política de cache de sessão (núcleo puro).
 //!
-//! O equivalente do `identity.xml` do app oficial, em JSON. Guarda o que
+//! O equivalente em memória do `identity.xml` do app oficial. Guarda o que
 //! identifica ESTA instalação no RemoteID (`codigoDesktop`), o certificado da
 //! carteira, a política de autorização e o cache do `sessionToken` por
 //! certificado ([`SessaoCache`]). A chave privada mora ao lado, em arquivo
 //! próprio, e nunca entra aqui.
+//!
+//! Aqui não há I/O: a persistência (ler/gravar o `state.json`, resolver os
+//! diretórios XDG) é da borda (a fachada `remoteid_core::state`, futuro
+//! adaptador `store-json`). Este crate é só os tipos e as decisões puras
+//! (política de cache do `sessionToken`, quebra do `keyName`).
 
 use std::collections::BTreeMap;
-use std::fs;
-use std::io::Write;
-use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::authmode::Modo;
-use crate::error::{Error, Result};
-
-/// Diretório de dados: chave da instalação, `state.json` e cache do sessionToken.
-///
-/// A precedência é: `REMOTEID_HOME` (override explícito, útil pra testes e pro
-/// modo de teste do módulo PKCS#11), depois `XDG_STATE_HOME/remoteid` (o
-/// padrão a partir do daemon), depois o fallback `~/.local/state/remoteid`.
-///
-/// Migração automática: se o novo caminho não existir mas o legado
-/// (`XDG_DATA_HOME/remoteid-linux`) existir, o legado é adotado in-place e o
-/// carregador cria um marker `MIGRADO` para lembrar que o dado veio de lá — a
-/// próxima escrita já cai no lugar novo se o usuário decidir mover à mão. Não
-/// copio o diretório sozinho para não dobrar o espaço nem escolher o momento
-/// errado (uma migração no meio de uma assinatura seria terrível).
-/// Diretório do MODO DE TESTE. Um só, em /tmp, para o app, o CLI e o módulo
-/// PKCS#11 relocarem juntos quando `TEST_URL` está setada — assim o teste é UM
-/// interruptor só (`TEST_URL`), sem precisar apontar o Papers com
-/// `REMOTEID_HOME`/`REMOTEID_SOCKET`. Ver [[remoteid-teste-local]].
-pub const DIR_TESTE: &str = "/tmp/remoteid-teste";
-
-/// `true` quando estamos em modo de teste (`TEST_URL` presente). É a presença
-/// da variável que importa; o valor (a URL do mock) só o motor usa.
-pub fn em_teste() -> bool {
-    env_nao_vazia("TEST_URL").is_some()
-}
-
-pub fn dir_dados() -> PathBuf {
-    if em_teste() {
-        return PathBuf::from(DIR_TESTE);
-    }
-    if let Some(h) = env_nao_vazia("REMOTEID_HOME") {
-        return PathBuf::from(h);
-    }
-    let novo = base_xdg("XDG_STATE_HOME", ".local/state").join("remoteid");
-    let legado = base_xdg("XDG_DATA_HOME", ".local/share").join("remoteid-linux");
-    if !novo.exists() && legado.exists() {
-        return legado;
-    }
-    novo
-}
-
-/// Diretório do log de diagnóstico. Fica em `XDG_STATE_HOME` — é isso que a
-/// especificação reserva para log: dado que sobrevive ao reboot, não é
-/// configuração, e pode ser apagado sem perder nada essencial.
-pub fn dir_diag() -> PathBuf {
-    if em_teste() {
-        return PathBuf::from(DIR_TESTE).join("diag");
-    }
-    if let Some(h) = env_nao_vazia("REMOTEID_DIAG_DIR") {
-        return PathBuf::from(h);
-    }
-    base_xdg("XDG_STATE_HOME", ".local/state")
-        .join("remoteid")
-        .join("diag")
-}
-
-fn env_nao_vazia(nome: &str) -> Option<String> {
-    std::env::var(nome).ok().filter(|v| !v.is_empty())
-}
-
-fn base_xdg(var: &str, padrao: &str) -> PathBuf {
-    if let Some(v) = env_nao_vazia(var) {
-        return PathBuf::from(v);
-    }
-    let home = env_nao_vazia("HOME").unwrap_or_else(|| "/tmp".into());
-    PathBuf::from(home).join(padrao)
-}
-
-pub fn caminho_chave(dir: &Path) -> PathBuf {
-    dir.join("installation-key.pem")
-}
-
-pub fn caminho_estado(dir: &Path) -> PathBuf {
-    dir.join("state.json")
-}
+use remoteid_autorizacao::Modo;
+use remoteid_tipos::{Error, Result};
 
 /// Um certificado da carteira.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -248,44 +176,10 @@ fn modo_padrao() -> String {
 }
 
 impl Estado {
-    pub fn carregar(caminho: &Path) -> Result<Estado> {
-        if !caminho.exists() {
-            return Ok(Estado { auth_mode: modo_padrao(), ..Default::default() });
-        }
-        let texto = fs::read_to_string(caminho)?;
-        if texto.trim().is_empty() {
-            return Ok(Estado { auth_mode: modo_padrao(), ..Default::default() });
-        }
-        Ok(serde_json::from_str(&texto)?)
-    }
-
-    /// Grava com 0600: o arquivo tem CPF, nome, certificado do titular e os
-    /// `sessionToken` cached — todos sensíveis.
-    pub fn salvar(&self, caminho: &Path) -> Result<()> {
-        if let Some(pai) = caminho.parent() {
-            fs::create_dir_all(pai)?;
-        }
-        let mut texto = serde_json::to_string_pretty(self)?;
-        texto.push('\n');
-
-        // Escreve em arquivo temporário e renomeia: uma interrupção no meio da
-        // escrita não pode deixar o estado truncado, que é o que faria o
-        // próximo comando perder o codigoDesktop e registrar tudo de novo.
-        let tmp = caminho.with_extension("json.tmp");
-        let mut opts = fs::OpenOptions::new();
-        opts.write(true).create(true).truncate(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            opts.mode(0o600);
-        }
-        {
-            let mut f = opts.open(&tmp)?;
-            f.write_all(texto.as_bytes())?;
-            f.sync_all()?;
-        }
-        fs::rename(&tmp, caminho)?;
-        Ok(())
+    /// Um estado vazio, já no modo de autorização padrão. É o que a borda
+    /// devolve quando não há `state.json` ainda.
+    pub fn novo() -> Estado {
+        Estado { auth_mode: modo_padrao(), ..Default::default() }
     }
 
     pub fn modo(&self) -> Modo {
@@ -420,7 +314,7 @@ mod tests {
 
     #[test]
     fn estado_novo_ja_nasce_no_modo_local() {
-        let e = Estado::carregar(Path::new("/nao/existe/state.json")).unwrap();
+        let e = Estado::novo();
         assert_eq!(e.modo(), Modo::Local);
         assert!(e.codigo_desktop().is_err());
     }
@@ -448,42 +342,18 @@ mod tests {
     }
 
     #[test]
-    fn salva_e_recarrega_preservando_tudo() {
-        let dir = std::env::temp_dir().join(format!("dtid-estado-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        let caminho = caminho_estado(&dir);
-
-        let mut e = Estado::carregar(&caminho).unwrap();
-        e.user_id = Some(327989);
-        e.codigo_desktop = Some("4d1f71d2-c20b-44d0-9bb0-5629015f21e8".into());
-        e.certificados = vec![Certificado::do_key_name("SER;CN=AC", None).unwrap()];
+    fn guardar_e_ler_sessao_preserva_o_epoch_do_token() {
+        // A persistência em disco é testada na borda (remoteid_core::state);
+        // aqui garantimos a parte pura: guardar uma sessão parseia o epoch do
+        // token e o pré-filtro a considera dentro do TTL.
+        let mut e = Estado::default();
         e.guardar_sessao(
             "SER;CN=AC".into(),
             "sessaoAssinatura;327989;CN%3DAC;SER;0;jwt;1756900000;hmac".into(),
             1_756_900_000,
         );
-        e.salvar(&caminho).unwrap();
-
-        let lido = Estado::carregar(&caminho).unwrap();
-        assert_eq!(lido.user_id, Some(327989));
-        assert_eq!(lido.codigo_desktop().unwrap(), "4d1f71d2-c20b-44d0-9bb0-5629015f21e8");
-        assert_eq!(lido.certificado().unwrap().issue, "CN=AC");
-        let s = lido.sessao("SER;CN=AC", 1_756_900_000, 900).unwrap();
+        let s = e.sessao("SER;CN=AC", 1_756_900_000, 900).unwrap();
         assert!(s.token.starts_with("sessaoAssinatura;"));
         assert_eq!(s.emitido_em, Some(1_756_900_000));
-
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let modo = fs::metadata(&caminho).unwrap().permissions().mode() & 0o777;
-            assert_eq!(modo, 0o600, "o estado tem CPF, certificado e sessão: não é público");
-        }
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn dir_dados_respeita_a_variavel_de_ambiente() {
-        // Sem depender do ambiente real do teste: só a precedência declarada.
-        assert!(dir_dados().is_absolute() || dir_dados().starts_with("/tmp"));
     }
 }

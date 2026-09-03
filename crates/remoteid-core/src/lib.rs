@@ -30,9 +30,9 @@ pub mod engine;
 pub mod http;
 pub mod pkcs7;
 pub mod protocol;
-pub mod state;
 
 mod chave;
+mod estado_fs;
 
 // Domínio puro extraído para crates próprios (Fase 1). O core os re-exporta com
 // os nomes de módulo antigos para não quebrar os consumidores enquanto a borda
@@ -46,6 +46,16 @@ pub use remoteid_autorizacao as authmode;
 pub mod crypto {
     pub use crate::chave::{carregar, carregar_ou_gerar};
     pub use remoteid_cripto::*;
+}
+
+/// Fachada de estado: os tipos e a política puros de [`remoteid_estado`] mais os
+/// helpers de I/O ([`crate::estado_fs`]: diretórios, `carregar`/`salvar`, futuro
+/// adaptador `store-json`). O nome `state` é mantido para os consumidores.
+pub mod state {
+    pub use crate::estado_fs::{
+        carregar, caminho_chave, caminho_estado, dir_dados, dir_diag, em_teste, salvar, DIR_TESTE,
+    };
+    pub use remoteid_estado::*;
 }
 
 pub use authmode::{Estado as EstadoAuth, Fatores, Modo};

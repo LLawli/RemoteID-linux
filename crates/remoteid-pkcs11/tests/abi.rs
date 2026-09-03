@@ -75,7 +75,7 @@ fn preparar_estado(der: &[u8], chave_pem: &str) -> std::path::PathBuf {
         .unwrap()],
         ..Default::default()
     };
-    estado.salvar(&caminho_estado(&dir)).unwrap();
+    remoteid_core::state::salvar(&estado, &caminho_estado(&dir)).unwrap();
     std::fs::write(dir.join("chave-assinatura.pem"), chave_pem).unwrap();
     dir
 }

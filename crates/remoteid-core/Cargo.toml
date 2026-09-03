@@ -11,6 +11,7 @@ repository.workspace = true
 remoteid-tipos = { path = "../remoteid-tipos" }
 remoteid-cripto = { path = "../remoteid-cripto" }
 remoteid-autorizacao = { path = "../remoteid-autorizacao" }
+remoteid-estado = { path = "../remoteid-estado" }
 base64.workspace = true
 rand.workspace = true
 rsa.workspace = true

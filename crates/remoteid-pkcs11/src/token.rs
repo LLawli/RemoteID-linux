@@ -46,7 +46,7 @@ impl Token {
     pub fn carregar() -> Result<Option<Token>, String> {
         let dir = remoteid_core::state::dir_dados();
         let caminho = remoteid_core::state::caminho_estado(&dir);
-        let estado = remoteid_core::state::Estado::carregar(&caminho)
+        let estado = remoteid_core::state::carregar(&caminho)
             .map_err(|e| format!("state.json ilegível: {e}"))?;
 
         let Some(cert) = estado.certificados.first() else {
