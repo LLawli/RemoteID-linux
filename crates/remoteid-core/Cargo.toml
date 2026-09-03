@@ -20,6 +20,8 @@ remoteid-redacao = { path = "../remoteid-redacao" }
 remoteid-diag-jsonl = { path = "../remoteid-diag-jsonl" }
 remoteid-http = { path = "../remoteid-http" }
 remoteid-portas = { path = "../remoteid-portas" }
+remoteid-relogio-sistema = { path = "../remoteid-relogio-sistema" }
+remoteid-ambiente-sistema = { path = "../remoteid-ambiente-sistema" }
 base64.workspace = true
 rand.workspace = true
 rsa.workspace = true

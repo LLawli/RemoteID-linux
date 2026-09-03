@@ -20,7 +20,7 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use serde_json::Value;
 
@@ -471,35 +471,23 @@ fn texto(v: &Value, chave: &str) -> Option<String> {
     v.get(chave).and_then(|x| x.as_str()).map(str::to_string)
 }
 
+// Fatos de host e relógio moram nos adaptadores de borda (fonte única); o motor
+// só delega, até a Fase 3 injetá-los como portas. Instanciar o adaptador aqui é
+// barato: ambos são structs sem estado.
 fn agora() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
+    use remoteid_portas::Relogio;
+    remoteid_relogio_sistema::RelogioSistema.agora()
 }
 
 fn usuario_local() -> String {
-    std::env::var("USER")
-        .or_else(|_| std::env::var("LOGNAME"))
-        .unwrap_or_else(|_| "linux".into())
+    use remoteid_portas::Ambiente;
+    remoteid_ambiente_sistema::AmbienteSistema.usuario_local()
 }
 
 /// Hostname para `dominioRede`, que NÃO pode ir vazio.
 fn dominio_rede() -> String {
-    // Sem dependência de libc: no Linux o kernel expõe o hostname em sysfs.
-    let candidatos = ["/proc/sys/kernel/hostname", "/etc/hostname"];
-    for c in candidatos {
-        if let Ok(txt) = std::fs::read_to_string(c) {
-            let nome = txt.trim();
-            if !nome.is_empty() {
-                return nome.to_string();
-            }
-        }
-    }
-    std::env::var("HOSTNAME")
-        .ok()
-        .filter(|h| !h.is_empty())
-        .unwrap_or_else(|| "linux".into())
+    use remoteid_portas::Ambiente;
+    remoteid_ambiente_sistema::AmbienteSistema.hostname()
 }
 
 #[cfg(test)]

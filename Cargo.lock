@@ -1053,6 +1053,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "remoteid-ambiente-sistema"
+version = "0.1.0"
+dependencies = [
+ "remoteid-portas",
+]
+
+[[package]]
 name = "remoteid-assinatura"
 version = "0.1.0"
 dependencies = [
@@ -1092,6 +1099,7 @@ dependencies = [
  "cms",
  "der",
  "rand",
+ "remoteid-ambiente-sistema",
  "remoteid-assinatura",
  "remoteid-autorizacao",
  "remoteid-chave-pem",
@@ -1102,6 +1110,7 @@ dependencies = [
  "remoteid-portas",
  "remoteid-protocolo-servidor",
  "remoteid-redacao",
+ "remoteid-relogio-sistema",
  "remoteid-store-json",
  "remoteid-tipos",
  "rsa",
@@ -1236,6 +1245,13 @@ version = "0.1.0"
 dependencies = [
  "remoteid-cripto",
  "serde_json",
+]
+
+[[package]]
+name = "remoteid-relogio-sistema"
+version = "0.1.0"
+dependencies = [
+ "remoteid-portas",
 ]
 
 [[package]]

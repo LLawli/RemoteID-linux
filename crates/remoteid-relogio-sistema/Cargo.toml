@@ -1,0 +1,11 @@
+[package]
+name = "remoteid-relogio-sistema"
+description = "Adaptador de relógio do sistema do RemoteID-linux — implementa Relogio"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+remoteid-portas = { path = "../remoteid-portas" }

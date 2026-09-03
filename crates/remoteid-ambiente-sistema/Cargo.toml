@@ -1,0 +1,11 @@
+[package]
+name = "remoteid-ambiente-sistema"
+description = "Adaptador de fatos do ambiente (hostname, usuário local) do RemoteID-linux — implementa Ambiente"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+remoteid-portas = { path = "../remoteid-portas" }
