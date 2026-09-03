@@ -21,25 +21,30 @@
 //! [`engine::Motor::assinar_digest`] entrega o bloco RSA **cru** de 256 bytes,
 //! não um PKCS#7. É de propósito: é o contrato que o `C_Sign` do PKCS#11 tem de
 //! cumprir, e é sobre ele que um assinador de PDF monta o CAdES.
+//!
+//! # O que ficou aqui, e o que saiu
+//!
+//! Depois da Fase 1 este crate é a **casca imperativa**: o [`engine`]
+//! (orquestração), o [`http`] (transporte) e o [`diag`] (log). O domínio puro
+//! foi extraído para crates próprios ([`remoteid_tipos`], [`remoteid_cripto`],
+//! [`remoteid_autorizacao`], [`remoteid_estado`], [`remoteid_assinatura`],
+//! [`remoteid_protocolo_servidor`]); o core os re-exporta com os nomes de módulo
+//! antigos (`error`, `crypto`, `authmode`, `pkcs7`, `state`, `canonical`,
+//! `config`, `protocol`) para os consumidores não mudarem enquanto a borda não
+//! depende dos domínios diretamente. O I/O de disco vive nas fachadas
+//! [`crate::crypto`] e [`crate::state`] (sementes dos adaptadores da Fase 2).
 
-
-pub mod canonical;
-pub mod config;
 pub mod diag;
 pub mod engine;
 pub mod http;
 
-pub mod protocol;
-
 mod chave;
 mod estado_fs;
 
-// Domínio puro extraído para crates próprios (Fase 1). O core os re-exporta com
-// os nomes de módulo antigos para não quebrar os consumidores enquanto a borda
-// não passa a depender diretamente dos domínios.
 pub use remoteid_tipos as error;
 pub use remoteid_autorizacao as authmode;
 pub use remoteid_assinatura as pkcs7;
+pub use remoteid_protocolo_servidor::{canonical, config, protocol};
 
 /// Fachada de criptografia: as primitivas puras de [`remoteid_cripto`] mais os
 /// helpers de I/O da chave ([`crate::chave`], futuro adaptador `chave-pem`). O

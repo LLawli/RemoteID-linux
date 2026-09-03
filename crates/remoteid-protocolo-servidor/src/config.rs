@@ -16,7 +16,7 @@
 //! importa para o caminho push, porque prova que não existe endpoint de
 //! polling ("isDone") do lado do RemoteID — ver [`crate::authmode`].
 
-use crate::error::Origem;
+use remoteid_tipos::Origem;
 
 pub const CERTINEXT_URL: &str = "https://certinext.certisign.com.br";
 pub const CERTINEXT_BASE: &str = "/CertisignerServices";

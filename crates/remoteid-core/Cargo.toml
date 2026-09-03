@@ -13,6 +13,7 @@ remoteid-cripto = { path = "../remoteid-cripto" }
 remoteid-autorizacao = { path = "../remoteid-autorizacao" }
 remoteid-estado = { path = "../remoteid-estado" }
 remoteid-assinatura = { path = "../remoteid-assinatura" }
+remoteid-protocolo-servidor = { path = "../remoteid-protocolo-servidor" }
 base64.workspace = true
 rand.workspace = true
 rsa.workspace = true

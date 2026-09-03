@@ -16,8 +16,8 @@
 
 use serde_json::{json, Value};
 
-use crate::authmode::Fatores;
-use crate::state::Certificado;
+use remoteid_autorizacao::Fatores;
+use remoteid_estado::Certificado;
 
 /// `POST /api/manager/usuarios/login/usrsenha`
 ///

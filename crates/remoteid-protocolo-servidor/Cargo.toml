@@ -1,0 +1,17 @@
+[package]
+name = "remoteid-protocolo-servidor"
+description = "Protocolo do servidor RemoteID (FECHADO): payloads, endpoints, canonicalização, classificação de erros. Paridade byte a byte com o app oficial."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+remoteid-tipos = { path = "../remoteid-tipos" }
+remoteid-autorizacao = { path = "../remoteid-autorizacao" }
+remoteid-estado = { path = "../remoteid-estado" }
+serde_json.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
