@@ -63,8 +63,8 @@ use x509_cert::spki::AlgorithmIdentifierOwned;
 use x509_cert::time::Time;
 use x509_cert::Certificate;
 
-use crate::crypto::sha256;
-use crate::error::{Error, Result};
+use remoteid_cripto::sha256;
+use remoteid_tipos::{Error, Result};
 
 // Os OIDs vão literais em vez de virem do banco do `const_oid`: são oito, não
 // mudam nunca, e escritos aqui dá para conferir cada um contra a RFC sem sair

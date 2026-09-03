@@ -1053,6 +1053,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "remoteid-assinatura"
+version = "0.1.0"
+dependencies = [
+ "cms",
+ "der",
+ "remoteid-cripto",
+ "remoteid-tipos",
+ "x509-cert",
+]
+
+[[package]]
 name = "remoteid-autorizacao"
 version = "0.1.0"
 
@@ -1072,6 +1083,7 @@ dependencies = [
  "cms",
  "der",
  "rand",
+ "remoteid-assinatura",
  "remoteid-autorizacao",
  "remoteid-cripto",
  "remoteid-estado",

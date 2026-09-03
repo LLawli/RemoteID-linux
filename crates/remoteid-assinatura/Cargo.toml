@@ -1,0 +1,15 @@
+[package]
+name = "remoteid-assinatura"
+description = "Envelope PKCS#7 / CAdES-BES do RemoteID-linux (núcleo puro)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+remoteid-tipos = { path = "../remoteid-tipos" }
+remoteid-cripto = { path = "../remoteid-cripto" }
+cms.workspace = true
+der.workspace = true
+x509-cert.workspace = true

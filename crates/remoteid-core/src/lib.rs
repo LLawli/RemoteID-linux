@@ -28,7 +28,7 @@ pub mod config;
 pub mod diag;
 pub mod engine;
 pub mod http;
-pub mod pkcs7;
+
 pub mod protocol;
 
 mod chave;
@@ -39,6 +39,7 @@ mod estado_fs;
 // não passa a depender diretamente dos domínios.
 pub use remoteid_tipos as error;
 pub use remoteid_autorizacao as authmode;
+pub use remoteid_assinatura as pkcs7;
 
 /// Fachada de criptografia: as primitivas puras de [`remoteid_cripto`] mais os
 /// helpers de I/O da chave ([`crate::chave`], futuro adaptador `chave-pem`). O
