@@ -1,0 +1,120 @@
+# Publicação, disparada SÓ por tag semântica. O CI (ci.yml) roda a cada push;
+# aqui é o outro ciclo: compila uma vez por plataforma e reempacota.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  construir:
+    name: compilar ${{ matrix.alvo }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            alvo: x86_64-linux
+          - runner: ubuntu-24.04-arm
+            alvo: aarch64-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      # A tag manda, mas ela não pode divergir do Cargo.toml: uma release
+      # v0.2.0 com binário que se diz 0.1.0 é confusão garantida no bug report.
+      - name: conferir que a tag bate com o Cargo.toml
+        run: |
+          VERSAO_TAG="${GITHUB_REF_NAME#v}"
+          VERSAO_CARGO="$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)"
+          if [ "$VERSAO_TAG" != "$VERSAO_CARGO" ]; then
+            echo "tag $GITHUB_REF_NAME diz $VERSAO_TAG, Cargo.toml diz $VERSAO_CARGO" >&2
+            exit 1
+          fi
+          echo "versão $VERSAO_TAG confirmada"
+
+      # Só a CLI e o módulo PKCS#11 são distribuídos como binário. O app GTK
+      # fica de fora de propósito: ele depende de GTK4/Libadwaita do sistema, e
+      # binário solto sem essas libs só geraria relatório de erro.
+      - name: compilar
+        run: cargo build --release --locked -p remoteid-cli -p remoteid-pkcs11
+
+      - name: empacotar
+        run: |
+          set -eu
+          VERSAO="${GITHUB_REF_NAME#v}"
+          ALVO="${{ matrix.alvo }}"
+          PACOTE="remoteid-linux-$VERSAO-$ALVO"
+          mkdir -p "dist/$PACOTE"
+          cp target/release/remoteid "dist/$PACOTE/"
+          cp target/release/libremoteid_pkcs11.so "dist/$PACOTE/"
+          cp README.md LICENSE CHANGELOG.md "dist/$PACOTE/"
+          tar -czf "dist/$PACOTE.tar.gz" -C dist "$PACOTE"
+          # O binário solto também vai, com o nome que o install.sh busca:
+          # `remoteid-<alvo>`. Mudar este nome quebra o `curl | sh` do README.
+          cp target/release/remoteid "dist/remoteid-$ALVO"
+          cd dist
+          sha256sum "$PACOTE.tar.gz" "remoteid-$ALVO" > "SHA256SUMS-$ALVO"
+          cat "SHA256SUMS-$ALVO"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.alvo }}
+          path: |
+            dist/*.tar.gz
+            dist/remoteid-*-linux
+            dist/SHA256SUMS-*
+          if-no-files-found: error
+
+  publicar:
+    name: publicar a release
+    needs: construir
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artefatos
+          merge-multiple: true
+
+      # Release sem nota é release que ninguém sabe o que mudou: se a seção da
+      # versão não existe no CHANGELOG, o job falha em vez de publicar vazio.
+      - name: extrair as notas do CHANGELOG
+        run: |
+          set -eu
+          VERSAO="${GITHUB_REF_NAME#v}"
+          awk -v ver="$VERSAO" '
+            $0 ~ "^## \\[" ver "\\]" { dentro = 1; next }
+            dentro && /^## \[/       { exit }
+            dentro                   { print }
+          ' CHANGELOG.md > notas.md
+          if [ ! -s notas.md ]; then
+            echo "CHANGELOG.md não tem a seção [## $VERSAO]" >&2
+            exit 1
+          fi
+          cat notas.md
+
+      - name: juntar os checksums
+        run: |
+          set -eu
+          cd artefatos
+          cat SHA256SUMS-* | sort -k2 > SHA256SUMS
+          rm -f SHA256SUMS-*
+          cat SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          body_path: notas.md
+          files: |
+            artefatos/*.tar.gz
+            artefatos/remoteid-*-linux
+            artefatos/SHA256SUMS
+          fail_on_unmatched_files: true

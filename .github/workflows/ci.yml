@@ -1,0 +1,65 @@
+# Gates a cada push e pull request. Release é outro ciclo (release.yml), que só
+# dispara em tag: aqui nada é publicado.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  verificacao:
+    name: testes, clippy e build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # A crate do app precisa de GTK4 e Libadwaita de desenvolvimento. Só
+      # ela: a CLI e o módulo PKCS#11 compilam sem nada disso.
+      - name: dependências de sistema (GTK4 + Libadwaita)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo test --workspace --locked
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo build --release --locked
+
+  integracao:
+    name: gate PKCS#11 ponta a ponta
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # `pkcs11-tool` vem do opensc: é o hospedeiro PKCS#11 de verdade que o
+      # gate usa para carregar o nosso módulo. Sem GTK aqui de propósito — o
+      # gate roda headless, com o `servidor-fixo` no lugar da janela.
+      - name: opensc (pkcs11-tool)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y opensc
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: tools/teste-integracao-pkcs11.sh
+
+  segredos:
+    name: auditoria de segredos
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: tools/auditar-segredos.sh
+
+  dependencias:
+    name: cargo audit (RustSec)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,6 +1,6 @@
 # RemoteID-linux — atalhos de desenvolvimento.
 
-.PHONY: preview app teste-local teste-integracao build release test clippy check help
+.PHONY: preview app teste-local teste-integracao auditar build release test clippy check help
 
 help:
 	@echo "Alvos:"
@@ -8,6 +8,7 @@ help:
 	@echo "  make app          roda o app unificado (janela + servidor do socket no mesmo processo)"
 	@echo "  make teste-local  sobe o servidor RemoteID FALSO + conta de teste em /tmp"
 	@echo "  make teste-integracao  gate ponta a ponta: pkcs11-tool → módulo → socket → mock"
+	@echo "  make auditar      reprova se algum segredo escapou para arquivo versionado"
 	@echo "  make build        compila o workspace (debug)"
 	@echo "  make release      compila o workspace (release)"
 	@echo "  make test         cargo test"
@@ -33,6 +34,10 @@ teste-local:
 # `teste-local` no ar (os dois usam /tmp/remoteid-teste).
 teste-integracao:
 	tools/teste-integracao-pkcs11.sh
+
+# Barreira de publicação: PIN/OTP/token/chave/estado em arquivo versionado.
+auditar:
+	tools/auditar-segredos.sh
 
 build:
 	cargo build
