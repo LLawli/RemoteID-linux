@@ -12,6 +12,29 @@ que ninguém sabe o que mudou.
 
 ## [Não publicado]
 
+## [0.1.2] - 2026-09-04
+
+### Corrigido
+
+- **Assinatura em fluxo no módulo PKCS#11** (issue #7). `C_SignUpdate` e
+  `C_SignFinal` não eram implementados, e quem assina em fluxo nunca chama
+  `C_Sign`: o BouncyCastle escreve o documento num
+  `SignatureUpdatingOutputStream`, que vira `C_SignInit` → `C_SignUpdate`(n) →
+  `C_SignFinal`. Na prática, o **PJeOffice** recebia
+  `CKR_FUNCTION_NOT_SUPPORTED` no primeiro `update` e não conseguia assinar.
+
+  `C_SignUpdate` agora acumula os pedaços na sessão e `C_SignFinal` assina o
+  acumulado, pelo mesmo caminho de assinatura do `C_Sign` — a assinatura sai
+  idêntica para o mesmo conteúdo. Sem `C_SignInit` antes, ambos devolvem
+  `CKR_OPERATION_NOT_INITIALIZED`; depois do `C_SignFinal` a operação termina,
+  dê certo ou não.
+
+### Interno
+
+- `make check` passou a espelhar o job do CI (`cargo fmt --all --check`, testes,
+  clippy com `-D warnings` e build de release). Antes o alvo local aprovava o
+  que o CI reprovava, e a divergência apareceu num pull request.
+
 ## [0.1.1] - 2026-09-04
 
 Torna o projeto instalável como aplicativo de verdade: ele agora tem ícone,
