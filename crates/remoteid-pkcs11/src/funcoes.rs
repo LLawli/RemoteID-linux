@@ -756,13 +756,79 @@ pub unsafe extern "C" fn C_SignInit(
         if sessao.assinatura.is_some() {
             return CKR_OPERATION_ACTIVE;
         }
-        sessao.assinatura = Some(crate::EstadoAssinatura {
-            mecanismo: mecanismo.mechanism,
-            chave: hKey,
-        });
+        sessao.assinatura = Some(crate::EstadoAssinatura::novo(mecanismo.mechanism, hKey));
         CKR_OK
     })
 }
+/// Tamanho da assinatura: RSA-2048 sempre devolve 256 bytes, e é o único
+/// tamanho que o RemoteID emite e que este módulo publica.
+const N_BYTES_ASSINATURA: usize = 256;
+
+/// A parte do protocolo de saída que `C_Sign` e `C_SignFinal` têm IGUAL.
+///
+/// O Cryptoki manda responder só o tamanho quando o buffer vem nulo, e recusar
+/// quando vem pequeno — e nos dois casos a operação continua ATIVA, para o
+/// hospedeiro chamar de novo com espaço. Errar isso faz o host perder a
+/// assinatura no meio.
+///
+/// `Err(rv)` quer dizer "já respondi, retorne isto sem tocar no estado".
+unsafe fn conferir_buffer_de_saida(
+    pSignature: *mut CK_BYTE,
+    pulSignatureLen: *mut CK_ULONG,
+) -> Result<(), CK_RV> {
+    if pulSignatureLen.is_null() {
+        return Err(CKR_ARGUMENTS_BAD);
+    }
+    if pSignature.is_null() {
+        *pulSignatureLen = N_BYTES_ASSINATURA as CK_ULONG;
+        return Err(CKR_OK);
+    }
+    if (*pulSignatureLen as usize) < N_BYTES_ASSINATURA {
+        *pulSignatureLen = N_BYTES_ASSINATURA as CK_ULONG;
+        return Err(CKR_BUFFER_TOO_SMALL);
+    }
+    Ok(())
+}
+
+/// Assina `dados` e entrega no buffer do hospedeiro.
+///
+/// NÃO mexe no estado da sessão: quem chama decide quando a operação acaba,
+/// porque a regra é diferente entre os dois caminhos.
+unsafe fn assinar_para_buffer(
+    token: &Token,
+    mecanismo: CK_MECHANISM_TYPE,
+    dados: &[u8],
+    pSignature: *mut CK_BYTE,
+    pulSignatureLen: *mut CK_ULONG,
+) -> CK_RV {
+    let assinatura = match assinar(token, mecanismo, dados) {
+        Ok(v) => v,
+        Err(rv) => return rv,
+    };
+    // O RSA-2048 sempre devolve 256 bytes: se não deu isto, é bug e o
+    // hospedeiro vai rejeitar mais adiante mesmo assim.
+    if assinatura.len() != N_BYTES_ASSINATURA {
+        return CKR_FUNCTION_FAILED;
+    }
+    std::ptr::copy_nonoverlapping(assinatura.as_ptr(), pSignature, N_BYTES_ASSINATURA);
+    *pulSignatureLen = N_BYTES_ASSINATURA as CK_ULONG;
+    CKR_OK
+}
+
+/// Lê um bloco que o hospedeiro passou como ponteiro + comprimento.
+///
+/// Comprimento zero é chamada legítima (o `C_SignUpdate` recebe isso), e aí o
+/// ponteiro pode ser nulo sem que seja erro.
+unsafe fn bloco_do_host<'a>(p: *mut CK_BYTE, n: CK_ULONG) -> Result<&'a [u8], CK_RV> {
+    if n == 0 {
+        return Ok(&[]);
+    }
+    if p.is_null() {
+        return Err(CKR_ARGUMENTS_BAD);
+    }
+    Ok(std::slice::from_raw_parts(p as *const u8, n as usize))
+}
+
 
 /// Assinatura de uma parte só (o que o poppler faz ao assinar PDF).
 ///
@@ -784,60 +850,26 @@ pub unsafe extern "C" fn C_Sign(
         let Some(sessao) = modulo.sessoes.get(&hSession) else {
             return CKR_SESSION_HANDLE_INVALID;
         };
-        if sessao.assinatura.is_none() {
+        let Some(estado) = sessao.assinatura.as_ref() else {
             return CKR_OPERATION_NOT_INITIALIZED;
-        }
-        if pulSignatureLen.is_null() {
-            return CKR_ARGUMENTS_BAD;
+        };
+        let mecanismo = estado.mecanismo;
+
+        // Consulta de tamanho e buffer pequeno NÃO consomem a operação.
+        if let Err(rv) = conferir_buffer_de_saida(pSignature, pulSignatureLen) {
+            return rv;
         }
 
         let Some(token) = modulo.token.as_ref() else {
             return CKR_TOKEN_NOT_PRESENT;
         };
-        // 256 bytes para chave de 2048 bits (o único tamanho que o RemoteID
-        // usa e o único que este módulo publica).
-        const N_BYTES: usize = 256;
-
-        // Consulta de tamanho: ainda não consome o estado da assinatura,
-        // exatamente como manda a especificação.
-        if pSignature.is_null() {
-            *pulSignatureLen = N_BYTES as CK_ULONG;
-            return CKR_OK;
-        }
-        if (*pulSignatureLen as usize) < N_BYTES {
-            *pulSignatureLen = N_BYTES as CK_ULONG;
-            return CKR_BUFFER_TOO_SMALL;
-        }
-
-        // Só agora a operação é consumida.
-        let dados = if ulDataLen == 0 {
-            &[][..]
-        } else {
-            if pData.is_null() {
-                return CKR_ARGUMENTS_BAD;
-            }
-            std::slice::from_raw_parts(pData as *const u8, ulDataLen as usize)
-        };
         // CKM_RSA_PKCS aceita até `k - 11` bytes (com k = tamanho do módulo);
         // CKM_SHA256_RSA_PKCS não tem esse limite, hasheamos primeiro.
-
-        let mecanismo = sessao
-            .assinatura
-            .as_ref()
-            .expect("conferido acima")
-            .mecanismo;
-        let assinatura = match assinar(token, mecanismo, dados) {
-            Ok(v) => v,
+        let dados = match bloco_do_host(pData, ulDataLen) {
+            Ok(d) => d,
             Err(rv) => return rv,
         };
-        // O RSA-2048 sempre devolve 256 bytes: se não deu isto, é bug e o
-        // hospedeiro vai rejeitar mais adiante mesmo assim.
-        if assinatura.len() != N_BYTES {
-            return CKR_FUNCTION_FAILED;
-        }
-
-        std::ptr::copy_nonoverlapping(assinatura.as_ptr(), pSignature, N_BYTES);
-        *pulSignatureLen = N_BYTES as CK_ULONG;
+        let rv = assinar_para_buffer(token, mecanismo, dados, pSignature, pulSignatureLen);
 
         // Consumida: uma sessão só pode ter uma assinatura em andamento.
         modulo
@@ -845,7 +877,100 @@ pub unsafe extern "C" fn C_Sign(
             .get_mut(&hSession)
             .expect("sessão conferida")
             .assinatura = None;
+        rv
+    })
+}
+
+/// Junta mais um pedaço do que será assinado (assinatura em FLUXO).
+///
+/// Existe porque quem assina em fluxo nunca chama `C_Sign`: o BouncyCastle
+/// escreve o documento num `SignatureUpdatingOutputStream`, que vira
+/// `C_SignInit` → `C_SignUpdate`(n) → `C_SignFinal`. Sem isto, o PJeOffice
+/// recebe `CKR_FUNCTION_NOT_SUPPORTED` no primeiro `update` e não assina.
+///
+/// # Safety
+/// `pPart` tem de apontar para `ulPartLen` bytes válidos, ou ser nulo com
+/// comprimento zero.
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern "C" fn C_SignUpdate(
+    hSession: CK_SESSION_HANDLE,
+    pPart: *mut CK_BYTE,
+    ulPartLen: CK_ULONG,
+) -> CK_RV {
+    entrada!({
+        let mut guarda = trava();
+        let Some(modulo) = guarda.as_mut() else {
+            return CKR_CRYPTOKI_NOT_INITIALIZED;
+        };
+        let Some(sessao) = modulo.sessoes.get_mut(&hSession) else {
+            return CKR_SESSION_HANDLE_INVALID;
+        };
+        // O estado é POR SESSÃO: `C_SignUpdate` sem `C_SignInit` antes não é
+        // erro de argumento, é operação não iniciada.
+        let Some(estado) = sessao.assinatura.as_mut() else {
+            return CKR_OPERATION_NOT_INITIALIZED;
+        };
+        let pedaco = match bloco_do_host(pPart, ulPartLen) {
+            Ok(d) => d,
+            Err(rv) => return rv,
+        };
+        estado.acumular(pedaco);
         CKR_OK
+    })
+}
+
+/// Fecha a assinatura em fluxo: assina tudo o que o `C_SignUpdate` juntou.
+///
+/// Sobre o acumulado faz exatamente o que o `C_Sign` faz sobre o bloco único —
+/// é o mesmo `assinar_para_buffer`, para os dois caminhos não divergirem.
+///
+/// # Safety
+/// `pSignature`/`pulSignatureLen` seguem o protocolo de duas passadas do
+/// Cryptoki, igual ao `C_Sign`.
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern "C" fn C_SignFinal(
+    hSession: CK_SESSION_HANDLE,
+    pSignature: *mut CK_BYTE,
+    pulSignatureLen: *mut CK_ULONG,
+) -> CK_RV {
+    entrada!({
+        let mut guarda = trava();
+        let Some(modulo) = guarda.as_mut() else {
+            return CKR_CRYPTOKI_NOT_INITIALIZED;
+        };
+        let Some(sessao) = modulo.sessoes.get(&hSession) else {
+            return CKR_SESSION_HANDLE_INVALID;
+        };
+        let Some(estado) = sessao.assinatura.as_ref() else {
+            return CKR_OPERATION_NOT_INITIALIZED;
+        };
+        let mecanismo = estado.mecanismo;
+
+        // Igual ao `C_Sign`: consulta de tamanho e buffer pequeno deixam a
+        // operação ativa, para o hospedeiro voltar com espaço.
+        if let Err(rv) = conferir_buffer_de_saida(pSignature, pulSignatureLen) {
+            return rv;
+        }
+
+        let Some(token) = modulo.token.as_ref() else {
+            return CKR_TOKEN_NOT_PRESENT;
+        };
+        // Cópia proposital: o acumulado sai da mesma estrutura que é limpa logo
+        // abaixo, e assinar empresta o token.
+        let dados = estado.acumulado().to_vec();
+        let rv = assinar_para_buffer(token, mecanismo, &dados, pSignature, pulSignatureLen);
+
+        // A operação acaba aqui, tenha dado certo ou não: a especificação diz
+        // que depois do `C_SignFinal` (ou de um erro) a sessão volta ao normal,
+        // e um segundo `C_SignFinal` é `CKR_OPERATION_NOT_INITIALIZED`.
+        modulo
+            .sessoes
+            .get_mut(&hSession)
+            .expect("sessão conferida")
+            .assinatura = None;
+        rv
     })
 }
 

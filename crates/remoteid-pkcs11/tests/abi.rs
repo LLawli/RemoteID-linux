@@ -490,6 +490,72 @@ fn o_nss_consegue_chegar_ao_certificado_pelo_abi() {
             CKR_OPERATION_NOT_INITIALIZED
         );
 
+        // --- assinatura em FLUXO: C_SignInit → C_SignUpdate(n) → C_SignFinal ---
+        //
+        // É o caminho que o BouncyCastle usa, e portanto o PJeOffice: ele
+        // escreve o documento num `SignatureUpdatingOutputStream` e NUNCA chama
+        // `C_Sign`. Enquanto isto não existia, o `update` devolvia
+        // `CKR_FUNCTION_NOT_SUPPORTED` e não dava para assinar (issue #7).
+
+        // Sem `C_SignInit` antes, os dois são operação não iniciada — e não
+        // erro de argumento.
+        assert_eq!(
+            lista.C_SignUpdate.unwrap()(sessao, digestinfo.as_mut_ptr(), 4),
+            CKR_OPERATION_NOT_INITIALIZED
+        );
+        assert_eq!(
+            lista.C_SignFinal.unwrap()(sessao, assinatura.as_mut_ptr(), &mut tam_ass),
+            CKR_OPERATION_NOT_INITIALIZED
+        );
+
+        assert_eq!(lista.C_SignInit.unwrap()(sessao, &mut mec, chave), CKR_OK);
+
+        // Em pedaços pequenos, como um hospedeiro que escreve um stream faz.
+        for pedaco in digestinfo.chunks_mut(7) {
+            let n = pedaco.len() as CK_ULONG;
+            assert_eq!(
+                lista.C_SignUpdate.unwrap()(sessao, pedaco.as_mut_ptr(), n),
+                CKR_OK
+            );
+        }
+        // Pedaço vazio é chamada legítima e não pode atrapalhar.
+        assert_eq!(
+            lista.C_SignUpdate.unwrap()(sessao, std::ptr::null_mut(), 0),
+            CKR_OK
+        );
+
+        // Consulta de tamanho no `C_SignFinal` não consome a operação.
+        let mut tam_consulta: CK_ULONG = 0;
+        assert_eq!(
+            lista.C_SignFinal.unwrap()(sessao, std::ptr::null_mut(), &mut tam_consulta),
+            CKR_OK
+        );
+        assert_eq!(tam_consulta, 256);
+
+        let mut ass_fluxo = vec![0u8; 256];
+        let mut tam_fluxo: CK_ULONG = 256;
+        assert_eq!(
+            lista.C_SignFinal.unwrap()(sessao, ass_fluxo.as_mut_ptr(), &mut tam_fluxo),
+            CKR_OK
+        );
+        assert_eq!(tam_fluxo, 256);
+
+        // O que prova o conserto: assinar em fluxo dá o MESMO resultado que
+        // assinar de um tiro só sobre os mesmos bytes.
+        assert_eq!(
+            ass_fluxo, assinatura,
+            "C_SignFinal divergiu do C_Sign sobre o mesmo conteúdo"
+        );
+        pubkey
+            .verify(Pkcs1v15Sign::new::<Sha256>(), &hash, &ass_fluxo)
+            .expect("a assinatura em fluxo tem de fechar contra a chave pública");
+
+        // Depois do `C_SignFinal` a sessão volta ao normal: um segundo é erro.
+        assert_eq!(
+            lista.C_SignFinal.unwrap()(sessao, ass_fluxo.as_mut_ptr(), &mut tam_fluxo),
+            CKR_OPERATION_NOT_INITIALIZED
+        );
+
         assert_eq!(lista.C_Logout.unwrap()(sessao), CKR_OK);
         assert_eq!(lista.C_Logout.unwrap()(sessao), CKR_USER_NOT_LOGGED_IN);
 
