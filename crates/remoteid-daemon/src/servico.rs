@@ -136,10 +136,15 @@ impl Servico {
         let certificados: Vec<CertificadoResumo> = e
             .certificados
             .iter()
-            .map(|c| CertificadoResumo {
-                key_name: c.key_name.clone(),
-                serial_number: c.serial_number.clone(),
-                issue: c.issue.clone(),
+            .map(|c| {
+                let (validade, ous) = extrair_validade_e_ous(&c.issue, c.base64.as_deref());
+                CertificadoResumo {
+                    key_name: c.key_name.clone(),
+                    serial_number: c.serial_number.clone(),
+                    issue: c.issue.clone(),
+                    ous,
+                    validade,
+                }
             })
             .collect();
         let sessoes: Vec<SessaoResumo> = e
@@ -242,4 +247,49 @@ fn clonar_opcoes(o: &Opcoes) -> Opcoes {
         timeout: o.timeout,
         ttl_sessao_hipotetico_s: o.ttl_sessao_hipotetico_s,
     }
+}
+
+fn extrair_validade_e_ous(issue: &str, base64_der: Option<&str>) -> (Option<String>, Vec<String>) {
+    let mut ous = Vec::new();
+    let mut validade = None;
+
+    if let Some(b64) = base64_der {
+        if let Ok(der) = remoteid_cripto::de_b64(b64) {
+            use der::Decode;
+            if let Ok(cert) = x509_cert::Certificate::from_der(&der) {
+                let not_after = cert.tbs_certificate.validity.not_after.to_date_time();
+                validade = Some(format!(
+                    "{:02}/{:02}/{:04}",
+                    not_after.day(),
+                    not_after.month(),
+                    not_after.year()
+                ));
+
+                let subject_str = cert.tbs_certificate.subject.to_string();
+                for parte in subject_str.split(',') {
+                    let p = parte.trim();
+                    if let Some(ou) = p.strip_prefix("OU=") {
+                        let val = ou.trim().to_string();
+                        if !val.is_empty() && !ous.contains(&val) {
+                            ous.push(val);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if ous.is_empty() {
+        for parte in issue.split(',') {
+            let p = parte.trim();
+            if let Some(ou) = p.strip_prefix("OU=") {
+                let val = ou.trim().to_string();
+                if !val.is_empty() && !ous.contains(&val) {
+                    ous.push(val);
+                }
+            }
+        }
+    }
+
+    (validade, ous)
 }

@@ -26,6 +26,8 @@ remoteid-protocolo = { path = "../remoteid-protocolo" }
 remoteid-portas = { path = "../remoteid-portas" }
 serde.workspace = true
 serde_json.workspace = true
+x509-cert.workspace = true
+der.workspace = true
 
 [dev-dependencies]
 # O teste de integração sobe um servidor HTTP local; sem features extras.

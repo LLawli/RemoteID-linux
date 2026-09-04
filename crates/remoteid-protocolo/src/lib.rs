@@ -120,6 +120,10 @@ pub struct CertificadoResumo {
     pub key_name: String,
     pub serial_number: String,
     pub issue: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ous: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validade: Option<String>,
 }
 
 /// O que a UI mostra na linha "sessão em cache" do painel.
