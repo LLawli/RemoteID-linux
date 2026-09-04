@@ -1,12 +1,13 @@
 # RemoteID-linux — atalhos de desenvolvimento.
 
-.PHONY: preview app teste-local build release test clippy check help
+.PHONY: preview app teste-local teste-integracao build release test clippy check help
 
 help:
 	@echo "Alvos:"
 	@echo "  make preview      abre a galeria de telas GTK com dados FICTÍCIOS (sem motor, sem socket)"
 	@echo "  make app          roda o app unificado (janela + servidor do socket no mesmo processo)"
 	@echo "  make teste-local  sobe o servidor RemoteID FALSO + conta de teste em /tmp"
+	@echo "  make teste-integracao  gate ponta a ponta: pkcs11-tool → módulo → socket → mock"
 	@echo "  make build        compila o workspace (debug)"
 	@echo "  make release      compila o workspace (release)"
 	@echo "  make test         cargo test"
@@ -25,6 +26,13 @@ app:
 # /tmp, com certificado e OTP/PIN sintéticos. Nada toca a conta real.
 teste-local:
 	tools/teste-local.sh
+
+# Gate ponta a ponta do módulo PKCS#11, sem humano no meio. Fora do `check`
+# porque depende de ferramenta externa (opensc/openssl) e sobe processos: é um
+# gate de CI próprio, não parte da compilação. Exige que NÃO haja um
+# `teste-local` no ar (os dois usam /tmp/remoteid-teste).
+teste-integracao:
+	tools/teste-integracao-pkcs11.sh
 
 build:
 	cargo build
