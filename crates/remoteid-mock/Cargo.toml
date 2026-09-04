@@ -17,3 +17,7 @@ path = "src/main.rs"
 # SHA-256), para que a assinatura verifique contra o certificado falso.
 remoteid-cripto = { path = "../remoteid-cripto" }
 serde_json.workspace = true
+# Para ler serial e emissor do PRÓPRIO certificado embutido, em vez de manter
+# constantes que dessincronizam quando as fixtures são regeradas.
+x509-cert.workspace = true
+der.workspace = true

@@ -1235,8 +1235,10 @@ dependencies = [
 name = "remoteid-mock"
 version = "0.1.1"
 dependencies = [
+ "der",
  "remoteid-cripto",
  "serde_json",
+ "x509-cert",
 ]
 
 [[package]]
