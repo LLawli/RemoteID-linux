@@ -463,28 +463,28 @@ fn salvar_config(cfg: &ConfigApp) -> Result<String, String> {
 // ===========================================================================
 
 fn construir_preview(app: &adw::Application) {
-    let janela = gtk::ApplicationWindow::builder()
-        .application(app)
-        .title("RemoteID — preview das telas (dados fictícios)")
-        .default_width(820)
-        .default_height(660)
-        .build();
+    // Uma janela por tela, todas abertas de uma vez, cada uma com a moldura
+    // real do app (HeaderBar), para ver a tela como ela aparece de fato. As
+    // ações só imprimem no stdout: preview não tem motor nem socket.
 
-    let stack = gtk::Stack::builder().transition_type(gtk::StackTransitionType::Crossfade).build();
-    let sidebar = gtk::StackSidebar::builder().stack(&stack).build();
-
-    // Login / instalação
-    stack.add_titled(
-        &telas::login(telas::AcoesLogin {
-            preparar: Rc::new(|email, _senha| println!("[preview] preparar: email={email} (senha omitida)")),
-        }),
-        Some("login"),
+    preview_janela(
+        app,
         "Login / instalação",
+        420,
+        620,
+        &telas::login(telas::AcoesLogin {
+            preparar: Rc::new(|email, _senha| {
+                println!("[preview] preparar: email={email} (senha omitida)")
+            }),
+        }),
     );
 
-    // Seleção de token (dois certificados)
     let multi = EstadoApp::mock_multi_token();
-    stack.add_titled(
+    preview_janela(
+        app,
+        "Seleção de token",
+        460,
+        480,
         &telas::selecao_token(
             &multi.certificados,
             multi.certificado_ativo.as_deref(),
@@ -492,71 +492,93 @@ fn construir_preview(app: &adw::Application) {
                 escolher: Rc::new(|k| println!("[preview] certificado escolhido: {k}")),
             },
         ),
-        Some("selecao"),
-        "Seleção de token",
     );
 
-    // Tela inicial (preparado) — o botão de config leva à página de config.
-    {
-        let stack_ref = stack.clone();
-        let inicial = telas::inicial(
+    preview_janela(
+        app,
+        "Tela inicial (preparado)",
+        480,
+        640,
+        &telas::inicial(
             &EstadoApp::mock_preparado(),
             telas::AcoesInicial {
                 reautorizar: Rc::new(|| println!("[preview] reautorizar próxima assinatura")),
-                abrir_config: Rc::new(move || stack_ref.set_visible_child_name("config")),
+                abrir_config: Rc::new(|| println!("[preview] abrir configurações")),
                 trocar_cert: Rc::new(|| println!("[preview] trocar certificado")),
             },
-        );
-        stack.add_titled(&inicial, Some("inicial"), "Tela inicial");
-    }
-
-    // Tela inicial (não preparado)
-    stack.add_titled(
-        &telas::inicial(
-            &EstadoApp::mock_nao_preparado(),
-            telas::AcoesInicial { reautorizar: Rc::new(|| {}), abrir_config: Rc::new(|| {}), trocar_cert: Rc::new(|| {}) },
         ),
-        Some("nao_prep"),
-        "Inicial (não preparado)",
     );
 
-    // Configurações — o botão Reinstalar mostra o diálogo vermelho de verdade.
-    {
-        let stack_ref = stack.clone();
-        let config = telas::configuracoes(
+    preview_janela(
+        app,
+        "Inicial (não preparado)",
+        480,
+        560,
+        &telas::inicial(
+            &EstadoApp::mock_nao_preparado(),
+            telas::AcoesInicial {
+                reautorizar: Rc::new(|| {}),
+                abrir_config: Rc::new(|| {}),
+                trocar_cert: Rc::new(|| {}),
+            },
+        ),
+    );
+
+    preview_janela(
+        app,
+        "Configurações",
+        480,
+        640,
+        &telas::configuracoes(
             &ConfigApp::mock(),
             telas::AcoesConfig {
                 reinstalar: Rc::new(|| println!("[preview] REINSTALAR confirmado")),
-                salvar: Rc::new(|c| println!("[preview] salvar config: cache={}min ttl={}min nome={}", c.cache_pin_min, c.ttl_sessao_min, c.nome_aplicacao)),
+                salvar: Rc::new(|c| {
+                    println!(
+                        "[preview] salvar config: cache={}min ttl={}min nome={}",
+                        c.cache_pin_min, c.ttl_sessao_min, c.nome_aplicacao
+                    )
+                }),
                 abrir_pasta_log: Rc::new(|| println!("[preview] abrir pasta do log")),
-                voltar: Rc::new(move || stack_ref.set_visible_child_name("inicial")),
+                voltar: Rc::new(|| println!("[preview] voltar")),
             },
-        );
-        stack.add_titled(&config, Some("config"), "Configurações");
-    }
+        ),
+    );
 
-    // PIN / OTP — a MESMA tela que o app mostra ao assinar (montada, não modal,
-    // para caber embutida na galeria).
-    {
-        let d = telas::pin_otp::montar(Some("MARIA SILVA:12345678900"), Some("Papers"), Some("1234"));
-        let moldura = gtk::Box::builder()
-            .orientation(gtk::Orientation::Vertical)
-            .halign(gtk::Align::Center)
-            .valign(gtk::Align::Center)
-            .vexpand(true)
-            .build();
-        d.botao_ok.connect_clicked(|_| println!("[preview] assinar (PIN/OTP confirmados)"));
-        d.botao_cancelar.connect_clicked(|_| println!("[preview] assinatura cancelada"));
-        moldura.append(&d.raiz);
-        stack.add_titled(&moldura, Some("pinotp"), "PIN / OTP (assinar)");
-    }
+    // PIN / OTP — a MESMA tela que o app mostra ao assinar (montada, centrada).
+    let d = telas::pin_otp::montar(Some("MARIA SILVA:12345678900"), Some("Papers"), Some("1234"));
+    d.botao_ok.connect_clicked(|_| println!("[preview] assinar (PIN/OTP confirmados)"));
+    d.botao_cancelar.connect_clicked(|_| println!("[preview] assinatura cancelada"));
+    let moldura = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .halign(gtk::Align::Center)
+        .valign(gtk::Align::Center)
+        .vexpand(true)
+        .build();
+    moldura.append(&d.raiz);
+    preview_janela(app, "PIN / OTP (assinar)", 400, 380, &moldura);
+}
 
-    let caixa = gtk::Box::builder().orientation(gtk::Orientation::Horizontal).build();
-    sidebar.set_size_request(210, -1);
-    caixa.append(&sidebar);
-    caixa.append(&gtk::Separator::new(gtk::Orientation::Vertical));
-    stack.set_hexpand(true);
-    caixa.append(&stack);
-    janela.set_child(Some(&caixa));
+/// Abre uma janela de preview para UMA tela: AdwApplicationWindow com HeaderBar
+/// (título = nome da tela) e a tela como conteúdo. Presente na hora.
+fn preview_janela(
+    app: &adw::Application,
+    titulo: &str,
+    largura: i32,
+    altura: i32,
+    conteudo: &impl IsA<gtk::Widget>,
+) {
+    let janela = adw::ApplicationWindow::builder()
+        .application(app)
+        .title(titulo)
+        .default_width(largura)
+        .default_height(altura)
+        .build();
+    let cabecalho = adw::HeaderBar::new();
+    cabecalho.set_title_widget(Some(&adw::WindowTitle::new(titulo, "preview")));
+    let barra = adw::ToolbarView::new();
+    barra.add_top_bar(&cabecalho);
+    barra.set_content(Some(conteudo));
+    janela.set_content(Some(&barra));
     janela.present();
 }
