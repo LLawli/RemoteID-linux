@@ -8,7 +8,7 @@
 //! 2. o **daemon** (`remoteid-daemon`), que reusa [`telas::pin_otp`] para
 //!    mostrar exatamente o diálogo de PIN/OTP que o usuário validou no preview.
 //!
-//! Por isso esta lib não depende do daemon (seria ciclo) nem do protocolo: a
+//! Feita em GTK4 + libadwaita. Esta lib não depende do daemon (seria ciclo) nem do protocolo: a
 //! ponte entre o `SucessoResposta::Status` do protocolo e o [`modelo::EstadoApp`]
 //! é feita no binário (`main.rs`), não aqui.
 

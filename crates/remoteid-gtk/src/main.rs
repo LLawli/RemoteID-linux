@@ -23,7 +23,7 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use gtk::prelude::*;
+use adw::prelude::*;
 
 use remoteid_aplicacao::Opcoes;
 use remoteid_daemon::protocolo::{CodigoErro, Requisicao, Resposta, SucessoResposta};
@@ -56,7 +56,10 @@ fn main() -> gtk::glib::ExitCode {
     } else {
         ID_APP
     };
-    let app = gtk::Application::builder().application_id(id).build();
+    // adw::Application inicializa a libadwaita (estilos, esquema de cor); daí a
+    // janela usa AdwApplicationWindow/HeaderBar/StatusPage e as classes de
+    // estilo (`card`, `boxed-list`, `pill`) renderizam como no resto do GNOME.
+    let app = adw::Application::builder().application_id(id).build();
 
     if preview {
         app.connect_activate(construir_preview);
@@ -84,27 +87,38 @@ fn ambiente() -> (Opcoes, PathBuf, bool) {
 // Modo normal: a janela + o servidor do socket, no mesmo processo
 // ===========================================================================
 
-fn construir_app(app: &gtk::Application) {
+fn construir_app(app: &adw::Application) {
     let (opcoes, caminho_socket, teste) = ambiente();
 
     let titulo = if teste { "RemoteID — MODO DE TESTE" } else { "RemoteID" };
-    let janela = gtk::ApplicationWindow::builder()
+
+    // AdwApplicationWindow: uma ToolbarView com a HeaderBar em cima e o `slot`
+    // (conteúdo trocável entre as telas) embaixo. O `slot` é um Box de filho
+    // único que `trocar` substitui a cada navegação.
+    let janela = adw::ApplicationWindow::builder()
         .application(app)
         .title(titulo)
-        .default_width(560)
+        .default_width(480)
         .default_height(640)
         .build();
+    let cabecalho = adw::HeaderBar::new();
+    let slot = gtk::Box::builder().orientation(gtk::Orientation::Vertical).build();
+    let barra = adw::ToolbarView::new();
+    barra.add_top_bar(&cabecalho);
+    barra.set_content(Some(&slot));
+    janela.set_content(Some(&barra));
 
     // Abre o motor com o prompter GTK. Falha aqui é fatal para o app.
     let servico = match Servico::novo(opcoes, Box::new(GtkPrompter::novo())) {
         Ok(s) => Rc::new(RefCell::new(s)),
         Err(e) => {
-            let slot = gtk::Box::builder().orientation(gtk::Orientation::Vertical).build();
-            janela.set_child(Some(&slot));
-            slot.append(&banner_estatico(
-                "Não deu para abrir o motor",
-                &format!("{e}\n\nO app não pode continuar."),
-            ));
+            trocar(
+                &slot,
+                &banner_estatico(
+                    "Não deu para abrir o motor",
+                    &format!("{e}\n\nO app não pode continuar."),
+                ),
+            );
             janela.present();
             return;
         }
@@ -119,9 +133,6 @@ fn construir_app(app: &gtk::Application) {
         }
         Err(e) => eprintln!("remoteid-app: servidor do socket não subiu: {e}"),
     }
-
-    let slot = gtk::Box::builder().orientation(gtk::Orientation::Vertical).build();
-    janela.set_child(Some(&slot));
 
     renderizar_principal(&slot, &servico);
     janela.present();
@@ -403,7 +414,7 @@ fn salvar_config(cfg: &ConfigApp) -> Result<String, String> {
 // Modo --preview: a galeria de telas com dados mock (sem motor, sem socket)
 // ===========================================================================
 
-fn construir_preview(app: &gtk::Application) {
+fn construir_preview(app: &adw::Application) {
     let janela = gtk::ApplicationWindow::builder()
         .application(app)
         .title("RemoteID — preview das telas (dados fictícios)")

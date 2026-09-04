@@ -7,7 +7,7 @@
 
 use std::rc::Rc;
 
-use gtk::prelude::*;
+use adw::prelude::*;
 
 use crate::modelo::{Certificado, ConfigApp, EstadoApp};
 
@@ -99,49 +99,83 @@ pub struct AcoesLogin {
 
 /// Tela de primeiro uso: coleta e-mail e senha do RemoteID para preparar a
 /// instalação (login + registro do desktop + carteira).
+///
+/// libadwaita: uma [`adw::StatusPage`] de boas-vindas com o formulário (um
+/// [`adw::PreferencesGroup`] com [`adw::EntryRow`]/[`adw::PasswordEntryRow`])
+/// dentro de um [`adw::Clamp`], para caber bem em qualquer largura. O botão
+/// "Preparar" só acende com e-mail e senha preenchidos.
 pub fn login(acoes: AcoesLogin) -> gtk::Widget {
-    let raiz = comum::pagina(
-        "Bem-vindo ao RemoteID",
-        Some(
-            "Para assinar com o seu certificado em nuvem RemoteID, prepare esta \
-             instalação uma vez. As credenciais vão só ao RemoteID; a senha não \
-             é guardada.",
-        ),
-    );
+    // Formulário: e-mail + senha num cartão boxed-list.
+    let grupo = adw::PreferencesGroup::new();
+    let linha_email = adw::EntryRow::builder().title("E-mail").build();
+    linha_email.set_property("input-purpose", gtk::InputPurpose::Email);
+    let linha_senha = adw::PasswordEntryRow::builder().title("Senha").build();
+    grupo.add(&linha_email);
+    grupo.add(&linha_senha);
 
-    let grade = gtk::Grid::builder().row_spacing(10).column_spacing(10).margin_top(6).build();
-
-    let rot_email = gtk::Label::builder().label("E-mail").halign(gtk::Align::End).build();
-    let campo_email = gtk::Entry::builder()
-        .placeholder_text("voce@exemplo.com.br")
-        .input_purpose(gtk::InputPurpose::Email)
-        .hexpand(true)
+    // Botão "Preparar" — pílula sugerida, apagada até os dois campos terem texto.
+    let botao = gtk::Button::builder()
+        .label("Preparar instalação")
+        .halign(gtk::Align::Center)
+        .css_classes(["pill", "suggested-action"])
+        .sensitive(false)
         .build();
-    let rot_senha = gtk::Label::builder().label("Senha").halign(gtk::Align::End).build();
-    let campo_senha = gtk::PasswordEntry::builder().show_peek_icon(true).hexpand(true).build();
 
-    grade.attach(&rot_email, 0, 0, 1, 1);
-    grade.attach(&campo_email, 1, 0, 1, 1);
-    grade.attach(&rot_senha, 0, 1, 1, 1);
-    grade.attach(&campo_senha, 1, 1, 1, 1);
-    raiz.append(&grade);
+    let coluna = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(18)
+        .build();
+    coluna.append(&grupo);
+    coluna.append(&botao);
 
-    let barra = gtk::Box::builder().halign(gtk::Align::End).margin_top(6).build();
-    let botao = gtk::Button::with_label("Preparar instalação");
-    botao.add_css_class("suggested-action");
-    barra.append(&botao);
-    raiz.append(&barra);
+    let clamp = adw::Clamp::builder().maximum_size(400).child(&coluna).build();
+
+    let status = adw::StatusPage::builder()
+        .icon_name("dialog-password-symbolic")
+        .title("Bem-vindo ao RemoteID")
+        .description(
+            "Prepare esta instalação uma vez para assinar com o seu certificado em \
+             nuvem. As credenciais vão só ao RemoteID; a senha não é guardada.",
+        )
+        .child(&clamp)
+        .build();
+
+    // "Preparar" só acende com os dois campos preenchidos.
+    let atualizar = {
+        let botao = botao.clone();
+        let linha_email = linha_email.clone();
+        let linha_senha = linha_senha.clone();
+        move || {
+            let ok = !linha_email.text().trim().is_empty() && !linha_senha.text().is_empty();
+            botao.set_sensitive(ok);
+        }
+    };
+    atualizar();
+    {
+        let f = atualizar.clone();
+        linha_email.connect_changed(move |_| f());
+    }
+    {
+        let f = atualizar.clone();
+        linha_senha.connect_changed(move |_| f());
+    }
 
     {
-        let campo_email = campo_email.clone();
-        let campo_senha = campo_senha.clone();
+        let linha_email = linha_email.clone();
+        let linha_senha = linha_senha.clone();
         let preparar = acoes.preparar.clone();
         botao.connect_clicked(move |_| {
-            preparar(campo_email.text().to_string(), campo_senha.text().to_string());
+            preparar(linha_email.text().trim().to_string(), linha_senha.text().to_string());
         });
     }
 
-    raiz.upcast()
+    // Rola em janelas baixas, sem esticar horizontalmente.
+    gtk::ScrolledWindow::builder()
+        .hscrollbar_policy(gtk::PolicyType::Never)
+        .vexpand(true)
+        .child(&status)
+        .build()
+        .upcast()
 }
 
 // ---------------------------------------------------------------------------
