@@ -1,8 +1,8 @@
 #!/bin/sh
-# Bootstrap do harness DesktopID-linux: obtém o binário e roda o fluxo de teste.
+# Bootstrap do harness RemoteID-linux: obtém o binário e roda o fluxo de teste.
 #
 # Uso rápido (um comando):
-#   curl -fsSL https://raw.githubusercontent.com/LLawli/DesktopID-linux/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/LLawli/RemoteID-linux/main/install.sh | sh
 #
 # Ordem de tentativa:
 #   1. binário pronto da última release (rápido, nada a compilar);
@@ -18,7 +18,7 @@
 # pipe que já consumiu o tty (ex.: outro `| sh` aninhado).
 set -eu
 
-REPO="${REMOTEID_REPO:-LLawli/DesktopID-linux}"
+REPO="${REMOTEID_REPO:-LLawli/RemoteID-linux}"
 REF="${REMOTEID_REF:-main}"
 
 # O build do Rust ocupa centenas de MB. Ele vai para o cache em DISCO, nunca
@@ -70,7 +70,7 @@ BIN=""
 ALVO="$(alvo_da_maquina)"
 if [ -n "$ALVO" ] && [ "${REMOTEID_SEM_RELEASE:-}" != "1" ]; then
     mkdir -p "$CACHE/bin"
-    CANDIDATO="$CACHE/bin/desktopid"
+    CANDIDATO="$CACHE/bin/remoteid"
     URL="https://github.com/$REPO/releases/latest/download/remoteid-$ALVO"
     say "procurando binário pronto para $ALVO..."
     if fetch "$URL" "$CANDIDATO.tmp" 2>/dev/null; then
@@ -150,9 +150,12 @@ if [ -z "$BIN" ]; then
     say "compilando (a primeira vez leva alguns minutos; as seguintes são rápidas)..."
     # O alvo fica no cache, fora do diretório de fontes: reaproveitado entre
     # execuções e, de novo, em disco e não em tmpfs.
-    CARGO_TARGET_DIR="$CACHE/target" cargo build --release --manifest-path "$SRC/Cargo.toml" \
+    # `-p remoteid-cli` de propósito: compilar o workspace inteiro puxaria a
+    # crate GTK, e com ela libgtk-4/libadwaita de desenvolvimento. Quem roda o
+    # harness não precisa de nada disso — só do binário `remoteid`.
+    CARGO_TARGET_DIR="$CACHE/target" cargo build --release -p remoteid-cli --manifest-path "$SRC/Cargo.toml" \
         || die "a compilação falhou. Mande a saída acima para quem pediu o teste."
-    BIN="$CACHE/target/release/desktopid"
+    BIN="$CACHE/target/release/remoteid"
     [ -x "$BIN" ] || die "compilou mas não achei o binário em $BIN."
 fi
 
