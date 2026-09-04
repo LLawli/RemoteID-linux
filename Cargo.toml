@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/remoteid-tipos", "crates/remoteid-cripto", "crates/remoteid-autorizacao", "crates/remoteid-estado", "crates/remoteid-assinatura", "crates/remoteid-protocolo-servidor", "crates/remoteid-portas", "crates/remoteid-store-json", "crates/remoteid-chave-pem", "crates/remoteid-redacao", "crates/remoteid-diag-jsonl", "crates/remoteid-http", "crates/remoteid-relogio-sistema", "crates/remoteid-ambiente-sistema", "crates/remoteid-caminhos", "crates/remoteid-aplicacao", "crates/remoteid-cli", "crates/remoteid-pkcs11", "crates/remoteid-daemon", "crates/remoteid-protocolo", "crates/remoteid-mock"]
+members = ["crates/remoteid-tipos", "crates/remoteid-cripto", "crates/remoteid-autorizacao", "crates/remoteid-estado", "crates/remoteid-assinatura", "crates/remoteid-protocolo-servidor", "crates/remoteid-portas", "crates/remoteid-store-json", "crates/remoteid-chave-pem", "crates/remoteid-redacao", "crates/remoteid-diag-jsonl", "crates/remoteid-http", "crates/remoteid-relogio-sistema", "crates/remoteid-ambiente-sistema", "crates/remoteid-caminhos", "crates/remoteid-aplicacao", "crates/remoteid-cli", "crates/remoteid-pkcs11", "crates/remoteid-daemon", "crates/remoteid-protocolo", "crates/remoteid-gtk", "crates/remoteid-mock"]
 
 [workspace.package]
 version = "0.1.0"
