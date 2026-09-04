@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=RemoteID
+GenericName=Certificado em nuvem
+Comment=Assine documentos com seu certificado em nuvem RemoteID da Certisign
+Comment[en]=Sign documents with your RemoteID cloud certificate from Certisign
+Exec=remoteid-app
+Icon=dev.lukakuuhaku.RemoteID
+Terminal=false
+Categories=System;Security;GTK;
+Keywords=certificado;assinatura;digital;ICP-Brasil;Certisign;RemoteID;DesktopID;PKCS11;PKCS#11;token;nuvem;
+StartupNotify=true
+StartupWMClass=dev.lukakuuhaku.RemoteID

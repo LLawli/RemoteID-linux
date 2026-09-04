@@ -12,6 +12,36 @@ que ninguém sabe o que mudou.
 
 ## [Não publicado]
 
+## [0.1.1] - 2026-09-04
+
+Torna o projeto instalável como aplicativo de verdade: ele agora tem ícone,
+aparece no menu e sai do tarball com um instalador, em vez de exigir que cada
+pessoa espalhe arquivos à mão.
+
+### Adicionado
+
+- **Ícone do aplicativo**, colorido e symbolic (`dev.lukakuuhaku.RemoteID`).
+  Nuvem porque a chave do certificado mora no HSM da Certisign e não na máquina;
+  selo dentado porque é certificação. O symbolic é um desenho próprio, não uma
+  redução: a 16px o selo vira borrão, então lá a nuvem é sólida e o check é
+  vazado nela.
+- **Lançador `.desktop`**, com `StartupWMClass` casando o application id — é o
+  que evita o compositor mostrar dois ícones na barra.
+- **`instalar.sh` e `desinstalar.sh`**, também expostos como `make instalar` e
+  `make desinstalar`. Instalam em `~/.local` sem root, registram o módulo no
+  p11-kit e atualizam os caches de ícone e de lançador. O desinstalador
+  **preserva** o estado da conta em `~/.local/state/remoteid`: apagá-lo exigiria
+  novo login e registro.
+- O pacote da release passa a incluir o **aplicativo gráfico** (`remoteid-app`),
+  o ícone, o lançador e o instalador. Antes trazia só a CLI e o módulo, e um
+  `.desktop` ali dentro apontaria para um binário inexistente.
+
+### Modificado
+
+- O `remoteid-app` distribuído no tarball exige **GTK4 e Libadwaita** instalados
+  na máquina. A CLI (`remoteid`) e o módulo PKCS#11 continuam sem depender de
+  nada além do sistema base.
+
 ## [0.1.0] - 2026-09-04
 
 Primeira versão pública. O protocolo do certificado em nuvem RemoteID foi

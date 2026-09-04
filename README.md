@@ -47,17 +47,28 @@ sem isso o suporte a push continua não existindo na prática.
 
 Precisa de Linux x86_64 ou aarch64.
 
-### Binário pronto
+### Pacote pronto
 
 Baixe da [última release](https://github.com/LLawli/RemoteID-linux/releases/latest)
-o pacote da sua arquitetura, confira o checksum e extraia:
+o pacote da sua arquitetura, confira o checksum, extraia e instale:
 
 ```sh
-tar -xzf remoteid-linux-<versão>-x86_64-linux.tar.gz
 sha256sum -c SHA256SUMS
+tar -xzf remoteid-linux-<versão>-x86_64-linux.tar.gz
+cd remoteid-linux-<versão>-x86_64-linux
+./instalar.sh
 ```
 
-O pacote traz o binário `remoteid` e o módulo `libremoteid_pkcs11.so`.
+O `instalar.sh` não pede root: põe tudo em `~/.local`, registra o módulo
+PKCS#11 no p11-kit e instala o ícone e o lançador. Para desfazer,
+`./desinstalar.sh` — ele preserva o estado da sua conta.
+
+O pacote traz a linha de comando (`remoteid`), o aplicativo gráfico
+(`remoteid-app`), o módulo `libremoteid_pkcs11.so`, o ícone e o lançador.
+
+> O aplicativo gráfico precisa de **GTK4 e Libadwaita** instalados no sistema
+> (qualquer desktop GNOME atual já tem). A linha de comando e o módulo PKCS#11
+> não dependem de nada além do sistema base.
 
 ### Compilando
 
@@ -74,6 +85,7 @@ O aplicativo gráfico precisa de GTK4 e Libadwaita instalados
 
 ```sh
 cargo build --release
+make instalar      # em ~/.local, sem root; `make desinstalar` desfaz
 ```
 
 ## Como usar

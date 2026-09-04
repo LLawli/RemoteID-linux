@@ -26,6 +26,12 @@ jobs:
             alvo: aarch64-linux
     steps:
       - uses: actions/checkout@v7
+      # O app gráfico entra no pacote a partir da v0.1.1, e ele linka GTK4 e
+      # Libadwaita. A CLI e o módulo PKCS#11 seguem sem depender de nada disso.
+      - name: dependências de sistema (GTK4 + Libadwaita)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
@@ -41,11 +47,12 @@ jobs:
           fi
           echo "versão $VERSAO_TAG confirmada"
 
-      # Só a CLI e o módulo PKCS#11 são distribuídos como binário. O app GTK
-      # fica de fora de propósito: ele depende de GTK4/Libadwaita do sistema, e
-      # binário solto sem essas libs só geraria relatório de erro.
+      # O app gráfico passa a ir junto: sem ele o `.desktop` do pacote apontaria
+      # para um binário inexistente. Ele exige GTK4 e Libadwaita instalados na
+      # máquina do usuário — o README diz isso, e é o preço de distribuir app
+      # gráfico como tarball.
       - name: compilar
-        run: cargo build --release --locked -p remoteid-cli -p remoteid-pkcs11
+        run: cargo build --release --locked -p remoteid-cli -p remoteid-pkcs11 -p remoteid-gtk
 
       - name: empacotar
         run: |
@@ -54,9 +61,14 @@ jobs:
           ALVO="${{ matrix.alvo }}"
           PACOTE="remoteid-linux-$VERSAO-$ALVO"
           mkdir -p "dist/$PACOTE"
-          cp target/release/remoteid "dist/$PACOTE/"
+          cp target/release/remoteid target/release/remoteid-app "dist/$PACOTE/"
           cp target/release/libremoteid_pkcs11.so "dist/$PACOTE/"
           cp README.md LICENSE CHANGELOG.md "dist/$PACOTE/"
+          # O instalador e os dados (ícone e lançador) vão dentro do pacote: é o
+          # mesmo `instalar.sh` que o `make instalar` usa, não uma segunda cópia.
+          cp data/instalar.sh data/desinstalar.sh "dist/$PACOTE/"
+          mkdir -p "dist/$PACOTE/data"
+          cp -r data/applications data/icons "dist/$PACOTE/data/"
           tar -czf "dist/$PACOTE.tar.gz" -C dist "$PACOTE"
           # O binário solto também vai, com o nome que o install.sh busca:
           # `remoteid-<alvo>`. Mudar este nome quebra o `curl | sh` do README.
