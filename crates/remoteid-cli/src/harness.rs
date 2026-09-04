@@ -19,11 +19,11 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use remoteid_core::authmode::Fatores;
-use remoteid_core::crypto::sha256;
-use remoteid_core::diag::iso8601;
-use remoteid_core::error::Origem;
-use remoteid_core::Motor;
+use remoteid_autorizacao::Fatores;
+use remoteid_cripto::sha256;
+use remoteid_diag_jsonl::iso8601;
+use remoteid_tipos::Origem;
+use remoteid_aplicacao::Motor;
 
 /// Conteúdo assinado no teste. Fixo, para o relatório ser comparável entre runs.
 const MENSAGEM_TESTE: &[u8] = b"RemoteID-linux harness teste";
@@ -84,7 +84,7 @@ impl Harness {
 
     /// Registra uma falha já classificada pela origem, que é o que evita o
     /// testador perder tempo conferindo credencial quando o defeito é nosso.
-    fn falha(&mut self, rotulo: &str, erro: &remoteid_core::Error) {
+    fn falha(&mut self, rotulo: &str, erro: &remoteid_tipos::Error) {
         let origem = match erro.origem() {
             Origem::Usuario => " (dado seu)",
             Origem::Cliente => " (defeito deste cliente)",
@@ -239,7 +239,7 @@ impl Harness {
     }
 
     fn etapa_assinar(&mut self, ctx: &super::Args) {
-        use remoteid_core::EstadoAuth;
+        use remoteid_autorizacao::Estado as EstadoAuth;
         let modo = self.motor.estado.modo();
 
         let fatores = match modo.estado() {
@@ -404,10 +404,10 @@ impl Harness {
 /// o certificado, para não confundir "não deu para verificar" com "não confere".
 fn verificar_com_o_certificado(motor: &Motor, digest: &[u8], assinatura: &[u8]) -> Option<bool> {
     let cert = motor.estado.certificado().ok()?;
-    let der = remoteid_core::crypto::de_b64(cert.base64.as_deref()?).ok()?;
+    let der = remoteid_cripto::de_b64(cert.base64.as_deref()?).ok()?;
     // `ok()` colapsa o erro de parse em "não deu para verificar", que é o que
     // o relatório precisa distinguir de "não confere".
-    remoteid_core::crypto::verificar_com_certificado(&der, digest, assinatura).ok()
+    remoteid_cripto::verificar_com_certificado(&der, digest, assinatura).ok()
 }
 
 fn se(v: bool) -> &'static str {

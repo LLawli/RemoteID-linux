@@ -17,7 +17,11 @@ name = "remoteid_daemon"
 path = "src/lib.rs"
 
 [dependencies]
-remoteid-core = { path = "../remoteid-core" }
+remoteid-aplicacao = { path = "../remoteid-aplicacao" }
+remoteid-tipos = { path = "../remoteid-tipos" }
+remoteid-cripto = { path = "../remoteid-cripto" }
+remoteid-autorizacao = { path = "../remoteid-autorizacao" }
+remoteid-caminhos = { path = "../remoteid-caminhos" }
 remoteid-protocolo = { path = "../remoteid-protocolo" }
 remoteid-portas = { path = "../remoteid-portas" }
 serde.workspace = true

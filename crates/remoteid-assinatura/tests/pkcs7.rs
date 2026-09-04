@@ -11,8 +11,8 @@ use std::process::Command;
 
 use der::asn1::ObjectIdentifier;
 use der::{Decode, Encode};
-use remoteid_core::crypto::sha256;
-use remoteid_core::pkcs7::Montador;
+use remoteid_cripto::sha256;
+use remoteid_assinatura::Montador;
 use rsa::pkcs8::EncodePublicKey;
 use rsa::{Pkcs1v15Sign, RsaPrivateKey, RsaPublicKey};
 use sha2::Sha256;

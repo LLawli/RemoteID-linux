@@ -27,8 +27,8 @@ pub fn caminho_padrao() -> PathBuf {
     }
     // Modo de teste: o socket mora no dir de teste, junto do estado, para o app
     // e o módulo se acharem com um único interruptor (`TEST_URL`).
-    if remoteid_core::state::em_teste() {
-        return PathBuf::from(remoteid_core::state::DIR_TESTE).join("remoteid.sock");
+    if remoteid_caminhos::em_teste() {
+        return PathBuf::from(remoteid_caminhos::DIR_TESTE).join("remoteid.sock");
     }
     let base = std::env::var("XDG_RUNTIME_DIR")
         .ok()

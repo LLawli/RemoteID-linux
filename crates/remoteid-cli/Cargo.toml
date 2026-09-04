@@ -12,5 +12,11 @@ name = "remoteid"
 path = "src/main.rs"
 
 [dependencies]
-remoteid-core = { path = "../remoteid-core" }
+remoteid-aplicacao = { path = "../remoteid-aplicacao" }
+remoteid-tipos = { path = "../remoteid-tipos" }
+remoteid-autorizacao = { path = "../remoteid-autorizacao" }
+remoteid-cripto = { path = "../remoteid-cripto" }
+remoteid-assinatura = { path = "../remoteid-assinatura" }
+remoteid-diag-jsonl = { path = "../remoteid-diag-jsonl" }
+remoteid-caminhos = { path = "../remoteid-caminhos" }
 serde_json.workspace = true

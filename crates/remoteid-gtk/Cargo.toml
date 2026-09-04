@@ -21,7 +21,10 @@ path = "src/main.rs"
 
 [dependencies]
 gtk = { package = "gtk4", version = "0.9" }
-remoteid-core = { path = "../remoteid-core" }
+remoteid-aplicacao = { path = "../remoteid-aplicacao" }
+remoteid-caminhos = { path = "../remoteid-caminhos" }
+remoteid-autorizacao = { path = "../remoteid-autorizacao" }
+remoteid-tipos = { path = "../remoteid-tipos" }
 # A camada de serviço (Servico + socket + Prompter), consumida in-process.
 remoteid-daemon = { path = "../remoteid-daemon" }
 remoteid-protocolo = { path = "../remoteid-protocolo" }

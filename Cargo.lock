@@ -1060,18 +1060,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "remoteid-aplicacao"
+version = "0.1.0"
+dependencies = [
+ "remoteid-ambiente-sistema",
+ "remoteid-autorizacao",
+ "remoteid-caminhos",
+ "remoteid-chave-pem",
+ "remoteid-cripto",
+ "remoteid-diag-jsonl",
+ "remoteid-estado",
+ "remoteid-http",
+ "remoteid-portas",
+ "remoteid-protocolo-servidor",
+ "remoteid-relogio-sistema",
+ "remoteid-store-json",
+ "remoteid-tipos",
+ "serde_json",
+]
+
+[[package]]
 name = "remoteid-assinatura"
 version = "0.1.0"
 dependencies = [
  "cms",
  "der",
+ "rand",
  "remoteid-cripto",
  "remoteid-tipos",
+ "rsa",
+ "sha2",
  "x509-cert",
 ]
 
 [[package]]
 name = "remoteid-autorizacao"
+version = "0.1.0"
+
+[[package]]
+name = "remoteid-caminhos"
 version = "0.1.0"
 
 [[package]]
@@ -1087,39 +1114,14 @@ dependencies = [
 name = "remoteid-cli"
 version = "0.1.0"
 dependencies = [
- "remoteid-core",
- "serde_json",
-]
-
-[[package]]
-name = "remoteid-core"
-version = "0.1.0"
-dependencies = [
- "base64",
- "cms",
- "der",
- "rand",
- "remoteid-ambiente-sistema",
+ "remoteid-aplicacao",
  "remoteid-assinatura",
  "remoteid-autorizacao",
- "remoteid-chave-pem",
+ "remoteid-caminhos",
  "remoteid-cripto",
  "remoteid-diag-jsonl",
- "remoteid-estado",
- "remoteid-http",
- "remoteid-portas",
- "remoteid-protocolo-servidor",
- "remoteid-redacao",
- "remoteid-relogio-sistema",
- "remoteid-store-json",
  "remoteid-tipos",
- "rsa",
- "serde",
  "serde_json",
- "sha2",
- "thiserror",
- "ureq",
- "x509-cert",
 ]
 
 [[package]]
@@ -1138,9 +1140,13 @@ dependencies = [
 name = "remoteid-daemon"
 version = "0.1.0"
 dependencies = [
- "remoteid-core",
+ "remoteid-aplicacao",
+ "remoteid-autorizacao",
+ "remoteid-caminhos",
+ "remoteid-cripto",
  "remoteid-portas",
  "remoteid-protocolo",
+ "remoteid-tipos",
  "serde",
  "serde_json",
 ]
@@ -1171,9 +1177,12 @@ name = "remoteid-gtk"
 version = "0.1.0"
 dependencies = [
  "gtk4",
- "remoteid-core",
+ "remoteid-aplicacao",
+ "remoteid-autorizacao",
+ "remoteid-caminhos",
  "remoteid-daemon",
  "remoteid-protocolo",
+ "remoteid-tipos",
  "serde_json",
 ]
 
@@ -1192,7 +1201,7 @@ dependencies = [
 name = "remoteid-mock"
 version = "0.1.0"
 dependencies = [
- "remoteid-core",
+ "remoteid-cripto",
  "serde_json",
 ]
 
@@ -1204,8 +1213,12 @@ dependencies = [
  "cryptoki-sys",
  "der",
  "rand",
- "remoteid-core",
+ "remoteid-caminhos",
+ "remoteid-chave-pem",
+ "remoteid-cripto",
+ "remoteid-estado",
  "remoteid-protocolo",
+ "remoteid-store-json",
  "rsa",
  "serde_json",
  "sha2",

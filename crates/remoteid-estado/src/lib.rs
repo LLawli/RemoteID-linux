@@ -7,8 +7,8 @@
 //! próprio, e nunca entra aqui.
 //!
 //! Aqui não há I/O: a persistência (ler/gravar o `state.json`, resolver os
-//! diretórios XDG) é da borda (a fachada `remoteid_core::state`, futuro
-//! adaptador `store-json`). Este crate é só os tipos e as decisões puras
+//! diretórios XDG) é da borda (o adaptador
+//! `remoteid-store-json`). Este crate é só os tipos e as decisões puras
 //! (política de cache do `sessionToken`, quebra do `keyName`).
 
 use std::collections::BTreeMap;
@@ -153,7 +153,7 @@ pub struct Estado {
     pub certificados: Vec<Certificado>,
 
     /// Capacidade informada pelo `statusCelular`. É só informativo: o app
-    /// oficial lê esse booleano e o descarta (ver [`crate::authmode`]).
+    /// oficial lê esse booleano e o descarta (ver [`remoteid_autorizacao`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usuario_possui_codigo_push: Option<bool>,
 
@@ -343,7 +343,7 @@ mod tests {
 
     #[test]
     fn guardar_e_ler_sessao_preserva_o_epoch_do_token() {
-        // A persistência em disco é testada na borda (remoteid_core::state);
+        // A persistência em disco é testada na borda (remoteid-store-json);
         // aqui garantimos a parte pura: guardar uma sessão parseia o epoch do
         // token e o pré-filtro a considera dentro do TTL.
         let mut e = Estado::default();

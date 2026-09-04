@@ -13,9 +13,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use remoteid_core::authmode::Modo;
-use remoteid_core::diag::Diag;
-use remoteid_core::{Dependencias, Motor, Opcoes};
+use remoteid_autorizacao::Modo;
+use remoteid_diag_jsonl::Diag;
+use remoteid_aplicacao::{Dependencias, Motor, Opcoes};
 use remoteid_estado::Estado;
 use remoteid_portas::{
     Ambiente, CofreDeChave, Diagnostico, Relogio, RepositorioEstado, RequisicaoHttp, RespostaHttp,

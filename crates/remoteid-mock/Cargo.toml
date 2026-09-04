@@ -15,5 +15,5 @@ path = "src/main.rs"
 # Reusa o crypto do motor para carregar a chave falsa e assinar o digest do
 # requestHash exatamente como o HSM da Certisign faria (PKCS#1 v1.5 sobre
 # SHA-256), para que a assinatura verifique contra o certificado falso.
-remoteid-core = { path = "../remoteid-core" }
+remoteid-cripto = { path = "../remoteid-cripto" }
 serde_json.workspace = true

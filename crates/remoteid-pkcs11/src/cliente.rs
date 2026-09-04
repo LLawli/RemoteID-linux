@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use cryptoki_sys::*;
 
-use remoteid_core::crypto::{b64, de_b64};
+use remoteid_cripto::{b64, de_b64};
 use remoteid_protocolo::{CodigoErro, Requisicao, Resposta, SucessoResposta};
 
 /// Pede ao app a assinatura RSA do `digest` (SHA-256, 32 bytes). Devolve os
@@ -82,8 +82,8 @@ fn caminho_socket() -> PathBuf {
     }
     // Modo de teste: mesmo socket que o app em teste bina (via `TEST_URL`), sem
     // precisar de `REMOTEID_SOCKET` no Papers.
-    if remoteid_core::state::em_teste() {
-        return PathBuf::from(remoteid_core::state::DIR_TESTE).join("remoteid.sock");
+    if remoteid_caminhos::em_teste() {
+        return PathBuf::from(remoteid_caminhos::DIR_TESTE).join("remoteid.sock");
     }
     let base = std::env::var("XDG_RUNTIME_DIR")
         .ok()

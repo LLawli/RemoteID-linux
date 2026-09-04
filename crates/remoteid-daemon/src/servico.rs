@@ -6,9 +6,9 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use remoteid_core::crypto::{b64, de_b64};
-use remoteid_core::error::{Error, Origem};
-use remoteid_core::{Motor, Opcoes};
+use remoteid_cripto::{b64, de_b64};
+use remoteid_tipos::{Error, Origem};
+use remoteid_aplicacao::{Motor, Opcoes};
 
 use crate::prompter::{Contexto, Prompter};
 use crate::protocolo::{
@@ -26,7 +26,7 @@ impl Servico {
     /// Abre o motor com as `opcoes` dadas e liga o `prompter` para
     /// solicitações interativas. O `Opcoes` é guardado para o
     /// [`Requisicao::Reinstalar`] poder reabrir do zero.
-    pub fn novo(opcoes: Opcoes, prompter: Box<dyn Prompter>) -> remoteid_core::Result<Servico> {
+    pub fn novo(opcoes: Opcoes, prompter: Box<dyn Prompter>) -> remoteid_tipos::Result<Servico> {
         let opcoes_base = clonar_opcoes(&opcoes);
         let motor = Motor::abrir(opcoes)?;
         Ok(Servico { motor, opcoes_base, prompter, encerrar: AtomicBool::new(false) })
@@ -41,7 +41,7 @@ impl Servico {
     /// `remoteid preparar` num processo separado e grava o estado): sem
     /// reabrir, o `Servico` seguiria com o motor vazio de antes do preparo.
     /// Preserva o prompter e o cache — só o motor é trocado.
-    pub fn reabrir(&mut self) -> remoteid_core::Result<()> {
+    pub fn reabrir(&mut self) -> remoteid_tipos::Result<()> {
         self.motor = Motor::abrir(clonar_opcoes(&self.opcoes_base))?;
         Ok(())
     }

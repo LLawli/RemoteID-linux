@@ -16,10 +16,10 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use remoteid_core::authmode::{Fatores, Modo};
-use remoteid_core::canonical::canonical;
-use remoteid_core::crypto::{b64, de_b64, sha256};
-use remoteid_core::{Motor, Opcoes};
+use remoteid_autorizacao::{Fatores, Modo};
+use remoteid_protocolo_servidor::canonical::canonical;
+use remoteid_cripto::{b64, de_b64, sha256};
+use remoteid_aplicacao::{Motor, Opcoes};
 use serde_json::{json, Value};
 
 #[derive(Debug, Clone)]
@@ -200,8 +200,8 @@ fn motor_preparado(amb: &Ambiente, srv: &Servidor) -> Motor {
 
 /// Confere que o Bearer daquela requisição é a assinatura da canônica do corpo.
 fn conferir_bearer(amb: &Ambiente, req: &Requisicao) {
-    let chave = remoteid_core::crypto::carregar(
-        &remoteid_core::state::caminho_chave(&amb.dir.join("dados")),
+    let chave = remoteid_chave_pem::carregar(
+        &remoteid_caminhos::caminho_chave(&amb.dir.join("dados")),
     )
     .unwrap();
     let bearer = req

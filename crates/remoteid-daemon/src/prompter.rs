@@ -12,8 +12,8 @@
 //! sensíveis e só entram por interação humana ou por injeção explícita em
 //! teste.
 
-use remoteid_core::authmode::Fatores;
-use remoteid_core::error::{Error, Result};
+use remoteid_autorizacao::Fatores;
+use remoteid_tipos::{Error, Result};
 
 // O trait `Prompter` e o `Contexto` são a porta canônica, definida em
 // `remoteid-portas`. O daemon os re-exporta com o caminho antigo

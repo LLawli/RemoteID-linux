@@ -869,7 +869,7 @@ fn assinar(token: &Token, mecanismo: CK_MECHANISM_TYPE, dados: &[u8]) -> Result<
 
 /// Assinatura local com a chave de teste (modo de teste). Inalterado.
 fn assinar_local(
-    chave: &remoteid_core::crypto::ChaveInstalacao,
+    chave: &remoteid_cripto::ChaveInstalacao,
     mecanismo: CK_MECHANISM_TYPE,
     dados: &[u8],
 ) -> Result<Vec<u8>, CK_RV> {
@@ -888,7 +888,7 @@ fn assinar_local(
         CKM_SHA256_RSA_PKCS => {
             // O módulo hasheia, insere o DigestInfo do SHA-256 e assina — que é
             // exatamente o que a `assinar_digest` faz, com o SHA-256 embutido.
-            let hash = remoteid_core::crypto::sha256(dados);
+            let hash = remoteid_cripto::sha256(dados);
             chave.assinar_digest(&hash).map_err(|_| CKR_FUNCTION_FAILED)
         }
         _ => Err(CKR_MECHANISM_INVALID),
@@ -909,7 +909,7 @@ const PREFIXO_DIGESTINFO_SHA256: [u8; 19] = [
 ///   tiramos o prefixo. Alguns hosts mandam o hash cru (32 bytes).
 fn digest_sha256(mecanismo: CK_MECHANISM_TYPE, dados: &[u8]) -> Result<[u8; 32], CK_RV> {
     match mecanismo {
-        CKM_SHA256_RSA_PKCS => Ok(remoteid_core::crypto::sha256(dados)),
+        CKM_SHA256_RSA_PKCS => Ok(remoteid_cripto::sha256(dados)),
         CKM_RSA_PKCS => {
             if dados.len() == 51 && dados[..19] == PREFIXO_DIGESTINFO_SHA256 {
                 let mut h = [0u8; 32];

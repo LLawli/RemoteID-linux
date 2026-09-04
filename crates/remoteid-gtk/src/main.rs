@@ -25,7 +25,7 @@ use std::rc::Rc;
 
 use gtk::prelude::*;
 
-use remoteid_core::Opcoes;
+use remoteid_aplicacao::Opcoes;
 use remoteid_daemon::protocolo::{CodigoErro, Requisicao, Resposta, SucessoResposta};
 use remoteid_daemon::servico::Servico;
 use remoteid_gtk::modelo::{self, ConfigApp, EstadoApp};
@@ -76,7 +76,7 @@ fn ambiente() -> (Opcoes, PathBuf, bool) {
     // (estado, diag e socket em /tmp). Aqui só reportamos a flag para o título.
     let opcoes = Opcoes::default();
     let socket = remoteid_daemon::socket::caminho_padrao();
-    let teste = remoteid_core::state::em_teste();
+    let teste = remoteid_caminhos::em_teste();
     (opcoes, socket, teste)
 }
 

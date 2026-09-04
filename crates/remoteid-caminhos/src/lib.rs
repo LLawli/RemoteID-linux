@@ -1,16 +1,12 @@
-//! Fachada de I/O do estado: resolve os diretórios e delega a persistência.
+//! Onde o RemoteID-linux guarda seus arquivos no desktop.
 //!
-//! A leitura/escrita do `state.json` é do adaptador
-//! [`remoteid_store_json`] (que implementa a porta `RepositorioEstado`); aqui
-//! ficam só a resolução de diretórios (XDG, `REMOTEID_HOME`, modo de teste) e o
-//! re-export das funções de baixo nível que o motor ainda usa direto. Na Fase 3
-//! o motor passa a receber um `Box<dyn RepositorioEstado>` e esta fachada some;
-//! a resolução de diretórios vira a porta `Ambiente`.
+//! É a composição de caminhos (não um domínio nem um adaptador): resolve os
+//! diretórios de dados e de diagnóstico a partir do XDG e das variáveis de
+//! ambiente, e sabe o modo de teste. Os adaptadores de arquivo (`store-json`,
+//! `chave-pem`, `diag-jsonl`) e as raízes de composição (CLI, app, módulo
+//! PKCS#11) recebem esses caminhos; nenhum deles resolve XDG por conta própria.
 
 use std::path::{Path, PathBuf};
-
-// A persistência mora no adaptador; o motor a chama por estes nomes até a Fase 3.
-pub use remoteid_store_json::{gravar as salvar, ler as carregar};
 
 /// Diretório do MODO DE TESTE. Um só, em /tmp, para o app, o CLI e o módulo
 /// PKCS#11 relocarem juntos quando `TEST_URL` está setada — assim o teste é UM
@@ -78,7 +74,6 @@ mod tests {
 
     #[test]
     fn dir_dados_respeita_a_variavel_de_ambiente() {
-        // Sem depender do ambiente real do teste: só a precedência declarada.
         assert!(dir_dados().is_absolute() || dir_dados().starts_with("/tmp"));
     }
 }

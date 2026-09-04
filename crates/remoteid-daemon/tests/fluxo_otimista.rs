@@ -19,9 +19,9 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use remoteid_core::authmode::Fatores;
-use remoteid_core::crypto::{b64, de_b64};
-use remoteid_core::{Motor, Opcoes};
+use remoteid_autorizacao::Fatores;
+use remoteid_cripto::{b64, de_b64};
+use remoteid_aplicacao::{Motor, Opcoes};
 use serde_json::{json, Value};
 
 use remoteid_daemon::prompter::{Contexto, Prompter};
@@ -237,7 +237,7 @@ impl Prompter for PrompterEspiao {
     fn pedir_pin_otp(
         &self,
         _: &Contexto,
-    ) -> remoteid_core::error::Result<Fatores> {
+    ) -> remoteid_tipos::Result<Fatores> {
         *self.chamadas.lock().unwrap() += 1;
         Ok(Fatores::PinOtp { pin: self.pin.clone(), otp: self.otp.clone() })
     }
@@ -249,7 +249,7 @@ impl Prompter for ProxyPrompter {
     fn pedir_pin_otp(
         &self,
         c: &Contexto,
-    ) -> remoteid_core::error::Result<Fatores> {
+    ) -> remoteid_tipos::Result<Fatores> {
         self.0.pedir_pin_otp(c)
     }
 }

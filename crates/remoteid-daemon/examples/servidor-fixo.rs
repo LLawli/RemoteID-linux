@@ -17,7 +17,7 @@ use remoteid_daemon::prompter::FatoresFixos;
 use remoteid_daemon::protocolo::{CodigoErro, Requisicao, Resposta};
 use remoteid_daemon::servico::Servico;
 use remoteid_daemon::socket;
-use remoteid_core::Opcoes;
+use remoteid_aplicacao::Opcoes;
 
 fn main() {
     let pin = std::env::var("FIXO_PIN").unwrap_or_else(|_| "1234".to_string());

@@ -16,7 +16,7 @@
 //!
 //! O `login` é o único passo que usa o JWT no `Authorization`. Do `carteira`
 //! em diante o Bearer é a ASSINATURA do corpo com a chave da instalação
-//! ([`crate::canonical`]).
+//! ([`remoteid_protocolo_servidor::canonical`]).
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -28,24 +28,22 @@ use remoteid_portas::{
     Ambiente, CofreDeChave, Diagnostico, Relogio, RepositorioEstado, RequisicaoHttp,
     TransporteRemoteId,
 };
-use remoteid_tipos::IdInstalacao;
+use remoteid_tipos::{Error, IdInstalacao, Result};
 
-use crate::authmode::{Fatores, Modo};
-use crate::canonical::canonical;
-use crate::config;
-use crate::crypto::{b64, de_b64, sha256};
-use crate::error::{Error, Result};
-use crate::protocol;
-use crate::resposta;
-use crate::state::{self, Certificado, Estado};
+use remoteid_autorizacao::{Fatores, Modo};
+use remoteid_cripto::{b64, de_b64, sha256};
+use remoteid_estado::{Certificado, Estado};
+use remoteid_protocolo_servidor::canonical::canonical;
+use remoteid_protocolo_servidor::{config, protocol, resposta};
 
-// Adaptadores padrão do desktop, montados por `Motor::abrir`. A raiz de
-// composição de uma outra edição (p.ex. a central em Postgres) usa
-// `Motor::com_dependencias` e não passa por aqui.
-use crate::diag::Diag;
-use crate::http::Http;
+// Adaptadores e composição padrão do desktop, montados por `Motor::abrir`. Uma
+// outra edição (a central em Postgres) usa `Motor::com_dependencias` e não passa
+// por aqui, então não linka estes.
 use remoteid_ambiente_sistema::AmbienteSistema;
+use remoteid_caminhos as caminhos;
 use remoteid_chave_pem::CofrePem;
+use remoteid_diag_jsonl::Diag;
+use remoteid_http::Http;
 use remoteid_relogio_sistema::RelogioSistema;
 use remoteid_store_json::RepositorioJson;
 
@@ -66,7 +64,7 @@ pub struct Opcoes {
 
 impl Default for Opcoes {
     fn default() -> Self {
-        // Os diretórios (`state::dir_dados`/`dir_diag`) já relocam para /tmp em
+        // Os diretórios (`caminhos::dir_dados`/`dir_diag`) já relocam para /tmp em
         // modo de teste (`TEST_URL`), o mesmo que o módulo PKCS#11 usa — então
         // aqui só decidimos as URLs. Em teste elas apontam para o servidor mock
         // (o valor de `TEST_URL`); em produção, para a Certisign. Nada é escrito
@@ -76,8 +74,8 @@ impl Default for Opcoes {
             None => (config::REMOTEID_URL.to_string(), config::CERTINEXT_URL.to_string()),
         };
         Opcoes {
-            dir_dados: state::dir_dados(),
-            dir_diag: state::dir_diag(),
+            dir_dados: caminhos::dir_dados(),
+            dir_diag: caminhos::dir_diag(),
             remoteid_url: remoteid,
             certinext_url: certinext,
             timeout: Duration::from_secs(60),
@@ -317,7 +315,7 @@ impl Motor {
     ///
     /// É informação de CAPACIDADE, não de modo. O app oficial lê este booleano
     /// e o descarta, gravando `AuthorizationMode = "local"` de qualquer jeito
-    /// (ver [`crate::authmode`]). Guardamos o valor para o usuário saber se faz
+    /// (ver [`remoteid_autorizacao`]). Guardamos o valor para o usuário saber se faz
     /// sentido tentar o push, mas ele não decide nada sozinho.
     pub fn status_celular(&mut self) -> Result<bool> {
         let codigo = self.estado.codigo_desktop()?.to_string();

@@ -22,7 +22,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use remoteid_core::crypto::{b64, de_b64, ChaveInstalacao};
+use remoteid_cripto::{b64, de_b64, ChaveInstalacao};
 use serde_json::{json, Value};
 
 // Fixtures embutidas (geradas por openssl; ver crates/remoteid-mock/fixtures).

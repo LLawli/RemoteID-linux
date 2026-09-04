@@ -14,7 +14,7 @@ use cryptoki_sys::*;
 
 use crate::objetos::Objeto;
 
-use remoteid_core::crypto::ChaveInstalacao;
+use remoteid_cripto::ChaveInstalacao;
 
 /// O único slot que o módulo expõe.
 ///
@@ -44,9 +44,9 @@ impl Token {
     /// enumeração de slots é o caminho mais curto para travar a UI do
     /// hospedeiro.
     pub fn carregar() -> Result<Option<Token>, String> {
-        let dir = remoteid_core::state::dir_dados();
-        let caminho = remoteid_core::state::caminho_estado(&dir);
-        let estado = remoteid_core::state::carregar(&caminho)
+        let dir = remoteid_caminhos::dir_dados();
+        let caminho = remoteid_caminhos::caminho_estado(&dir);
+        let estado = remoteid_store_json::ler(&caminho)
             .map_err(|e| format!("state.json ilegível: {e}"))?;
 
         let Some(cert) = estado.certificados.first() else {
@@ -70,7 +70,7 @@ impl Token {
         // implementado e vai passar pelo motor.
         let caminho_chave = caminho_chave_teste(&dir);
         if caminho_chave.exists() {
-            match remoteid_core::crypto::carregar(&caminho_chave) {
+            match remoteid_chave_pem::carregar(&caminho_chave) {
                 Ok(chave) => token.instalar_chave_teste(chave)?,
                 Err(e) => return Err(format!("chave-assinatura.pem ilegível: {e}")),
             }

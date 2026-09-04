@@ -10,11 +10,11 @@ use std::io::{IsTerminal, Read, Write};
 use std::path::PathBuf;
 use std::process::Command;
 
-use remoteid_core::authmode::{Fatores, Modo};
-use remoteid_core::crypto::{b64, de_b64, sha256};
-use remoteid_core::error::Origem;
-use remoteid_core::pkcs7::Montador;
-use remoteid_core::{Motor, Opcoes};
+use remoteid_autorizacao::{Fatores, Modo};
+use remoteid_cripto::{b64, de_b64, sha256};
+use remoteid_tipos::Origem;
+use remoteid_assinatura::Montador;
+use remoteid_aplicacao::{Motor, Opcoes};
 
 const USO: &str = "\
 remoteid — certificado em nuvem RemoteID (Certisign) no Linux
@@ -229,9 +229,9 @@ fn stty(args: &[&str]) -> bool {
 
 // --- comandos --------------------------------------------------------------
 
-type Saida = Result<(), remoteid_core::Error>;
+type Saida = Result<(), remoteid_tipos::Error>;
 
-fn abrir_motor(args: &Args) -> Result<Motor, remoteid_core::Error> {
+fn abrir_motor(args: &Args) -> Result<Motor, remoteid_tipos::Error> {
     let mut opcoes = Opcoes::default();
     if let Some(d) = args.opcao("dir") {
         opcoes.dir_dados = PathBuf::from(d);
@@ -255,7 +255,7 @@ fn abrir_motor(args: &Args) -> Result<Motor, remoteid_core::Error> {
 }
 
 fn rodar(args: &Args) -> Saida {
-    use remoteid_core::Error;
+    use remoteid_tipos::Error;
     match args.comando.as_str() {
         "estado" => cmd_estado(args),
         "conectividade" => cmd_conectividade(args),
@@ -319,7 +319,7 @@ fn cmd_login(args: &Args) -> Saida {
 }
 
 fn fazer_login(motor: &mut Motor, args: &Args) -> Saida {
-    use remoteid_core::Error;
+    use remoteid_tipos::Error;
     let email = args
         .texto("email", "REMOTEID_EMAIL", "e-mail do RemoteID")
         .map_err(Error::uso)?;
@@ -403,26 +403,26 @@ fn cmd_harness(args: &Args) -> Saida {
 }
 
 fn cmd_assinar(args: &Args) -> Saida {
-    use remoteid_core::Error;
+    use remoteid_tipos::Error;
     let motor = abrir_motor(args)?;
     let digest = digest_da_entrada(args)?;
     let modo = motor.estado.modo();
 
     let fatores = match modo.estado() {
-        remoteid_core::EstadoAuth::PromptForPush => {
+        remoteid_autorizacao::Estado::PromptForPush => {
             eprintln!(
                 "modo `push`: o servidor vai esperar a aprovação no celular. \
                  Este caminho nunca foi testado com uma conta real."
             );
             Fatores::Push
         }
-        remoteid_core::EstadoAuth::MobileId => {
+        remoteid_autorizacao::Estado::MobileId => {
             return Err(Error::uso(
                 "modo `mobileId` é outra estratégia de assinatura, fora do RemoteID; \
                  use `remoteid modo local`",
             ))
         }
-        remoteid_core::EstadoAuth::Interativo => {
+        remoteid_autorizacao::Estado::Interativo => {
             let pin = args
                 .segredo("pin", "REMOTEID_PIN", "PIN do certificado")
                 .map_err(Error::uso)?;
@@ -487,10 +487,10 @@ fn agora() -> u64 {
 
 /// O conteúdo em si, para a assinatura anexada. Só faz sentido com --arquivo:
 /// anexar exige ter os bytes, e um digest solto não os tem.
-fn conteudo_da_entrada(args: &Args) -> Result<Vec<u8>, remoteid_core::Error> {
+fn conteudo_da_entrada(args: &Args) -> Result<Vec<u8>, remoteid_tipos::Error> {
     match args.opcao("arquivo") {
         Some(caminho) => Ok(std::fs::read(&caminho)?),
-        None => Err(remoteid_core::Error::uso(
+        None => Err(remoteid_tipos::Error::uso(
             "--anexar precisa de --arquivo: para embutir o conteúdo é preciso \
              tê-lo, e um --hash é só o resumo",
         )),
@@ -498,8 +498,8 @@ fn conteudo_da_entrada(args: &Args) -> Result<Vec<u8>, remoteid_core::Error> {
 }
 
 /// O digest a assinar, das quatro formas de entrada.
-fn digest_da_entrada(args: &Args) -> Result<Vec<u8>, remoteid_core::Error> {
-    use remoteid_core::Error;
+fn digest_da_entrada(args: &Args) -> Result<Vec<u8>, remoteid_tipos::Error> {
+    use remoteid_tipos::Error;
     if let Some(caminho) = args.opcao("arquivo") {
         let dados = std::fs::read(&caminho)?;
         return Ok(sha256(&dados).to_vec());
@@ -529,8 +529,8 @@ fn digest_da_entrada(args: &Args) -> Result<Vec<u8>, remoteid_core::Error> {
     Ok(sha256(&buf).to_vec())
 }
 
-fn conferir_digest(d: Vec<u8>) -> Result<Vec<u8>, remoteid_core::Error> {
-    use remoteid_core::Error;
+fn conferir_digest(d: Vec<u8>) -> Result<Vec<u8>, remoteid_tipos::Error> {
+    use remoteid_tipos::Error;
     if d.len() != 32 {
         return Err(Error::uso(format!(
             "o digest tem de ser SHA-256 (32 bytes); veio com {}. \
@@ -542,7 +542,7 @@ fn conferir_digest(d: Vec<u8>) -> Result<Vec<u8>, remoteid_core::Error> {
 }
 
 fn cmd_modo(args: &Args) -> Saida {
-    use remoteid_core::Error;
+    use remoteid_tipos::Error;
     let alvo = args
         .resto
         .first()
@@ -570,7 +570,7 @@ fn cmd_chave_publica(args: &Args) -> Saida {
 
 fn cmd_diagnostico(args: &Args) -> Saida {
     let motor = abrir_motor(args)?;
-    let dir = remoteid_core::state::dir_diag();
+    let dir = remoteid_caminhos::dir_diag();
     println!("diretório: {}", dir.display());
     if let Some(p) = motor.caminho_diag() {
         println!("desta execução: {}", p.display());

@@ -15,7 +15,8 @@ use std::ptr;
 
 use cryptoki_sys::*;
 use der::Encode as _;
-use remoteid_core::state::{caminho_estado, Certificado, Estado};
+use remoteid_caminhos::caminho_estado;
+use remoteid_estado::{Certificado, Estado};
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use sha2::Sha256;
 
@@ -75,7 +76,7 @@ fn preparar_estado(der: &[u8], chave_pem: &str) -> std::path::PathBuf {
         .unwrap()],
         ..Default::default()
     };
-    remoteid_core::state::salvar(&estado, &caminho_estado(&dir)).unwrap();
+    remoteid_store_json::gravar(&estado, &caminho_estado(&dir)).unwrap();
     std::fs::write(dir.join("chave-assinatura.pem"), chave_pem).unwrap();
     dir
 }

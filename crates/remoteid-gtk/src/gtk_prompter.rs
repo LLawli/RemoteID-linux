@@ -17,8 +17,8 @@
 use std::sync::RwLock;
 use std::time::{Duration, Instant};
 
-use remoteid_core::authmode::Fatores;
-use remoteid_core::error::{Error, Result};
+use remoteid_autorizacao::Fatores;
+use remoteid_tipos::{Error, Result};
 
 use remoteid_daemon::prompter::{Contexto, Prompter};
 

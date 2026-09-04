@@ -15,7 +15,11 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 cryptoki-sys.workspace = true
-remoteid-core = { path = "../remoteid-core" }
+remoteid-cripto = { path = "../remoteid-cripto" }
+remoteid-chave-pem = { path = "../remoteid-chave-pem" }
+remoteid-caminhos = { path = "../remoteid-caminhos" }
+remoteid-store-json = { path = "../remoteid-store-json" }
+remoteid-estado = { path = "../remoteid-estado" }
 # O protocolo do socket (crate-folha, sem GTK): o braço de produção do C_Sign
 # fala com o app por ele. NUNCA depender de remoteid-gtk/daemon aqui — este é
 # um cdylib e não pode linkar GTK.
