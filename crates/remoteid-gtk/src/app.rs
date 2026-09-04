@@ -3,6 +3,14 @@
 //! Integra o servidor do socket via `glib::unix_fd_add_local` para atender o módulo
 //! PKCS#11 na mesma thread da interface, mantendo a proteção contra reentrância através
 //! de `try_borrow_mut` no `Servico`.
+//!
+//! O atendimento é dividido em DUAS `GSource` (listener e conexão) de propósito:
+//! o GLib não redespacha uma `GSource` enquanto o callback dela está na pilha, e
+//! o diálogo de PIN/OTP roda um `MainLoop` ANINHADO dentro desse callback. Com
+//! uma source só, o próprio `accept` ficava congelado enquanto o diálogo estava
+//! aberto: a segunda requisição não era aceita, o cliente ficava pendurado até o
+//! timeout dele, e o `try_borrow_mut` abaixo nunca era alcançado. Ver
+//! `iniciar_socket` e `registrar_conexao`.
 
 use std::cell::RefCell;
 use std::io::{BufRead, BufReader, Write};
@@ -91,10 +99,14 @@ pub fn iniciar_socket(
     let fd = listener.as_raw_fd();
     let listener = Rc::new(listener);
 
+    // Este callback tem de ser CURTO: enquanto ele está na pilha, o GLib não
+    // despacha esta source de novo. Ele só aceita e delega — nada de ler ou
+    // tratar aqui dentro, senão o diálogo de PIN/OTP (que abre um MainLoop
+    // aninhado lá no fundo) tranca o accept junto.
     glib::unix_fd_add_local(fd, glib::IOCondition::IN, move |_, _| {
         loop {
             match listener.accept() {
-                Ok((fluxo, _)) => atender_conexao(&servico, fluxo),
+                Ok((fluxo, _)) => registrar_conexao(&servico, fluxo),
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
                 Err(_) => break,
             }
@@ -105,21 +117,62 @@ pub fn iniciar_socket(
     Ok(caminho)
 }
 
+/// Dá a cada conexão aceita a SUA própria `GSource`.
+///
+/// Duas coisas saem daqui, e nenhuma é estilo:
+///
+/// 1. Como é outra source, ela despacha normalmente enquanto a source do
+///    listener (e a de uma conexão anterior) estão presas no `MainLoop`
+///    aninhado do diálogo. É o que faz o `try_borrow_mut` de
+///    `atender_conexao` ser alcançável e o cliente ouvir "ocupado" na hora,
+///    em vez de esperar o timeout de uma resposta que nunca vinha.
+/// 2. A leitura só acontece quando já há byte no fd. O `read_line` era feito
+///    logo após o `accept`, então um cliente que conectasse e ficasse calado
+///    congelava a interface pelos 5s do `set_read_timeout`.
+fn registrar_conexao(servico: &ServicoCompartilhado, fluxo: UnixStream) {
+    // Rede de segurança para o caso de uma linha chegar pela metade: o
+    // `IOCondition::IN` garante que há dado, não que há a linha inteira.
+    let _ = fluxo.set_read_timeout(Some(Duration::from_secs(5)));
+
+    let fd = fluxo.as_raw_fd();
+    let servico = servico.clone();
+    let fluxo = Rc::new(fluxo);
+
+    // HUP/ERR entram para o cliente que desiste antes de falar não deixar a
+    // source viva para sempre. `Break` remove a source, e o drop do `Rc` que
+    // ela carrega fecha o fd.
+    let condicoes = glib::IOCondition::IN | glib::IOCondition::HUP | glib::IOCondition::ERR;
+    glib::unix_fd_add_local(fd, condicoes, move |_, cond| {
+        if cond.contains(glib::IOCondition::IN) {
+            atender_conexao(&servico, &fluxo);
+        }
+        // Uma requisição por conexão: é o que o protocolo do socket define
+        // (uma linha JSON, uma resposta) e o que o módulo PKCS#11 faz.
+        glib::ControlFlow::Break
+    });
+}
+
 /// Remove o arquivo do socket do sistema de arquivos.
 pub fn limpar_socket(caminho: &Path) {
     let _ = std::fs::remove_file(caminho);
 }
 
 /// Atende uma conexão recebida no socket UNIX de maneira síncrona e segura contra reentrância.
-fn atender_conexao(servico: &ServicoCompartilhado, fluxo: UnixStream) {
-    let _ = fluxo.set_read_timeout(Some(Duration::from_secs(5)));
+///
+/// Roda na source da própria conexão (ver `registrar_conexao`), então pode ser
+/// despachada com o `Servico` já emprestado por uma autorização em andamento —
+/// que é exatamente o caso que o `try_borrow_mut` abaixo cobre.
+fn atender_conexao(servico: &ServicoCompartilhado, fluxo: &UnixStream) {
     let leitor_fluxo = match fluxo.try_clone() {
+        Ok(f) => f,
+        Err(_) => return,
+    };
+    let mut escritor = match fluxo.try_clone() {
         Ok(f) => f,
         Err(_) => return,
     };
 
     let mut leitor = BufReader::new(leitor_fluxo);
-    let mut escritor = fluxo;
     let mut linha = String::new();
 
     if leitor.read_line(&mut linha).unwrap_or(0) == 0 {
@@ -147,13 +200,42 @@ fn atender_conexao(servico: &ServicoCompartilhado, fluxo: UnixStream) {
     }
 }
 
+/// Chama o `Servico` a partir da janela sem NUNCA panicar por reentrância.
+/// `None` quer dizer "ocupado: há uma autorização em andamento".
+///
+/// A janela precisa disto tanto quanto o socket. Durante o diálogo de PIN/OTP o
+/// `Servico` está emprestado, e um `borrow_mut()` num handler de botão
+/// derrubaria o app inteiro NO MEIO de uma assinatura. Não é hipotético: o
+/// diálogo é modal em relação à janela ATIVA, e quando quem pediu a assinatura
+/// foi o Papers (o caso normal) o app está em segundo plano — `active_window()`
+/// devolve `None`, o diálogo nasce sem pai, e a janela principal segue clicável.
+fn tratar_se_livre(servico: &ServicoCompartilhado, req: Requisicao) -> Option<Resposta> {
+    match servico.try_borrow_mut() {
+        Ok(mut s) => Some(s.tratar(req)),
+        Err(_) => None,
+    }
+}
+
+/// Diz ao usuário por que o clique dele não fez nada.
+fn avisar_ocupado(janela: &impl IsA<gtk::Window>) {
+    mostrar_erro(
+        janela,
+        "Autorização em andamento",
+        "Conclua (ou cancele) o diálogo de PIN e OTP antes de usar a janela.",
+    );
+}
+
 /// Consulta o estado atual e renderiza a tela apropriada (Login ou Painel).
 pub fn navegar_para_estado_atual(
     janela: &adw::ApplicationWindow,
     servico: &ServicoCompartilhado,
     teste: bool,
 ) {
-    let status_resp = servico.borrow_mut().tratar(Requisicao::Status);
+    // Ocupado: mantém a tela como está. Renavegar não é urgente, e derrubar o
+    // app por causa de um refresh de tela seria péssimo troco.
+    let Some(status_resp) = tratar_se_livre(servico, Requisicao::Status) else {
+        return;
+    };
     let estado = match status_resp {
         Resposta::Sucesso(ref s) => EstadoApp::de_status(s).unwrap_or_else(EstadoApp::mock_nao_preparado),
         _ => EstadoApp::mock_nao_preparado(),
@@ -195,8 +277,14 @@ fn mostrar_tela_login(
                     Ok(resultado) => {
                         match resultado {
                             Ok(()) => {
-                                if let Err(e) = s_async.borrow_mut().reabrir() {
-                                    mostrar_erro(&j_async, "Instalação concluída com ressalva", &format!("O estado foi gravado, mas a recarga falhou: {e}"));
+                                match s_async.try_borrow_mut() {
+                                    Ok(mut s) => {
+                                        if let Err(e) = s.reabrir() {
+                                            drop(s);
+                                            mostrar_erro(&j_async, "Instalação concluída com ressalva", &format!("O estado foi gravado, mas a recarga falhou: {e}"));
+                                        }
+                                    }
+                                    Err(_) => avisar_ocupado(&j_async),
                                 }
                                 navegar_para_estado_atual(&j_async, &s_async, teste);
                             }
@@ -260,7 +348,10 @@ fn mostrar_tela_painel(
             move || mostrar_tela_selecao(&j, &s, teste)
         }),
         reautorizar: Rc::new(move || {
-            let r = s_painel.borrow_mut().tratar(Requisicao::ReautorizarProxima);
+            let Some(r) = tratar_se_livre(&s_painel, Requisicao::ReautorizarProxima) else {
+                avisar_ocupado(&j_painel);
+                return;
+            };
             if let Resposta::Falha { erro, .. } = r {
                 mostrar_erro(&j_painel, "Falha ao reautorizar", &erro);
             }
@@ -282,7 +373,10 @@ fn mostrar_tela_selecao(
     servico: &ServicoCompartilhado,
     teste: bool,
 ) {
-    let status_resp = servico.borrow_mut().tratar(Requisicao::Status);
+    let Some(status_resp) = tratar_se_livre(servico, Requisicao::Status) else {
+        avisar_ocupado(janela);
+        return;
+    };
     let estado = match status_resp {
         Resposta::Sucesso(ref s) => EstadoApp::de_status(s).unwrap_or_else(EstadoApp::mock_nao_preparado),
         _ => EstadoApp::mock_nao_preparado(),
@@ -313,7 +407,10 @@ fn mostrar_tela_selecao(
             move || navegar_para_estado_atual(&j, &s, teste)
         }),
         confirmar: Rc::new(move |key_name| {
-            let r = s_sel.borrow_mut().tratar(Requisicao::EscolherCertificado { key_name });
+            let Some(r) = tratar_se_livre(&s_sel, Requisicao::EscolherCertificado { key_name }) else {
+                avisar_ocupado(&j_sel);
+                return;
+            };
             if let Resposta::Falha { erro, .. } = r {
                 mostrar_erro(&j_sel, "Não foi possível alterar o certificado", &erro);
             }
@@ -335,7 +432,10 @@ fn mostrar_tela_configuracoes(
     servico: &ServicoCompartilhado,
     teste: bool,
 ) {
-    let status_resp = servico.borrow_mut().tratar(Requisicao::Status);
+    let Some(status_resp) = tratar_se_livre(servico, Requisicao::Status) else {
+        avisar_ocupado(janela);
+        return;
+    };
     let estado = match status_resp {
         Resposta::Sucesso(ref s) => EstadoApp::de_status(s).unwrap_or_else(EstadoApp::mock_nao_preparado),
         _ => EstadoApp::mock_nao_preparado(),
@@ -389,7 +489,10 @@ fn mostrar_tela_configuracoes(
             None
         },
         reinstalar: Rc::new(move || {
-            let r = s_cfg.borrow_mut().tratar(Requisicao::Reinstalar);
+            let Some(r) = tratar_se_livre(&s_cfg, Requisicao::Reinstalar) else {
+                avisar_ocupado(&j_cfg);
+                return;
+            };
             if let Resposta::Falha { erro, .. } = r {
                 mostrar_erro(&j_cfg, "Falha ao reinstalar", &erro);
             }
