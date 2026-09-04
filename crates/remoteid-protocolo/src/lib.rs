@@ -4,7 +4,7 @@
 //! [`Requisicao`] e serializa [`Resposta`]; os **clientes** (a janela GTK e o
 //! futuro braço de produção do `C_Sign` no módulo PKCS#11) fazem o inverso.
 //! Por isso [`Requisicao`] deriva `Serialize` **e** `Deserialize`, e este
-//! crate não puxa GTK nem `remoteid-core`: o `cdylib` do PKCS#11 não pode
+//! crate não puxa GTK nem os crates de domínio: o `cdylib` do PKCS#11 não pode
 //! linkar GTK.
 //!
 //! Framing: uma mensagem JSON por linha, terminada em `\n`. Escolhido em vez de

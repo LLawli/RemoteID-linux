@@ -8,8 +8,8 @@
 //! Certisign e sem gastar OTP de conta real.
 //!
 //! Nada aqui é secreto: a chave é sintética, gerada só para teste. O contrato
-//! de wire foi extraído do motor (`remoteid-core`) e do servidor enlatado de
-//! `crates/remoteid-core/tests/fluxo.rs` — ver os comentários por endpoint.
+//! de wire foi extraído do motor (`remoteid-aplicacao`) e do servidor enlatado de
+//! `crates/remoteid-aplicacao/tests/fluxo.rs` — ver os comentários por endpoint.
 //!
 //! Uso: `remoteid-mock [porta]` (padrão 8799). O app entra em modo de teste
 //! com `TEST_URL=http://localhost:8799`.

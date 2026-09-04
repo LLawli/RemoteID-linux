@@ -12,7 +12,7 @@
 //!    módulo/hospedeiro vê APENAS a assinatura, nada de "sessão expirada".
 //!
 //! O servidor de teste é o mesmo padrão do
-//! `remoteid-core/tests/fluxo.rs`: TCP local, respostas enlatadas por path.
+//! `remoteid-aplicacao/tests/fluxo.rs`: TCP local, respostas enlatadas por path.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};

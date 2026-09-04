@@ -11,7 +11,7 @@ repository.workspace = true
 name = "remoteid_protocolo"
 path = "src/lib.rs"
 
-# Crate-folha de propósito: só serde. Sem GTK, sem remoteid-core. É o que
+# Crate-folha de propósito: só serde. Sem GTK, sem os crates de domínio. É o que
 # permite o cdylib do PKCS#11 (que NÃO pode linkar GTK) falar o mesmo
 # protocolo que a janela.
 [dependencies]

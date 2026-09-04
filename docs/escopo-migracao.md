@@ -254,10 +254,13 @@ check` atual). Nenhuma fase muda comportamento observável até a fase 5.
   do JSON e prova que a troca não toca a lógica. Os testes de integração
   (`fluxo`, `fluxo_otimista`), que verificam a assinatura do Bearer, seguem
   verdes: comportamento preservado.
-  - **Polimento restante (Fase 3b/4):** mover `engine`/`Servico` para uma crate
-    `remoteid-aplicacao` e inverter as backdeps temporárias (o core ainda
-    re-exporta os adaptadores como fachada para `cli`/`pkcs11`/`mock`); isso é
-    topologia, não muda comportamento nem capacidade.
+- **Fase 3b — topologia limpa. [CONCLUÍDA]** O `engine` saiu para
+  `remoteid-aplicacao` (orquestra sobre as portas + monta os adaptadores padrão
+  do desktop). A resolução de diretórios virou o crate-folha `remoteid-caminhos`.
+  As backdeps temporárias foram invertidas: `remoteid-core` foi **deletado**, e
+  os consumidores (`cli`, `daemon`, `pkcs11`, `mock`, `gtk`) importam direto dos
+  crates de domínio e adaptador, com deps explícitas por crate. Zero referências
+  a `remoteid-core` no workspace. 23 crates, 108 testes verdes.
 - **Fase 4 — religar a borda de entrada.** CLI, app GTK, módulo PKCS#11 e mock
   passam a montar as portas (composition root em cada binário). Socket interno
   pode ser redesenhado aqui, se valer a pena.
