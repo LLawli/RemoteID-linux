@@ -243,9 +243,21 @@ check` atual). Nenhuma fase muda comportamento observável até a fase 5.
   (backdep temporária, invertida na Fase 3). 21 crates, 109 testes verdes.
   - **Pendente menor:** o default `nome_aplicacao` do GTK ainda repete a
     constante; deduplicar quando o motor passar a consumir aquele config.
-- **Fase 3 — motor genérico.** Refatorar `engine`/`Servico` para a crate de
-  aplicação, parametrizada pelas portas. `Prompter` e `Relogio` entram como
-  portas de primeira classe.
+- **Fase 3 — motor genérico. [CONCLUÍDA no essencial]** O `Motor` não contém
+  mais tipos concretos: guarda `Box<dyn RepositorioEstado>`, `CofreDeChave`,
+  `TransporteRemoteId`, `Arc<dyn Diagnostico>`, `Relogio`, `Ambiente` e o
+  `IdInstalacao`. `Motor::abrir` monta os adaptadores padrão do desktop;
+  `Motor::com_dependencias` injeta implementações arbitrárias (o gancho da versão
+  central e dos testes). A interpretação da resposta ("HTTP 200 = erro") virou
+  `protocolo_servidor::resposta` (pura). O `Prompter` foi unificado na porta. Um
+  teste (`tests/injecao.rs`) roda o motor com um repositório EM MEMÓRIA no lugar
+  do JSON e prova que a troca não toca a lógica. Os testes de integração
+  (`fluxo`, `fluxo_otimista`), que verificam a assinatura do Bearer, seguem
+  verdes: comportamento preservado.
+  - **Polimento restante (Fase 3b/4):** mover `engine`/`Servico` para uma crate
+    `remoteid-aplicacao` e inverter as backdeps temporárias (o core ainda
+    re-exporta os adaptadores como fachada para `cli`/`pkcs11`/`mock`); isso é
+    topologia, não muda comportamento nem capacidade.
 - **Fase 4 — religar a borda de entrada.** CLI, app GTK, módulo PKCS#11 e mock
   passam a montar as portas (composition root em cada binário). Socket interno
   pode ser redesenhado aqui, se valer a pena.
