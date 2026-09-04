@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Ícone do RemoteID-linux. Nuvem = o certificado mora no HSM da Certisign,
+     não na máquina; selo dentado = certificação. O serrilhado do selo é o que
+     faz o ícone ler como "selo de certificação" e não como "concluído"; foi
+     mantido porque ainda distingue a 24px, que é o tamanho onde o ícone vive.
+     Paleta Adwaita. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="nuvem" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#99c1f1"/><stop offset="1" stop-color="#3584e4"/>
+    </linearGradient>
+    <linearGradient id="selo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f9f06b"/><stop offset="1" stop-color="#e5a50a"/>
+    </linearGradient>
+  </defs>
+  <g fill="url(#nuvem)">
+    <circle cx="40" cy="52" r="19"/>
+    <circle cx="62" cy="42" r="25"/>
+    <circle cx="82" cy="54" r="16"/>
+    <rect x="32" y="54" width="58" height="24" rx="12"/>
+  </g>
+  <polygon points="90.00,54.00 95.97,57.99 103.01,56.59 107.00,62.56 114.04,63.96 115.44,71.00 121.41,74.99 120.01,82.03 124.00,88.00 120.01,93.97 121.41,101.01 115.44,105.00 114.04,112.04 107.00,113.44 103.01,119.41 95.97,118.01 90.00,122.00 84.03,118.01 76.99,119.41 73.00,113.44 65.96,112.04 64.56,105.00 58.59,101.01 59.99,93.97 56.00,88.00 59.99,82.03 58.59,74.99 64.56,71.00 65.96,63.96 73.00,62.56 76.99,56.59 84.03,57.99" fill="#ffffff"/>
+  <polygon points="90.00,59.00 95.09,62.40 101.10,61.21 104.50,66.30 110.51,67.49 111.70,73.50 116.79,76.90 115.60,82.91 119.00,88.00 115.60,93.09 116.79,99.10 111.70,102.50 110.51,108.51 104.50,109.70 101.10,114.79 95.09,113.60 90.00,117.00 84.91,113.60 78.90,114.79 75.50,109.70 69.49,108.51 68.30,102.50 63.21,99.10 64.40,93.09 61.00,88.00 64.40,82.91 63.21,76.90 68.30,73.50 69.49,67.49 75.50,66.30 78.90,61.21 84.91,62.40" fill="url(#selo)"/>
+  <path d="M78 90 L87 99 L104 80" fill="none" stroke="#5b3d00" stroke-width="9"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
