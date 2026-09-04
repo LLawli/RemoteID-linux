@@ -110,15 +110,14 @@ pub fn montar(
     }
 
     let campo_otp = adw::EntryRow::builder()
-        .title("Código OTP")
+        .title("Código OTP (6 dígitos)")
         .activates_default(true)
         .input_purpose(gtk::InputPurpose::Digits)
         .build();
 
-    // Remove o ícone de lápis das linhas de entrada e configura placeholder nativo no campo de OTP
+    // Remove o ícone de lápis das linhas de entrada
     esconder_icones_edicao(&campo_pin);
     esconder_icones_edicao(&campo_otp);
-    configurar_placeholder_otp(&campo_otp, "6 dígitos");
 
     // CSS global garantindo que o ícone de lápis embutido não seja desenhado nem ocupe espaço
     garantir_css_sem_icone_edicao();
@@ -215,17 +214,6 @@ fn esconder_icones_edicao(raiz: &impl IsA<gtk::Widget>) {
     }
 }
 
-/// Localiza o widget interno GtkText do AdwEntryRow e define o placeholder nativo.
-fn configurar_placeholder_otp(raiz: &impl IsA<gtk::Widget>, placeholder: &str) {
-    let mut proximo = raiz.first_child();
-    while let Some(w) = proximo {
-        if let Some(texto) = w.downcast_ref::<gtk::Text>() {
-            texto.set_placeholder_text(Some(placeholder));
-        }
-        configurar_placeholder_otp(&w, placeholder);
-        proximo = w.next_sibling();
-    }
-}
 
 /// Cria a janela flutuante obedecendo aos parâmetros para compositores Wayland/Hyprland.
 pub fn criar_janela_dialogo(
