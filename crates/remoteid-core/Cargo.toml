@@ -43,3 +43,6 @@ sha2 = "0.10"
 rand = "0.8"
 cms = { version = "0.2", features = ["alloc"] }
 der = "0.7"
+remoteid-portas = { path = "../remoteid-portas" }
+remoteid-estado = { path = "../remoteid-estado" }
+remoteid-tipos = { path = "../remoteid-tipos" }

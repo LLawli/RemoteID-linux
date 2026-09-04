@@ -66,5 +66,5 @@ pub mod state {
 }
 
 pub use authmode::{Estado as EstadoAuth, Fatores, Modo};
-pub use engine::{Motor, Opcoes};
+pub use engine::{Dependencias, Motor, Opcoes};
 pub use error::{Error, Origem, Result, ServerError};
