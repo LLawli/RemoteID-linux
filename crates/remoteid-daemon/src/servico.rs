@@ -51,6 +51,7 @@ impl Servico {
             Requisicao::Sign { digest_b64, hospedeiro } => self.tratar_sign(digest_b64, hospedeiro),
             Requisicao::Status => self.tratar_status(),
             Requisicao::ReautorizarProxima => self.tratar_reautorizar(),
+            Requisicao::EscolherCertificado { key_name } => self.tratar_escolher(key_name),
             Requisicao::Reinstalar => self.tratar_reinstalar(),
             Requisicao::Encerrar => {
                 self.encerrar.store(true, Ordering::Relaxed);
@@ -156,8 +157,18 @@ impl Servico {
             codigo_desktop: e.codigo_desktop.clone(),
             titular: e.nome.clone(),
             certificados,
+            certificado_ativo: e.certificado_ativo().map(str::to_string),
             sessoes,
         })
+    }
+
+    /// Escolhe o certificado padrão e persiste. A próxima assinatura usa ele.
+    fn tratar_escolher(&mut self, key_name: String) -> Resposta {
+        self.motor.estado.definir_certificado_ativo(key_name);
+        match self.motor.salvar_estado() {
+            Ok(()) => Resposta::Sucesso(SucessoResposta::Ack { ok: true }),
+            Err(e) => erro_para_resposta(e),
+        }
     }
 
     fn tratar_reautorizar(&mut self) -> Resposta {

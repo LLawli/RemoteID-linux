@@ -79,10 +79,28 @@ de diretório: o núcleo é a fonte, e a borda referencia, nunca hardcoda de nov
   as fixtures são sintéticas (`remoteid-mock` tem cert/OTP/PIN falsos).
 - `vendor/` tem os instaladores oficiais. Fora do git, não redistribuir.
 
-## Validação antes de commitar
+## Validação: escope pelo cone de dependentes, nunca pelas dependências
 
-```sh
-cargo test && cargo clippy --all-targets && cargo build --release
-```
+A dependência do workspace só aponta para BAIXO: domínio (`tipos`, `cripto`,
+`autorizacao`, `estado`, `assinatura`, `protocolo-servidor`, `redacao`) ← portas
+← adaptadores ← `aplicacao` ← borda (`cli`, `gtk`, `pkcs11`, `daemon`, `mock`).
+**Um componente de baixo nível NUNCA depende de um de alto nível.** Se você se
+pegar querendo importar `remoteid-aplicacao` de dentro de `remoteid-estado`, pare:
+a inversão está errada.
 
-(é o `make check`).
+Disso sai a regra de teste. Ao mexer numa crate, rode `cargo test`/`cargo clippy`
+**dela e de tudo que depende dela (o cone para CIMA), nunca das suas
+dependências (para baixo)**:
+
+- **Mudança de base** (ex.: `remoteid-estado`, `remoteid-tipos`, uma porta):
+  roda a suíte de TODOS os componentes de alto nível que a usam. Mexer em
+  `estado` roda `store-json`, `protocolo-servidor`, `aplicacao`, `daemon`,
+  `gtk`, `pkcs11`, `cli` — porque a mudança pode quebrá-los.
+- **Mudança de alto nível** (ex.: `remoteid-gtk`, folha): roda só a própria
+  crate. Um botão torto no GTK não muda o SHA-256 do domínio, então **não** roda
+  `estado` nem `aplicacao`. Ninguém depende do GTK; o cone para cima é ele mesmo.
+
+Na prática: `cargo test -p <crate-tocada> -p <dependente-1> -p <dependente-2> ...`.
+O gate completo (`make check` = `cargo test && cargo clippy --all-targets &&
+cargo build --release`) é quando a mudança toca uma base cujo cone é
+praticamente o workspace inteiro, ou antes de um commit que cruza várias crates.

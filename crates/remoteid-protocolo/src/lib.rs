@@ -49,6 +49,10 @@ pub enum Requisicao {
     /// exigir novo login+registro+carteira. Confirmação é responsabilidade
     /// do chamador (a janela GTK mostra o diálogo vermelho).
     Reinstalar,
+    /// Escolhe o certificado padrão (quando a carteira tem mais de um). O
+    /// `key_name` é o do [`CertificadoResumo`]. Persiste como preferência local;
+    /// a próxima assinatura passa a usar esse certificado. Responde `Ack`.
+    EscolherCertificado { key_name: String },
     /// Encerra o daemon. Útil pra testes; a janela também usa quando o
     /// usuário pede "sair completamente".
     Encerrar,
@@ -97,6 +101,10 @@ pub enum SucessoResposta {
         titular: Option<String>,
         #[serde(skip_serializing_if = "Vec::is_empty", default)]
         certificados: Vec<CertificadoResumo>,
+        /// `key_name` do certificado padrão escolhido, quando há mais de um e o
+        /// usuário escolheu. A UI marca esse na tela de seleção.
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        certificado_ativo: Option<String>,
         /// Cache de sessões por certificado.
         #[serde(skip_serializing_if = "Vec::is_empty", default)]
         sessoes: Vec<SessaoResumo>,

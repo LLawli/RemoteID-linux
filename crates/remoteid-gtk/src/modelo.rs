@@ -35,6 +35,10 @@ pub struct EstadoApp {
     pub titular: Option<String>,
     pub codigo_desktop: Option<String>,
     pub certificados: Vec<Certificado>,
+    /// `key_name` do certificado padrão escolhido, quando a carteira tem mais de
+    /// um e o usuário escolheu. `None` = ainda não escolheu (a janela pede) ou
+    /// só há um certificado.
+    pub certificado_ativo: Option<String>,
     pub sessoes: Vec<Sessao>,
 }
 
@@ -66,6 +70,7 @@ impl EstadoApp {
                 serial: "3A:1F:9C:22:04:8B".into(),
                 key_name: "3A1F9C22048B;CN=AC OAB G3,O=ICP-Brasil,C=BR".into(),
             }],
+            certificado_ativo: None,
             sessoes: vec![Sessao {
                 cert_key: "3A1F9C22048B;AC OAB G3".into(),
                 emitido_em: Some(1_756_900_000),
@@ -81,6 +86,7 @@ impl EstadoApp {
             titular: None,
             codigo_desktop: None,
             certificados: vec![],
+            certificado_ativo: None,
             sessoes: vec![],
         }
     }
@@ -106,6 +112,7 @@ impl EstadoApp {
                     key_name: "7C881E0AD344;CN=AC Certisign RFB G5".into(),
                 },
             ],
+            certificado_ativo: None,
             sessoes: vec![],
         }
     }

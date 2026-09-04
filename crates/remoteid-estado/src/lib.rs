@@ -169,6 +169,13 @@ pub struct Estado {
     /// [`Estado::guardar_sessao`] e [`Estado::invalidar_sessao`].
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub sessoes: BTreeMap<String, SessaoCache>,
+
+    /// Certificado padrão escolhido pelo usuário, quando a carteira tem mais de
+    /// um (a [`Certificado::chave_cache`] dele). É o que [`Estado::certificado`]
+    /// devolve; sem escolha, ou se o escolhido saiu da carteira, cai no
+    /// primeiro. É uma preferência local, não vem do servidor.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub certificado_ativo: Option<String>,
 }
 
 fn modo_padrao() -> String {
@@ -187,10 +194,38 @@ impl Estado {
     }
 
     /// O certificado a usar na assinatura.
+    ///
+    /// Se o usuário escolheu um padrão ([`Estado::certificado_ativo`]) e ele
+    /// ainda está na carteira, é esse; senão, o primeiro. A escolha some sozinha
+    /// se a carteira for refeita e o certificado escolhido não vier mais.
     pub fn certificado(&self) -> Result<&Certificado> {
-        self.certificados.first().ok_or_else(|| {
-            Error::estado("nenhum certificado no estado local: rode `carteira` depois do registro")
-        })
+        if self.certificados.is_empty() {
+            return Err(Error::estado(
+                "nenhum certificado no estado local: rode `carteira` depois do registro",
+            ));
+        }
+        if let Some(chave) = &self.certificado_ativo {
+            if let Some(c) = self
+                .certificados
+                .iter()
+                .find(|c| &c.chave_cache() == chave || &c.key_name == chave)
+            {
+                return Ok(c);
+            }
+        }
+        Ok(&self.certificados[0])
+    }
+
+    /// Define o certificado padrão para assinatura (a `chave_cache` dele). O
+    /// motor persiste depois. Não valida aqui se a chave existe na carteira:
+    /// [`Estado::certificado`] já cai no primeiro se a escolha não bater.
+    pub fn definir_certificado_ativo(&mut self, chave_cache: impl Into<String>) {
+        self.certificado_ativo = Some(chave_cache.into());
+    }
+
+    /// A `chave_cache` do certificado ativo escolhido, se houver.
+    pub fn certificado_ativo(&self) -> Option<&str> {
+        self.certificado_ativo.as_deref()
     }
 
     pub fn codigo_desktop(&self) -> Result<&str> {
@@ -339,6 +374,26 @@ mod tests {
         e.invalidar_sessao("A");
         assert!(e.sessao("A", 1, 900).is_none());
         assert!(e.sessao("B", 1, 900).is_some());
+    }
+
+    #[test]
+    fn certificado_ativo_escolhe_o_certo_ou_cai_no_primeiro() {
+        let mut e = Estado {
+            certificados: vec![
+                Certificado::do_key_name("AAA;CN=AC1", None).unwrap(),
+                Certificado::do_key_name("BBB;CN=AC2", None).unwrap(),
+            ],
+            ..Default::default()
+        };
+        // Sem escolha: o primeiro.
+        assert_eq!(e.certificado().unwrap().serial_number, "AAA");
+        // Escolhendo o segundo (pela chave_cache): passa a ser ele.
+        e.definir_certificado_ativo("BBB;CN=AC2");
+        assert_eq!(e.certificado().unwrap().serial_number, "BBB");
+        assert_eq!(e.certificado_ativo(), Some("BBB;CN=AC2"));
+        // Escolha que não existe mais na carteira: cai no primeiro, sem erro.
+        e.definir_certificado_ativo("ZZZ;sumiu");
+        assert_eq!(e.certificado().unwrap().serial_number, "AAA");
     }
 
     #[test]

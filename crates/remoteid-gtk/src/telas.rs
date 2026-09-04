@@ -184,55 +184,66 @@ pub fn login(acoes: AcoesLogin) -> gtk::Widget {
 
 /// Ações da tela de seleção de token.
 pub struct AcoesSelecao {
-    /// Chamada com o índice do certificado escolhido.
-    pub escolher: Rc<dyn Fn(usize)>,
+    /// Chamada com o `key_name` do certificado escolhido.
+    pub escolher: Rc<dyn Fn(String)>,
 }
 
-/// Lista os certificados da carteira para o usuário escolher com qual assinar.
-/// Só aparece quando há mais de um (com um só, a janela pula direto).
-pub fn selecao_token(certificados: &[Certificado], acoes: AcoesSelecao) -> gtk::Widget {
-    let raiz = comum::pagina(
-        "Escolha o certificado",
-        Some("Sua carteira tem mais de um certificado. Escolha qual usar para assinar."),
-    );
+/// Lista os certificados da carteira para o usuário escolher o padrão de
+/// assinatura. Cada certificado é uma [`adw::ActionRow`] ativável; o ativo
+/// (`ativo`, o `key_name` escolhido) leva um visto. Clicar numa linha escolhe.
+///
+/// libadwaita: um [`adw::PreferencesGroup`] num [`adw::Clamp`]. Só aparece
+/// quando a carteira tem mais de um certificado (com um só, a janela pula).
+pub fn selecao_token(
+    certificados: &[Certificado],
+    ativo: Option<&str>,
+    acoes: AcoesSelecao,
+) -> gtk::Widget {
+    let grupo = adw::PreferencesGroup::builder()
+        .title("Escolha o certificado")
+        .description(
+            "Sua carteira tem mais de um certificado. Escolha qual usar para assinar; \
+             dá para trocar depois.",
+        )
+        .build();
 
-    let lista = gtk::ListBox::builder().selection_mode(gtk::SelectionMode::None).css_classes(["boxed-list"]).build();
-
-    for (i, cert) in certificados.iter().enumerate() {
-        let linha = gtk::ListBoxRow::new();
-        let caixa = gtk::Box::builder()
-            .orientation(gtk::Orientation::Horizontal)
-            .spacing(12)
-            .margin_top(10)
-            .margin_bottom(10)
-            .margin_start(12)
-            .margin_end(12)
+    for cert in certificados {
+        let linha = adw::ActionRow::builder()
+            .title(&cert.titular)
+            .subtitle(format!("{} · série {}", cert.emissor, cert.serial))
+            .activatable(true)
             .build();
-        let texto = gtk::Box::builder().orientation(gtk::Orientation::Vertical).spacing(2).hexpand(true).build();
-        texto.append(
-            &gtk::Label::builder().label(&cert.titular).halign(gtk::Align::Start).css_classes(["heading"]).build(),
-        );
-        texto.append(
-            &gtk::Label::builder()
-                .label(format!("{} · série {}", cert.emissor, cert.serial))
-                .halign(gtk::Align::Start)
-                .css_classes(["dim-label"])
-                .build(),
-        );
-        let botao = gtk::Button::with_label("Usar");
-        botao.set_valign(gtk::Align::Center);
+        // Visto no certificado ativo; seta discreta nos demais.
+        if ativo == Some(cert.key_name.as_str()) {
+            let visto = gtk::Image::from_icon_name("object-select-symbolic");
+            visto.add_css_class("accent");
+            linha.add_suffix(&visto);
+        } else {
+            linha.add_suffix(&gtk::Image::from_icon_name("go-next-symbolic"));
+        }
         {
             let escolher = acoes.escolher.clone();
-            botao.connect_clicked(move |_| escolher(i));
+            let key = cert.key_name.clone();
+            linha.connect_activated(move |_| escolher(key.clone()));
         }
-        caixa.append(&texto);
-        caixa.append(&botao);
-        linha.set_child(Some(&caixa));
-        lista.append(&linha);
+        grupo.add(&linha);
     }
 
-    raiz.append(&lista);
-    raiz.upcast()
+    let clamp = adw::Clamp::builder()
+        .maximum_size(520)
+        .margin_top(22)
+        .margin_bottom(22)
+        .margin_start(12)
+        .margin_end(12)
+        .child(&grupo)
+        .build();
+
+    gtk::ScrolledWindow::builder()
+        .hscrollbar_policy(gtk::PolicyType::Never)
+        .vexpand(true)
+        .child(&clamp)
+        .build()
+        .upcast()
 }
 
 // ---------------------------------------------------------------------------
@@ -245,6 +256,9 @@ pub struct AcoesInicial {
     pub reautorizar: Rc<dyn Fn()>,
     /// Abrir a aba de configurações.
     pub abrir_config: Rc<dyn Fn()>,
+    /// Abrir a tela de seleção de certificado. Só é oferecida quando a carteira
+    /// tem mais de um.
+    pub trocar_cert: Rc<dyn Fn()>,
 }
 
 /// O painel principal: estado da instalação, certificados, sessões em cache, e
@@ -279,6 +293,15 @@ pub fn inicial(estado: &EstadoApp, acoes: AcoesInicial) -> gtk::Widget {
     raiz.append(&card);
 
     // Certificados.
+    // O certificado que o motor vai usar: o escolhido (se ainda na carteira),
+    // senão o primeiro. Só marcamos quando há mais de um, que é quando importa.
+    let multi = estado.certificados.len() > 1;
+    let ativo_key = estado
+        .certificado_ativo
+        .clone()
+        .filter(|k| estado.certificados.iter().any(|c| &c.key_name == k))
+        .or_else(|| estado.certificados.first().map(|c| c.key_name.clone()));
+
     if !estado.certificados.is_empty() {
         raiz.append(
             &gtk::Label::builder().label("Certificados").halign(gtk::Align::Start).css_classes(["heading"]).build(),
@@ -288,6 +311,9 @@ pub fn inicial(estado: &EstadoApp, acoes: AcoesInicial) -> gtk::Widget {
             c.append(&comum::linha("Titular", &cert.titular));
             c.append(&comum::linha("Emissor", &cert.emissor));
             c.append(&comum::linha("Série", &cert.serial));
+            if multi && ativo_key.as_deref() == Some(cert.key_name.as_str()) {
+                c.append(&comum::linha("Padrão", "✓ assina com este"));
+            }
             raiz.append(&c);
         }
     }
@@ -330,6 +356,15 @@ pub fn inicial(estado: &EstadoApp, acoes: AcoesInicial) -> gtk::Widget {
     let btn_config = gtk::Button::from_icon_name("emblem-system-symbolic");
     btn_config.set_tooltip_text(Some("Configurações"));
     barra.append(&btn_reaut);
+    // "Trocar certificado" só quando a carteira tem mais de um.
+    let btn_trocar = if multi {
+        let b = gtk::Button::with_label("Trocar certificado");
+        b.set_tooltip_text(Some("Escolher qual certificado da carteira assina por padrão."));
+        barra.append(&b);
+        Some(b)
+    } else {
+        None
+    };
     barra.append(&espaco);
     barra.append(&btn_config);
     raiz.append(&barra);
@@ -341,6 +376,10 @@ pub fn inicial(estado: &EstadoApp, acoes: AcoesInicial) -> gtk::Widget {
     {
         let abrir_config = acoes.abrir_config.clone();
         btn_config.connect_clicked(move |_| abrir_config());
+    }
+    if let Some(b) = btn_trocar {
+        let trocar_cert = acoes.trocar_cert.clone();
+        b.connect_clicked(move |_| trocar_cert());
     }
 
     // Rola, que a lista de certificados/sessões pode crescer.

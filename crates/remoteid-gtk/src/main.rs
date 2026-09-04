@@ -148,14 +148,22 @@ fn renderizar_principal(slot: &gtk::Box, servico: &ServicoCompartilhado) {
             titular,
             codigo_desktop,
             certificados,
+            certificado_ativo,
             sessoes,
             ..
         }) => {
             if !preparado {
                 trocar(slot, &tela_login(slot, servico));
             } else {
-                let estado = mapear_estado(titular, codigo_desktop, certificados, sessoes);
-                trocar(slot, &telas::inicial(&estado, acoes_inicial(slot, servico)));
+                let estado =
+                    mapear_estado(titular, codigo_desktop, certificados, certificado_ativo, sessoes);
+                // Carteira com mais de um certificado e nenhum escolhido ainda:
+                // pede a escolha do padrão antes de mostrar o painel.
+                if estado.certificados.len() > 1 && estado.certificado_ativo.is_none() {
+                    trocar(slot, &tela_selecao(slot, servico, &estado));
+                } else {
+                    trocar(slot, &telas::inicial(&estado, acoes_inicial(slot, servico)));
+                }
             }
         }
         Resposta::Falha { codigo: CodigoErro::NaoPreparado, .. } => {
@@ -172,6 +180,7 @@ fn mapear_estado(
     titular: Option<String>,
     codigo_desktop: Option<String>,
     certificados: Vec<remoteid_daemon::protocolo::CertificadoResumo>,
+    certificado_ativo: Option<String>,
     sessoes: Vec<remoteid_daemon::protocolo::SessaoResumo>,
 ) -> EstadoApp {
     let titular_geral = titular.clone().unwrap_or_default();
@@ -188,6 +197,7 @@ fn mapear_estado(
                 key_name: c.key_name,
             })
             .collect(),
+        certificado_ativo,
         sessoes: sessoes
             .into_iter()
             .map(|s| modelo::Sessao {
@@ -202,6 +212,7 @@ fn mapear_estado(
 fn acoes_inicial(slot: &gtk::Box, servico: &ServicoCompartilhado) -> telas::AcoesInicial {
     let (s1, sv1) = (slot.clone(), servico.clone());
     let (s2, sv2) = (slot.clone(), servico.clone());
+    let (s3, sv3) = (slot.clone(), servico.clone());
     telas::AcoesInicial {
         reautorizar: Rc::new(move || {
             let r = sv1.borrow_mut().tratar(Requisicao::ReautorizarProxima);
@@ -211,7 +222,44 @@ fn acoes_inicial(slot: &gtk::Box, servico: &ServicoCompartilhado) -> telas::Acoe
             renderizar_principal(&s1, &sv1);
         }),
         abrir_config: Rc::new(move || trocar(&s2, &tela_config(&s2, &sv2))),
+        trocar_cert: Rc::new(move || abrir_selecao(&s3, &sv3)),
     }
+}
+
+/// Re-consulta o estado e abre a tela de seleção com a carteira atual.
+fn abrir_selecao(slot: &gtk::Box, servico: &ServicoCompartilhado) {
+    if let Resposta::Sucesso(SucessoResposta::Status {
+        titular,
+        codigo_desktop,
+        certificados,
+        certificado_ativo,
+        sessoes,
+        ..
+    }) = servico.borrow_mut().tratar(Requisicao::Status)
+    {
+        let estado =
+            mapear_estado(titular, codigo_desktop, certificados, certificado_ativo, sessoes);
+        trocar(slot, &tela_selecao(slot, servico, &estado));
+    }
+}
+
+/// A tela de seleção do certificado padrão. Ao escolher, manda
+/// `EscolherCertificado` ao serviço (que persiste) e recarrega o painel.
+fn tela_selecao(slot: &gtk::Box, servico: &ServicoCompartilhado, estado: &EstadoApp) -> gtk::Widget {
+    let (s, sv) = (slot.clone(), servico.clone());
+    telas::selecao_token(
+        &estado.certificados,
+        estado.certificado_ativo.as_deref(),
+        telas::AcoesSelecao {
+            escolher: Rc::new(move |key_name| {
+                let r = sv.borrow_mut().tratar(Requisicao::EscolherCertificado { key_name });
+                if let Resposta::Falha { erro, .. } = r {
+                    alerta(&s, "Não deu para escolher o certificado", &erro);
+                }
+                renderizar_principal(&s, &sv);
+            }),
+        },
+    )
 }
 
 fn tela_login(slot: &gtk::Box, servico: &ServicoCompartilhado) -> gtk::Widget {
@@ -439,7 +487,10 @@ fn construir_preview(app: &adw::Application) {
     stack.add_titled(
         &telas::selecao_token(
             &multi.certificados,
-            telas::AcoesSelecao { escolher: Rc::new(|i| println!("[preview] token escolhido: {i}")) },
+            multi.certificado_ativo.as_deref(),
+            telas::AcoesSelecao {
+                escolher: Rc::new(|k| println!("[preview] certificado escolhido: {k}")),
+            },
         ),
         Some("selecao"),
         "Seleção de token",
@@ -453,6 +504,7 @@ fn construir_preview(app: &adw::Application) {
             telas::AcoesInicial {
                 reautorizar: Rc::new(|| println!("[preview] reautorizar próxima assinatura")),
                 abrir_config: Rc::new(move || stack_ref.set_visible_child_name("config")),
+                trocar_cert: Rc::new(|| println!("[preview] trocar certificado")),
             },
         );
         stack.add_titled(&inicial, Some("inicial"), "Tela inicial");
@@ -462,7 +514,7 @@ fn construir_preview(app: &adw::Application) {
     stack.add_titled(
         &telas::inicial(
             &EstadoApp::mock_nao_preparado(),
-            telas::AcoesInicial { reautorizar: Rc::new(|| {}), abrir_config: Rc::new(|| {}) },
+            telas::AcoesInicial { reautorizar: Rc::new(|| {}), abrir_config: Rc::new(|| {}), trocar_cert: Rc::new(|| {}) },
         ),
         Some("nao_prep"),
         "Inicial (não preparado)",
