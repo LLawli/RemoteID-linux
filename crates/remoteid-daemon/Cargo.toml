@@ -19,6 +19,7 @@ path = "src/lib.rs"
 [dependencies]
 remoteid-core = { path = "../remoteid-core" }
 remoteid-protocolo = { path = "../remoteid-protocolo" }
+remoteid-portas = { path = "../remoteid-portas" }
 serde.workspace = true
 serde_json.workspace = true
 

@@ -1139,6 +1139,7 @@ name = "remoteid-daemon"
 version = "0.1.0"
 dependencies = [
  "remoteid-core",
+ "remoteid-portas",
  "remoteid-protocolo",
  "serde",
  "serde_json",

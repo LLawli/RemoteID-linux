@@ -15,28 +15,11 @@
 use remoteid_core::authmode::Fatores;
 use remoteid_core::error::{Error, Result};
 
-/// Fonte dos fatores quando o cache do `sessionToken` não bastar.
-///
-/// Um único método porque, na prática, o daemon precisa dos DOIS
-/// simultaneamente (o `tokensessao` do RemoteID exige pin + otp no mesmo
-/// request — armadilha registrada em `docs/PAYLOADS.md`). Separar em dois
-/// prompts convidaria a UI a mostrar as duas coisas em telas diferentes e
-/// gastar OTP a mais.
-pub trait Prompter: Send + Sync {
-    /// Pede PIN+OTP ao usuário. Devolve [`Fatores::PinOtp`] se aprovado, ou
-    /// `Err(Error::Uso("cancelado ..."))` se o usuário fechou o diálogo — o
-    /// [`crate::servico::Servico`] traduz esse erro para [`crate::protocolo::CodigoErro::Cancelado`].
-    fn pedir_pin_otp(&self, contexto: &Contexto) -> Result<Fatores>;
-}
-
-/// O que a UI precisa saber para escrever um diálogo útil.
-#[derive(Debug, Clone)]
-pub struct Contexto {
-    /// Nome bruto do hospedeiro (`comm` do processo cliente), quando conhecido.
-    pub hospedeiro: Option<String>,
-    /// Common Name do certificado ativo — a UI mostra "Assinar como <CN>".
-    pub titular: Option<String>,
-}
+// O trait `Prompter` e o `Contexto` são a porta canônica, definida em
+// `remoteid-portas`. O daemon os re-exporta com o caminho antigo
+// (`crate::prompter::{Prompter, Contexto}`) para o `Servico`, o `GtkPrompter` e
+// os testes não mudarem os `use`.
+pub use remoteid_portas::{Contexto, Prompter};
 
 /// Prompter de teste: devolve fatores fixos, ou o erro pré-configurado.
 ///
