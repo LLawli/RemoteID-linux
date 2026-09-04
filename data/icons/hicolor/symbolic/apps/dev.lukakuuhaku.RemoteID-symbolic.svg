@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Versão symbolic: monocromática, 16x16, para barra, notificações e listas.
+     O selo dentado do ícone colorido não sobrevive a 16px, e um selo separado
+     ao lado da nuvem vira borrão. Aqui a nuvem é SÓLIDA e o check é VAZADO
+     dentro dela (fill-rule evenodd): em silhueta não existe cor de fundo, então
+     vazar é a única forma de recortar. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <path fill="#222222" fill-rule="evenodd" d="M4.6 13.2a3.85 3.85 0 0 1-.45-7.67 4.45 4.45 0 0 1 8.5-.63 3.45 3.45 0 0 1-.35 8.3zM5.1 8.5l2.5 2.9 4-4.6-1.25-1.1-2.85 3.3-1.2-1.4z"/>
+</svg>
