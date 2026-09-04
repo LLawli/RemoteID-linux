@@ -1085,14 +1085,14 @@ dependencies = [
 
 [[package]]
 name = "remoteid-ambiente-sistema"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "remoteid-portas",
 ]
 
 [[package]]
 name = "remoteid-aplicacao"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "remoteid-ambiente-sistema",
  "remoteid-autorizacao",
@@ -1112,7 +1112,7 @@ dependencies = [
 
 [[package]]
 name = "remoteid-assinatura"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cms",
  "der",
@@ -1126,15 +1126,15 @@ dependencies = [
 
 [[package]]
 name = "remoteid-autorizacao"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "remoteid-caminhos"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "remoteid-chave-pem"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "remoteid-cripto",
  "remoteid-portas",
@@ -1143,7 +1143,7 @@ dependencies = [
 
 [[package]]
 name = "remoteid-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "remoteid-aplicacao",
  "remoteid-assinatura",
@@ -1157,7 +1157,7 @@ dependencies = [
 
 [[package]]
 name = "remoteid-cripto"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64",
  "rand",
@@ -1169,7 +1169,7 @@ dependencies = [
 
 [[package]]
 name = "remoteid-daemon"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "der",
  "remoteid-aplicacao",
@@ -1186,7 +1186,7 @@ dependencies = [
 
 [[package]]
 name = "remoteid-diag-jsonl"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "remoteid-cripto",
  "remoteid-portas",
@@ -1197,7 +1197,7 @@ dependencies = [
 
 [[package]]
 name = "remoteid-estado"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "remoteid-autorizacao",
  "remoteid-tipos",
@@ -1207,7 +1207,7 @@ dependencies = [
 
 [[package]]
 name = "remoteid-gtk"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gtk4",
  "libadwaita",
@@ -1222,7 +1222,7 @@ dependencies = [
 
 [[package]]
 name = "remoteid-http"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "remoteid-portas",
  "remoteid-protocolo-servidor",
@@ -1233,7 +1233,7 @@ dependencies = [
 
 [[package]]
 name = "remoteid-mock"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "remoteid-cripto",
  "serde_json",
@@ -1241,7 +1241,7 @@ dependencies = [
 
 [[package]]
 name = "remoteid-pkcs11"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64",
  "cryptoki-sys",
@@ -1261,7 +1261,7 @@ dependencies = [
 
 [[package]]
 name = "remoteid-portas"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "remoteid-autorizacao",
  "remoteid-estado",
@@ -1271,7 +1271,7 @@ dependencies = [
 
 [[package]]
 name = "remoteid-protocolo"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -1279,7 +1279,7 @@ dependencies = [
 
 [[package]]
 name = "remoteid-protocolo-servidor"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "remoteid-autorizacao",
  "remoteid-estado",
@@ -1289,7 +1289,7 @@ dependencies = [
 
 [[package]]
 name = "remoteid-redacao"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "remoteid-cripto",
  "serde_json",
@@ -1297,14 +1297,14 @@ dependencies = [
 
 [[package]]
 name = "remoteid-relogio-sistema"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "remoteid-portas",
 ]
 
 [[package]]
 name = "remoteid-store-json"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "remoteid-estado",
  "remoteid-portas",
@@ -1314,7 +1314,7 @@ dependencies = [
 
 [[package]]
 name = "remoteid-tipos"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde_json",
  "thiserror",
