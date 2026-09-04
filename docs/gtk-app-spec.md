@@ -153,3 +153,28 @@ ambiente ao chamar a CLI. O OTP nunca é cacheado.
 `remoteid-gtk` é crate folha: rode `cargo test -p remoteid-gtk` e
 `cargo clippy -p remoteid-gtk` (ninguém depende dela). Ver a regra de escopo por
 cone de dependentes no `CLAUDE.md`.
+
+## Diretrizes Técnicas Adicionais de Implementação
+
+1. **Estrutura de Arquivos Obrigatória:**
+   - `src/main.rs` (parsing de args e bootstrap do `adw::Application`)
+   - `src/app.rs` (orquestração do GTK + loop não-bloqueante do socket via `glib::unix_fd_add_local`)
+   - `src/prompter.rs` (implementação de `Prompter` usando `glib::MainLoop` aninhado para bloqueio seguro)
+   - `src/telas/` (arquivos isolados: `login.rs`, `painel.rs`, `selecao.rs`, `configuracoes.rs`, `pin_otp.rs`)
+   - `src/preview.rs` (geração das janelas simultâneas para validação visual)
+
+2. **Garantia de Flutuação no Hyprland/Wayland (PIN/OTP):**
+   - Diálogo transiente (`set_transient_for`), modal (`set_modal(true)`), `set_resizable(false)` e com `default_width: 360`, `default_height: 200`.
+
+3. **Mecanismo de Loop do Diálogo (Evitar Travar o Socket):**
+   - Use um `glib::MainLoop` local aninhado no `Prompter` para bloquear o retorno da função sem congelar os eventos da interface do GTK.
+   - Guardar o resultado em `Rc<RefCell<Option<Result<Fatores>>>>` e chamar `loop_local.quit()`.
+
+4. **Ciclo de Vida do Socket no Loop do GLib:**
+   - Use `glib::unix_fd_add_local` no FD do `UnixListener` configurado como nonblocking.
+   - No callback do FD, faça `accept()`, leia a linha JSON, dê `servico.try_borrow_mut()`. Se falhar (já em uso), responda ocupado imediatamente. Se conseguir, processe `servico.tratar(req)` e escreva a resposta na stream.
+
+5. **Reintegração do Workspace:**
+   - Adicionar `"crates/remoteid-gtk"` em `Cargo.toml` do workspace.
+   - Garantir compilação com `cargo clippy -p remoteid-gtk -- -D warnings` e `cargo test -p remoteid-gtk`.
+
