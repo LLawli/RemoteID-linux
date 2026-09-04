@@ -48,3 +48,7 @@ data, e o conteúdo abaixo passa a valer como as notas dessa release.
   `assinar`, nunca a chave crua.
 - Estado local e chave da instalação são gravados com permissão 0600, e o socket
   UNIX do app também.
+- `cargo audit` roda no CI. A única exceção registrada é a RUSTSEC-2023-0071
+  (Marvin Attack na crate `rsa`), que **não tem versão corrigida publicada**; o
+  motivo pelo qual o risco não se aplica a este uso, e o gatilho para reabrir a
+  decisão, estão em `.cargo/audit.toml`.

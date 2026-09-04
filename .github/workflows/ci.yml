@@ -58,6 +58,11 @@ jobs:
   dependencias:
     name: cargo audit (RustSec)
     runs-on: ubuntu-24.04
+    # A action publica o resultado como check run; sem `checks: write` ela
+    # falha com "Resource not accessible by integration" mesmo sem achar nada.
+    permissions:
+      contents: read
+      checks: write
     steps:
       - uses: actions/checkout@v4
       - uses: rustsec/audit-check@v2
