@@ -30,14 +30,10 @@ pub fn montar(acoes: AcoesLogin) -> gtk::Widget {
         .build();
 
     let grupo_credenciais = adw::PreferencesGroup::new();
-    let campo_email = adw::EntryRow::builder()
-        .title("E-mail do RemoteID")
-        .build();
+    let campo_email = adw::EntryRow::builder().title("E-mail do RemoteID").build();
     campo_email.set_input_purpose(gtk::InputPurpose::Email);
 
-    let campo_senha = adw::PasswordEntryRow::builder()
-        .title("Senha")
-        .build();
+    let campo_senha = adw::PasswordEntryRow::builder().title("Senha").build();
 
     grupo_credenciais.add(&campo_email);
     grupo_credenciais.add(&campo_senha);

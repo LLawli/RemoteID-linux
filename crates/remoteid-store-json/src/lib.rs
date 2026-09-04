@@ -123,7 +123,10 @@ mod tests {
                 .unwrap_or_else(Estado::novo))
         }
         fn salvar(&self, id: &IdInstalacao, estado: &Estado) -> Result<()> {
-            self.dados.lock().unwrap().insert(id.como_str().to_string(), estado.clone());
+            self.dados
+                .lock()
+                .unwrap()
+                .insert(id.como_str().to_string(), estado.clone());
             Ok(())
         }
         fn apagar(&self, id: &IdInstalacao) -> Result<()> {
@@ -151,7 +154,12 @@ mod tests {
         let lido = repo.carregar(&id).unwrap();
         assert_eq!(lido.user_id, Some(327989));
         assert_eq!(lido.certificado().unwrap().issue, "CN=AC");
-        assert_eq!(lido.sessao("SER;CN=AC", 1_756_900_000, 900).unwrap().emitido_em, Some(1_756_900_000));
+        assert_eq!(
+            lido.sessao("SER;CN=AC", 1_756_900_000, 900)
+                .unwrap()
+                .emitido_em,
+            Some(1_756_900_000)
+        );
 
         repo.apagar(&id).unwrap();
         assert!(repo.carregar(&id).unwrap().codigo_desktop().is_err());
@@ -173,9 +181,17 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("rid-storejson-perm-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         let repo = RepositorioJson::novo(&dir);
-        repo.salvar(&IdInstalacao::local(), &Estado::novo()).unwrap();
-        let modo = fs::metadata(dir.join("state.json")).unwrap().permissions().mode() & 0o777;
-        assert_eq!(modo, 0o600, "o estado tem CPF, certificado e sessão: não é público");
+        repo.salvar(&IdInstalacao::local(), &Estado::novo())
+            .unwrap();
+        let modo = fs::metadata(dir.join("state.json"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(
+            modo, 0o600,
+            "o estado tem CPF, certificado e sessão: não é público"
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 }

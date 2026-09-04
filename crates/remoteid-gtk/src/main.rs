@@ -40,9 +40,7 @@ fn main() -> gtk::glib::ExitCode {
         ID_APP
     };
 
-    let aplicacao = adw::Application::builder()
-        .application_id(app_id)
-        .build();
+    let aplicacao = adw::Application::builder().application_id(app_id).build();
 
     if e_preview {
         aplicacao.connect_activate(preview::construir_preview);

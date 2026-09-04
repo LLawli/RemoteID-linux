@@ -177,7 +177,7 @@ fn o_nss_consegue_chegar_ao_certificado_pelo_abi() {
         // O módulo NÃO exige login: a autenticação real (PIN+OTP) é no app, no
         // C_Sign. Anunciar login exigido fazia o NSS/poppler recusar a senha em
         // loop ("Password was not accepted") sem assinar — ver
-        // docs/memoria/remoteid-pkcs11-c-sign.md.
+        // [[remoteid-pkcs11-c-sign]].
         assert_eq!(ti.flags & CKF_LOGIN_REQUIRED, 0, "o módulo não exige login");
         assert_eq!(
             ti.flags & CKF_USER_PIN_INITIALIZED,

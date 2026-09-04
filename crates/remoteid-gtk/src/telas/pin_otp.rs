@@ -214,7 +214,6 @@ fn esconder_icones_edicao(raiz: &impl IsA<gtk::Widget>) {
     }
 }
 
-
 /// Cria a janela flutuante obedecendo aos parâmetros para compositores Wayland/Hyprland.
 pub fn criar_janela_dialogo(
     janela_pai: Option<&gtk::Window>,

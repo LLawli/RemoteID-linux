@@ -22,7 +22,10 @@ use std::path::{Path, PathBuf};
 /// pelo login manager por sessão de usuário, vive em tmpfs, e some no logout —
 /// o socket some junto.
 pub fn caminho_padrao() -> PathBuf {
-    if let Some(s) = std::env::var("REMOTEID_SOCKET").ok().filter(|v| !v.is_empty()) {
+    if let Some(s) = std::env::var("REMOTEID_SOCKET")
+        .ok()
+        .filter(|v| !v.is_empty())
+    {
         return PathBuf::from(s);
     }
     // Modo de teste: o socket mora no dir de teste, junto do estado, para o app
@@ -96,7 +99,10 @@ mod tests {
         let salvo_sock = std::env::var("REMOTEID_SOCKET").ok();
         std::env::remove_var("REMOTEID_SOCKET"); // o override venceria o XDG
         std::env::set_var("XDG_RUNTIME_DIR", "/tmp/test-runtime-xyz");
-        assert_eq!(caminho_padrao(), PathBuf::from("/tmp/test-runtime-xyz/remoteid.sock"));
+        assert_eq!(
+            caminho_padrao(),
+            PathBuf::from("/tmp/test-runtime-xyz/remoteid.sock")
+        );
         match salvo_xdg {
             Some(v) => std::env::set_var("XDG_RUNTIME_DIR", v),
             None => std::env::remove_var("XDG_RUNTIME_DIR"),
@@ -111,7 +117,10 @@ mod tests {
         let _guarda = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // Guarda e restaura para não vazar entre testes.
         let salvo = std::env::var("REMOTEID_SOCKET").ok();
-        std::env::set_var("REMOTEID_SOCKET", "/run/flatpak/remoteid-compartilhado.sock");
+        std::env::set_var(
+            "REMOTEID_SOCKET",
+            "/run/flatpak/remoteid-compartilhado.sock",
+        );
         assert_eq!(
             caminho_padrao(),
             PathBuf::from("/run/flatpak/remoteid-compartilhado.sock")

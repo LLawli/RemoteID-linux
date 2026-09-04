@@ -13,11 +13,11 @@
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 
+use remoteid_aplicacao::Opcoes;
 use remoteid_daemon::prompter::FatoresFixos;
 use remoteid_daemon::protocolo::{CodigoErro, Requisicao, Resposta};
 use remoteid_daemon::servico::Servico;
 use remoteid_daemon::socket;
-use remoteid_aplicacao::Opcoes;
 
 fn main() {
     let pin = std::env::var("FIXO_PIN").unwrap_or_else(|_| "1234".to_string());
@@ -47,7 +47,10 @@ fn atender(fluxo: UnixStream, servico: &mut Servico) -> std::io::Result<()> {
     }
     let resposta = match serde_json::from_str::<Requisicao>(linha.trim_end()) {
         Ok(req) => servico.tratar(req),
-        Err(e) => Resposta::falha(CodigoErro::RequisicaoInvalida, format!("JSON inválido: {e}")),
+        Err(e) => Resposta::falha(
+            CodigoErro::RequisicaoInvalida,
+            format!("JSON inválido: {e}"),
+        ),
     };
     let mut saida = serde_json::to_string(&resposta)?;
     saida.push('\n');

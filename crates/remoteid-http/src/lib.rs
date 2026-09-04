@@ -16,8 +16,8 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
-use remoteid_protocolo_servidor::{config, resposta};
 use remoteid_portas::{Diagnostico, RequisicaoHttp, RespostaHttp, TransporteRemoteId};
+use remoteid_protocolo_servidor::{config, resposta};
 use remoteid_tipos::{Error, Result};
 
 pub struct Resposta {
@@ -52,7 +52,10 @@ impl Http {
             .user_agent(config::USER_AGENT)
             .timeout_global(Some(timeout))
             .build();
-        Http { agente: ureq::Agent::new_with_config(cfg), diag }
+        Http {
+            agente: ureq::Agent::new_with_config(cfg),
+            diag,
+        }
     }
 
     /// Faz a requisição e registra os dois lados no diagnóstico.
@@ -101,7 +104,8 @@ impl Http {
                         // O corpo vai como TEXTO já serializado: reserializar
                         // aqui mudaria os bytes que a assinatura do Bearer
                         // cobre, e a assinatura deixaria de bater.
-                        req.header("Content-Type", "application/json").send(txt.as_str())
+                        req.header("Content-Type", "application/json")
+                            .send(txt.as_str())
                     }
                     None => req.send_empty(),
                 }
@@ -128,7 +132,8 @@ impl Http {
 
         // O corpo entra no log já parseado quando é JSON, para a redação
         // alcançar os campos de dentro (o `token` da resposta, por exemplo).
-        let corpo_log = serde_json::from_str::<Value>(&corpo).unwrap_or(Value::String(corpo.clone()));
+        let corpo_log =
+            serde_json::from_str::<Value>(&corpo).unwrap_or(Value::String(corpo.clone()));
         self.diag.evento(
             "http.response",
             json!({"rotulo": rotulo, "status": status, "bytes": corpo.len(), "body": corpo_log}),
@@ -151,7 +156,10 @@ impl TransporteRemoteId for Http {
             req.bearer.as_deref(),
             &req.rotulo,
         )?;
-        Ok(RespostaHttp { status: r.status, corpo: r.corpo })
+        Ok(RespostaHttp {
+            status: r.status,
+            corpo: r.corpo,
+        })
     }
 }
 

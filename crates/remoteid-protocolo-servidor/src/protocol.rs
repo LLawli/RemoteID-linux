@@ -135,7 +135,13 @@ mod tests {
     fn tokensessao_manda_os_sete_campos_sempre() {
         let p = tokensessao("DC", &cert(), &Fatores::Push, "RemoteID-linux");
         for chave in [
-            "desktopCode", "pin", "otp", "push", "nomeAplicacaoDesktop", "issue", "serialNumber",
+            "desktopCode",
+            "pin",
+            "otp",
+            "push",
+            "nomeAplicacaoDesktop",
+            "issue",
+            "serialNumber",
         ] {
             assert!(p.get(chave).is_some(), "faltou {chave} no payload");
         }
@@ -152,7 +158,10 @@ mod tests {
 
     #[test]
     fn caminho_pin_otp_nao_manda_push_true() {
-        let f = Fatores::PinOtp { pin: "1234".into(), otp: "999999".into() };
+        let f = Fatores::PinOtp {
+            pin: "1234".into(),
+            otp: "999999".into(),
+        };
         let p = tokensessao("DC", &cert(), &f, "RemoteID-linux");
         assert_eq!(p["pin"], "1234");
         assert_eq!(p["otp"], "999999");
@@ -170,10 +179,16 @@ mod tests {
         let pin = canonical(&tokensessao(
             "DC",
             &c,
-            &Fatores::PinOtp { pin: "1234".into(), otp: "999999".into() },
+            &Fatores::PinOtp {
+                pin: "1234".into(),
+                otp: "999999".into(),
+            },
             "App",
         ));
-        assert!(push.contains("push"), "o bool true tem de escrever o nome da chave");
+        assert!(
+            push.contains("push"),
+            "o bool true tem de escrever o nome da chave"
+        );
         assert!(!pin.contains("push"), "push:false não pode contribuir");
         assert_ne!(push, pin);
     }
@@ -184,7 +199,10 @@ mod tests {
         let p = request_hash("DC", "ST", &cert(), "SHA256", &hashes);
         assert_eq!(p["hashArray"][0]["id"], 0);
         assert_eq!(p["hashArray"][1]["id"], 1);
-        assert!(p["hashArray"][0]["id"].is_i64(), "id vai como inteiro, não string");
+        assert!(
+            p["hashArray"][0]["id"].is_i64(),
+            "id vai como inteiro, não string"
+        );
         assert_eq!(p["algorithm"], "SHA256");
     }
 
@@ -199,7 +217,10 @@ mod tests {
     fn registro_manda_pem_completo_e_dominio_preenchido() {
         let pem = "-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----\n";
         let p = registrar_desktop("meu-pc", "law", "biglinux", pem);
-        assert!(p["chavePublica"].as_str().unwrap().starts_with("-----BEGIN PUBLIC KEY-----"));
+        assert!(p["chavePublica"]
+            .as_str()
+            .unwrap()
+            .starts_with("-----BEGIN PUBLIC KEY-----"));
         assert_eq!(p["sistemaOperacional"], "Linux");
         assert!(!p["dominioRede"].as_str().unwrap().is_empty());
     }

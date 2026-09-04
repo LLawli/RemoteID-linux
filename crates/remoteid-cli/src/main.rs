@@ -10,11 +10,11 @@ use std::io::{IsTerminal, Read, Write};
 use std::path::PathBuf;
 use std::process::Command;
 
+use remoteid_aplicacao::{Motor, Opcoes};
+use remoteid_assinatura::Montador;
 use remoteid_autorizacao::{Fatores, Modo};
 use remoteid_cripto::{b64, de_b64, sha256};
 use remoteid_tipos::Origem;
-use remoteid_assinatura::Montador;
-use remoteid_aplicacao::{Motor, Opcoes};
 
 const USO: &str = "\
 remoteid — certificado em nuvem RemoteID (Certisign) no Linux
@@ -150,7 +150,12 @@ impl Args {
             }
             i += 1;
         }
-        Ok(Args { comando, resto, opcoes, ultimo_diag: std::cell::RefCell::new(None) })
+        Ok(Args {
+            comando,
+            resto,
+            opcoes,
+            ultimo_diag: std::cell::RefCell::new(None),
+        })
     }
 
     pub fn opcao(&self, nome: &str) -> Option<String> {
@@ -278,12 +283,21 @@ fn rodar(args: &Args) -> Saida {
 fn cmd_estado(args: &Args) -> Saida {
     let motor = abrir_motor(args)?;
     let e = &motor.estado;
-    println!("titular       : {}", e.nome.as_deref().unwrap_or("(sem login ainda)"));
+    println!(
+        "titular       : {}",
+        e.nome.as_deref().unwrap_or("(sem login ainda)")
+    );
     println!("cpf           : {}", e.cpf.as_deref().unwrap_or("-"));
     println!("userId        : {}", opt(e.user_id));
     println!("organizacaoId : {}", opt(e.organizacao_id));
-    println!("codigoDesktop : {}", e.codigo_desktop.as_deref().unwrap_or("(não registrado)"));
-    println!("modo          : {} (política LOCAL, não vem do servidor)", e.auth_mode);
+    println!(
+        "codigoDesktop : {}",
+        e.codigo_desktop.as_deref().unwrap_or("(não registrado)")
+    );
+    println!(
+        "modo          : {} (política LOCAL, não vem do servidor)",
+        e.auth_mode
+    );
     match e.usuario_possui_codigo_push {
         Some(true) => println!("celular       : pareado (push é possível)"),
         Some(false) => println!("celular       : não pareado"),
@@ -305,7 +319,10 @@ fn cmd_estado(args: &Args) -> Saida {
 fn cmd_conectividade(args: &Args) -> Saida {
     let motor = abrir_motor(args)?;
     let data = motor.hierarquias()?;
-    let n = data.get("hierarchies").and_then(|h| h.as_array()).map_or(0, |a| a.len());
+    let n = data
+        .get("hierarchies")
+        .and_then(|h| h.as_array())
+        .map_or(0, |a| a.len());
     println!("servidor respondeu: {n} hierarquias");
     Ok(())
 }
@@ -354,10 +371,7 @@ fn cmd_celular(args: &Args) -> Saida {
     let mut motor = abrir_motor(args)?;
     let tem = motor.status_celular()?;
     motor.salvar_estado()?;
-    println!(
-        "celular pareado: {}",
-        if tem { "sim" } else { "não" }
-    );
+    println!("celular pareado: {}", if tem { "sim" } else { "não" });
     println!(
         "(informativo: o app oficial lê este valor e mesmo assim grava o modo \
          como `local`, ou seja, pin+otp)"
@@ -450,9 +464,7 @@ fn cmd_assinar(args: &Args) -> Saida {
 
         let cert = motor.estado.certificado()?;
         let cert_der = de_b64(cert.base64.as_deref().ok_or_else(|| {
-            Error::estado(
-                "o certificado guardado não tem o DER; rode `carteira` de novo",
-            )
+            Error::estado("o certificado guardado não tem o DER; rode `carteira` de novo")
         })?)?;
         let montador = Montador::novo(&cert_der, &digest, agora(), anexar)?;
         let assinatura = motor.assinar_digest(montador.digest_a_assinar(), &fatores)?;
@@ -460,9 +472,7 @@ fn cmd_assinar(args: &Args) -> Saida {
 
         std::fs::write(&saida, &p7s)?;
         eprintln!("PKCS#7 ({} bytes) em {saida}", p7s.len());
-        eprintln!(
-            "conferir: openssl cms -verify -inform DER -in {saida} -content <documento>"
-        );
+        eprintln!("conferir: openssl cms -verify -inform DER -in {saida} -content <documento>");
         return Ok(());
     }
 

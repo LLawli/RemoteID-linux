@@ -147,9 +147,7 @@ impl Montador {
         // validação, longe da causa.
         if let Some(bytes) = &anexar {
             if sha256(bytes) != digest_conteudo {
-                return Err(Error::uso(
-                    "o digest informado não é o do conteúdo anexado",
-                ));
+                return Err(Error::uso("o digest informado não é o do conteúdo anexado"));
             }
         }
 

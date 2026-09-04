@@ -13,9 +13,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use remoteid_aplicacao::{Dependencias, Motor, Opcoes};
 use remoteid_autorizacao::Modo;
 use remoteid_diag_jsonl::Diag;
-use remoteid_aplicacao::{Dependencias, Motor, Opcoes};
 use remoteid_estado::Estado;
 use remoteid_portas::{
     Ambiente, CofreDeChave, Diagnostico, Relogio, RepositorioEstado, RequisicaoHttp, RespostaHttp,
@@ -30,10 +30,19 @@ struct RepoMem {
 }
 impl RepositorioEstado for RepoMem {
     fn carregar(&self, id: &IdInstalacao) -> Result<Estado> {
-        Ok(self.dados.lock().unwrap().get(id.como_str()).cloned().unwrap_or_else(Estado::novo))
+        Ok(self
+            .dados
+            .lock()
+            .unwrap()
+            .get(id.como_str())
+            .cloned()
+            .unwrap_or_else(Estado::novo))
     }
     fn salvar(&self, id: &IdInstalacao, estado: &Estado) -> Result<()> {
-        self.dados.lock().unwrap().insert(id.como_str().to_string(), estado.clone());
+        self.dados
+            .lock()
+            .unwrap()
+            .insert(id.como_str().to_string(), estado.clone());
         Ok(())
     }
     fn apagar(&self, id: &IdInstalacao) -> Result<()> {
@@ -116,5 +125,9 @@ fn o_motor_persiste_pelo_repositorio_injetado() {
     // Motor 2, mesmo repositório em memória: enxerga o que o motor 1 gravou.
     // A troca de JSON por memória não exigiu tocar em nada do motor.
     let m2 = Motor::com_dependencias(opcoes(), deps_com(repo)).unwrap();
-    assert_eq!(m2.estado.modo(), Modo::Push, "o estado veio do repositório injetado");
+    assert_eq!(
+        m2.estado.modo(),
+        Modo::Push,
+        "o estado veio do repositório injetado"
+    );
 }

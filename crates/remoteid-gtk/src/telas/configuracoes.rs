@@ -127,7 +127,8 @@ pub fn montar(
             let expandido = shellexpand::tilde(&caminho_clonado).to_string();
             format!("file://{expandido}")
         };
-        let _ = gtk::gio::AppInfo::launch_default_for_uri(&uri, None::<&gtk::gio::AppLaunchContext>);
+        let _ =
+            gtk::gio::AppInfo::launch_default_for_uri(&uri, None::<&gtk::gio::AppLaunchContext>);
     });
 
     linha_diag.add_suffix(&botao_abrir_pasta);
@@ -218,7 +219,10 @@ pub fn criar_janela_preview() -> gtk::Window {
         emissor: "AC OAB G3".to_string(),
         serial: "3A:1F:9C:22:04:8B".to_string(),
         key_name: "3A1F9C22048B;CN=AC OAB G3".to_string(),
-        ous: vec!["Autenticado por Certisign".to_string(), "Advogado".to_string()],
+        ous: vec![
+            "Autenticado por Certisign".to_string(),
+            "Advogado".to_string(),
+        ],
         validade: Some("14/09/2027".to_string()),
     };
 

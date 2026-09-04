@@ -67,8 +67,11 @@ mod tests {
     #[test]
     fn http_200_com_status_false_e_erro() {
         // A armadilha central do backend: 200 não quer dizer sucesso.
-        let erro =
-            ok_json(200, r#"{"status":false,"message":"Informe o Pin","token":null}"#).unwrap_err();
+        let erro = ok_json(
+            200,
+            r#"{"status":false,"message":"Informe o Pin","token":null}"#,
+        )
+        .unwrap_err();
         match erro {
             Error::Servidor(s) => {
                 assert_eq!(s.http_status, 200);
@@ -89,7 +92,10 @@ mod tests {
     #[test]
     fn resposta_sem_campo_status_passa() {
         // O login e o registro não devolvem `status`; só os dados.
-        assert_eq!(ok_json(200, r#"{"token":"jwt","id":327989}"#).unwrap()["id"], 327989);
+        assert_eq!(
+            ok_json(200, r#"{"token":"jwt","id":327989}"#).unwrap()["id"],
+            327989
+        );
     }
 
     #[test]
@@ -107,6 +113,9 @@ mod tests {
 
     #[test]
     fn corpo_que_nao_e_json_vira_erro_legivel() {
-        assert!(matches!(ok_json(502, "<html>Bad Gateway</html>"), Err(Error::RespostaNaoJson { .. })));
+        assert!(matches!(
+            ok_json(502, "<html>Bad Gateway</html>"),
+            Err(Error::RespostaNaoJson { .. })
+        ));
     }
 }

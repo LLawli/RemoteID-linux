@@ -73,7 +73,11 @@ pub enum Resposta {
 
 impl Resposta {
     pub fn falha(codigo: CodigoErro, erro: impl Into<String>) -> Resposta {
-        Resposta::Falha { ok: false, erro: erro.into(), codigo }
+        Resposta::Falha {
+            ok: false,
+            erro: erro.into(),
+            codigo,
+        }
     }
 }
 
@@ -167,12 +171,14 @@ mod tests {
 
     #[test]
     fn parse_sign_com_hospedeiro() {
-        let r: Requisicao = serde_json::from_str(
-            r#"{"op":"sign","digest_b64":"AAA=","hospedeiro":"papers"}"#,
-        )
-        .unwrap();
+        let r: Requisicao =
+            serde_json::from_str(r#"{"op":"sign","digest_b64":"AAA=","hospedeiro":"papers"}"#)
+                .unwrap();
         match r {
-            Requisicao::Sign { digest_b64, hospedeiro } => {
+            Requisicao::Sign {
+                digest_b64,
+                hospedeiro,
+            } => {
                 assert_eq!(digest_b64, "AAA=");
                 assert_eq!(hospedeiro.as_deref(), Some("papers"));
             }
@@ -182,8 +188,7 @@ mod tests {
 
     #[test]
     fn parse_sign_sem_hospedeiro_e_opcional() {
-        let r: Requisicao =
-            serde_json::from_str(r#"{"op":"sign","digest_b64":"AAA="}"#).unwrap();
+        let r: Requisicao = serde_json::from_str(r#"{"op":"sign","digest_b64":"AAA="}"#).unwrap();
         match r {
             Requisicao::Sign { hospedeiro, .. } => assert!(hospedeiro.is_none()),
             _ => panic!(),
@@ -202,7 +207,10 @@ mod tests {
         assert!(linha.contains(r#""op":"sign"#));
         let volta: Requisicao = serde_json::from_str(&linha).unwrap();
         match volta {
-            Requisicao::Sign { digest_b64, hospedeiro } => {
+            Requisicao::Sign {
+                digest_b64,
+                hospedeiro,
+            } => {
                 assert_eq!(digest_b64, "AAA=");
                 assert_eq!(hospedeiro.as_deref(), Some("papers"));
             }

@@ -83,7 +83,10 @@ mod tests {
         let saida = redigir(&corpo, true).to_string();
         assert!(!saida.contains("1234"), "o PIN vazou: {saida}");
         assert!(!saida.contains("999999"), "o OTP vazou: {saida}");
-        assert!(saida.contains("DC"), "o que não é segredo tem de continuar legível");
+        assert!(
+            saida.contains("DC"),
+            "o que não é segredo tem de continuar legível"
+        );
     }
 
     #[test]
@@ -112,7 +115,11 @@ mod tests {
 
     #[test]
     fn distingue_campo_vazio_de_ausente() {
-        assert!(redigir(&json!({"otp": ""}), false).to_string().contains("<vazio>"));
-        assert!(redigir(&json!({"otp": null}), false).to_string().contains("<ausente>"));
+        assert!(redigir(&json!({"otp": ""}), false)
+            .to_string()
+            .contains("<vazio>"));
+        assert!(redigir(&json!({"otp": null}), false)
+            .to_string()
+            .contains("<ausente>"));
     }
 }

@@ -7,7 +7,7 @@
 //! nenhum ponto desse caminho. Para o certificado em nuvem aparecer para o
 //! Papers, ele tem de entrar pelo NSS — e como a chave privada mora no HSM da
 //! Certisign, o único caminho é um módulo PKCS#11 cujo `C_Sign` chame o motor.
-//! Ver `docs/memoria/remoteid-pkcs7-e-o-caminho-do-papers.md`.
+//! Ver [[remoteid-pkcs7-e-o-caminho-do-papers]].
 //!
 //! ```text
 //! GNOME Papers → poppler → NSS → p11-kit-proxy → ESTE MÓDULO → motor → HSM

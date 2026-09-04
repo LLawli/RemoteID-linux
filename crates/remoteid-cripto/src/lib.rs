@@ -188,8 +188,14 @@ mod tests {
         let pem = chave.to_pkcs8_pem().unwrap();
         assert!(pem.contains("PRIVATE KEY"));
         let reaberta = ChaveInstalacao::de_pem(&pem).unwrap();
-        assert_eq!(chave.publica_pem().unwrap(), reaberta.publica_pem().unwrap());
-        assert!(chave.publica_pem().unwrap().starts_with("-----BEGIN PUBLIC KEY-----"));
+        assert_eq!(
+            chave.publica_pem().unwrap(),
+            reaberta.publica_pem().unwrap()
+        );
+        assert!(chave
+            .publica_pem()
+            .unwrap()
+            .starts_with("-----BEGIN PUBLIC KEY-----"));
     }
 
     /// Forja um certificado autoassinado com a chave dada, para poder testar a
@@ -231,7 +237,9 @@ mod tests {
         assert!(!verificar_com_certificado(&der, &sha256(b"outro"), &sig).unwrap());
         // Assinatura de outra chave: não é o titular deste certificado.
         let intrusa = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-        let falsa = intrusa.sign(Pkcs1v15Sign::new::<Sha256>(), &digest).unwrap();
+        let falsa = intrusa
+            .sign(Pkcs1v15Sign::new::<Sha256>(), &digest)
+            .unwrap();
         assert!(!verificar_com_certificado(&der, &digest, &falsa).unwrap());
     }
 
@@ -239,7 +247,9 @@ mod tests {
     fn certificado_ilegivel_da_erro_e_nao_false() {
         // "não deu para verificar" não pode virar "não confere": um seria bug
         // de parse, o outro seria acusação de assinatura inválida.
-        assert!(verificar_com_certificado(b"isto nao e um certificado", &[0u8; 32], &[0u8; 256])
-            .is_err());
+        assert!(
+            verificar_com_certificado(b"isto nao e um certificado", &[0u8; 32], &[0u8; 256])
+                .is_err()
+        );
     }
 }

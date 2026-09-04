@@ -69,7 +69,11 @@ impl Diag {
 
     /// Um log que descarta tudo. Para testes e para o caso de disco indisponível.
     pub fn inerte() -> Diag {
-        Diag { arquivo: None, caminho: None, cru: false }
+        Diag {
+            arquivo: None,
+            caminho: None,
+            cru: false,
+        }
     }
 
     fn tentar_abrir(dir: &Path) -> Result<Diag> {
@@ -179,7 +183,9 @@ fn epoch_segundos() -> u64 {
 
 /// Apaga os arquivos de execução mais antigos, mantendo os `manter` últimos.
 fn podar(dir: &Path, manter: usize) {
-    let Ok(entradas) = fs::read_dir(dir) else { return };
+    let Ok(entradas) = fs::read_dir(dir) else {
+        return;
+    };
     let mut arquivos: Vec<PathBuf> = entradas
         .flatten()
         .map(|e| e.path())
@@ -256,7 +262,10 @@ mod tests {
             .flatten()
             .map(|e| e.file_name().to_string_lossy().into_owned())
             .collect();
-        assert_eq!(restantes.iter().filter(|n| n.starts_with("run-")).count(), 2);
+        assert_eq!(
+            restantes.iter().filter(|n| n.starts_with("run-")).count(),
+            2
+        );
         assert!(restantes.contains(&"run-1000000004-1.jsonl".to_string()));
         // Arquivo que não é de execução não é tocado.
         assert!(restantes.contains(&"outro.txt".to_string()));

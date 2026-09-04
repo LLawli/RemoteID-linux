@@ -75,53 +75,113 @@ pub fn ep_registrar_desktop(user_id: i64, org_id: i64) -> String {
 /// cru. Fontes: mensagens observadas ao vivo nas runs do testador e as literais
 /// de erro extraídas do binário oficial.
 pub const SERVER_HINTS: &[(&str, Origem, &str)] = &[
-    ("senha inv", Origem::Usuario,
-     "Credenciais do RemoteID incorretas: confira e-mail e senha (a senha do \
-      RemoteID, não a de outro portal)."),
-    ("usuariosenhainvalido", Origem::Usuario,
-     "Credenciais do RemoteID incorretas."),
-    ("informe o pin", Origem::Usuario,
-     "O servidor exigiu o PIN do certificado. O tokensessao precisa dos DOIS \
-      fatores juntos (pin + otp) no mesmo request."),
-    ("e-token", Origem::Usuario,
-     "O servidor aceitou o PIN e agora exige o código do autenticador: o \
-      tokensessao precisa dos DOIS fatores juntos (pin + otp)."),
-    ("não existe autorização válida", Origem::Usuario,
-     "OTP/PIN inválido ou expirado, ou o desktopCode/certificado não bateu. \
-      Gere um novo código e confirme o certificado."),
-    ("código de autorização inválida", Origem::Usuario,
-     "Credencial recusada. Se pin e otp estão certos e recentes, suspeite da \
-      ASSINATURA do Bearer (canonicalização), não do fator."),
-    ("tempo esgotado", Origem::Usuario,
-     "Tempo de aprovação esgotado; refaça e aprove."),
-    ("sem chave pública", Origem::Cliente,
-     "chavePublica faltando ou vazia no payload."),
-    ("domainnameleftblank", Origem::Cliente,
-     "dominioRede vazio (o cliente deve preencher com o hostname)."),
-    ("não suportado", Origem::Cliente,
-     "O servidor recusou o formato do payload."),
-    ("constraintviolation", Origem::Cliente,
-     "Violação de constraint no banco: algum campo foi enviado em formato que \
-      o servidor não grava (provável chavePublica ou dominioRede)."),
-    ("could not execute statement", Origem::Cliente,
-     "Insert rejeitado pelo banco; ver o campo malformado no payload."),
-    ("dataintegrityviolation", Origem::Cliente,
-     "Dado rejeitado pelo banco (formato ou nulo)."),
-    ("illegal base64", Origem::Cliente,
-     "O servidor tentou base64-decodar o Bearer e falhou: você mandou o JWT do \
-      login onde vai a ASSINATURA da chave da instalação."),
-    ("apns", Origem::Servidor,
-     "O servidor não achou celular para o push. Use pin+otp."),
-    ("erro ao enviar push", Origem::Servidor,
-     "O servidor não conseguiu enviar o push."),
-    ("offline", Origem::Servidor,
-     "Serviço da Certisign indisponível; tente mais tarde."),
-    ("internal server error", Origem::Servidor,
-     "Erro interno do backend da Certisign."),
-    ("problema ao criar", Origem::Servidor,
-     "Falha ao registrar (o servidor recusou)."),
-    ("abertura de sessão não realizada", Origem::Servidor,
-     "Falha ao abrir a sessão de assinatura."),
+    (
+        "senha inv",
+        Origem::Usuario,
+        "Credenciais do RemoteID incorretas: confira e-mail e senha (a senha do \
+      RemoteID, não a de outro portal).",
+    ),
+    (
+        "usuariosenhainvalido",
+        Origem::Usuario,
+        "Credenciais do RemoteID incorretas.",
+    ),
+    (
+        "informe o pin",
+        Origem::Usuario,
+        "O servidor exigiu o PIN do certificado. O tokensessao precisa dos DOIS \
+      fatores juntos (pin + otp) no mesmo request.",
+    ),
+    (
+        "e-token",
+        Origem::Usuario,
+        "O servidor aceitou o PIN e agora exige o código do autenticador: o \
+      tokensessao precisa dos DOIS fatores juntos (pin + otp).",
+    ),
+    (
+        "não existe autorização válida",
+        Origem::Usuario,
+        "OTP/PIN inválido ou expirado, ou o desktopCode/certificado não bateu. \
+      Gere um novo código e confirme o certificado.",
+    ),
+    (
+        "código de autorização inválida",
+        Origem::Usuario,
+        "Credencial recusada. Se pin e otp estão certos e recentes, suspeite da \
+      ASSINATURA do Bearer (canonicalização), não do fator.",
+    ),
+    (
+        "tempo esgotado",
+        Origem::Usuario,
+        "Tempo de aprovação esgotado; refaça e aprove.",
+    ),
+    (
+        "sem chave pública",
+        Origem::Cliente,
+        "chavePublica faltando ou vazia no payload.",
+    ),
+    (
+        "domainnameleftblank",
+        Origem::Cliente,
+        "dominioRede vazio (o cliente deve preencher com o hostname).",
+    ),
+    (
+        "não suportado",
+        Origem::Cliente,
+        "O servidor recusou o formato do payload.",
+    ),
+    (
+        "constraintviolation",
+        Origem::Cliente,
+        "Violação de constraint no banco: algum campo foi enviado em formato que \
+      o servidor não grava (provável chavePublica ou dominioRede).",
+    ),
+    (
+        "could not execute statement",
+        Origem::Cliente,
+        "Insert rejeitado pelo banco; ver o campo malformado no payload.",
+    ),
+    (
+        "dataintegrityviolation",
+        Origem::Cliente,
+        "Dado rejeitado pelo banco (formato ou nulo).",
+    ),
+    (
+        "illegal base64",
+        Origem::Cliente,
+        "O servidor tentou base64-decodar o Bearer e falhou: você mandou o JWT do \
+      login onde vai a ASSINATURA da chave da instalação.",
+    ),
+    (
+        "apns",
+        Origem::Servidor,
+        "O servidor não achou celular para o push. Use pin+otp.",
+    ),
+    (
+        "erro ao enviar push",
+        Origem::Servidor,
+        "O servidor não conseguiu enviar o push.",
+    ),
+    (
+        "offline",
+        Origem::Servidor,
+        "Serviço da Certisign indisponível; tente mais tarde.",
+    ),
+    (
+        "internal server error",
+        Origem::Servidor,
+        "Erro interno do backend da Certisign.",
+    ),
+    (
+        "problema ao criar",
+        Origem::Servidor,
+        "Falha ao registrar (o servidor recusou).",
+    ),
+    (
+        "abertura de sessão não realizada",
+        Origem::Servidor,
+        "Falha ao abrir a sessão de assinatura.",
+    ),
 ];
 
 /// Classifica a mensagem de erro do servidor.
@@ -178,7 +238,10 @@ mod tests {
             Origem::Cliente
         );
         // A do push quebrado no backend.
-        assert_eq!(classificar("Error sending apns server", "").0, Origem::Servidor);
+        assert_eq!(
+            classificar("Error sending apns server", "").0,
+            Origem::Servidor
+        );
     }
 
     #[test]

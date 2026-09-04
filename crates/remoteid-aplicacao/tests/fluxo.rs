@@ -16,10 +16,10 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use remoteid_autorizacao::{Fatores, Modo};
-use remoteid_protocolo_servidor::canonical::canonical;
-use remoteid_cripto::{b64, de_b64, sha256};
 use remoteid_aplicacao::{Motor, Opcoes};
+use remoteid_autorizacao::{Fatores, Modo};
+use remoteid_cripto::{b64, de_b64, sha256};
+use remoteid_protocolo_servidor::canonical::canonical;
 use serde_json::{json, Value};
 
 #[derive(Debug, Clone)]
@@ -49,7 +49,10 @@ impl Servidor {
             }
         });
 
-        Servidor { base: format!("http://127.0.0.1:{porta}"), recebidas }
+        Servidor {
+            base: format!("http://127.0.0.1:{porta}"),
+            recebidas,
+        }
     }
 
     fn requisicao(&self, sufixo: &str) -> Requisicao {
@@ -200,10 +203,9 @@ fn motor_preparado(amb: &Ambiente, srv: &Servidor) -> Motor {
 
 /// Confere que o Bearer daquela requisição é a assinatura da canônica do corpo.
 fn conferir_bearer(amb: &Ambiente, req: &Requisicao) {
-    let chave = remoteid_chave_pem::carregar(
-        &remoteid_caminhos::caminho_chave(&amb.dir.join("dados")),
-    )
-    .unwrap();
+    let chave =
+        remoteid_chave_pem::carregar(&remoteid_caminhos::caminho_chave(&amb.dir.join("dados")))
+            .unwrap();
     let bearer = req
         .autorizacao
         .as_ref()
@@ -214,7 +216,10 @@ fn conferir_bearer(amb: &Ambiente, req: &Requisicao) {
 
     // O JWT do login tem pontos; a assinatura é base64 puro. Foi exatamente
     // essa confusão que produzia "Illegal base64 character 2e" no servidor.
-    assert!(!bearer.contains('.'), "mandou o JWT onde vai a assinatura: {bearer}");
+    assert!(
+        !bearer.contains('.'),
+        "mandou o JWT onde vai a assinatura: {bearer}"
+    );
 
     let assinatura = de_b64(&bearer).expect("Bearer não é base64");
     assert_eq!(assinatura.len(), 256, "assinatura RSA-2048 tem 256 bytes");
@@ -234,7 +239,10 @@ fn fluxo_pin_otp_ponta_a_ponta() {
     let motor = motor_preparado(&amb, &srv);
 
     let digest = sha256(b"conteudo a assinar");
-    let fatores = Fatores::PinOtp { pin: "1234".into(), otp: "999999".into() };
+    let fatores = Fatores::PinOtp {
+        pin: "1234".into(),
+        otp: "999999".into(),
+    };
     let assinatura = motor.assinar_digest(&digest, &fatores).unwrap();
 
     // O motor entrega o bloco CRU, que é o contrato do C_Sign do PKCS#11.
@@ -256,7 +264,10 @@ fn fluxo_pin_otp_ponta_a_ponta() {
     let rh = srv.requisicao("/requestHashSessionSignature");
     assert_eq!(rh.corpo["algorithm"], "SHA256");
     assert_eq!(rh.corpo["hashArray"][0]["id"], 0);
-    assert!(rh.corpo["hashArray"][0]["id"].is_i64(), "o id vai como inteiro");
+    assert!(
+        rh.corpo["hashArray"][0]["id"].is_i64(),
+        "o id vai como inteiro"
+    );
     assert_eq!(rh.corpo["hashArray"][0]["hash"], b64(&digest));
     // O sessionToken é repassado inteiro, sem interpretação.
     assert_eq!(
@@ -296,7 +307,10 @@ fn fluxo_push_segue_o_construtor_do_app() {
     assert_eq!(tk.corpo["push"], true);
     assert_eq!(tk.corpo["pin"], "");
     assert_eq!(tk.corpo["otp"], "");
-    assert!(!tk.corpo["nomeAplicacaoDesktop"].as_str().unwrap().is_empty());
+    assert!(!tk.corpo["nomeAplicacaoDesktop"]
+        .as_str()
+        .unwrap()
+        .is_empty());
     // A assinatura tem de cobrir o corpo COM o push=true, que muda a canônica.
     conferir_bearer(&amb, &tk);
     assert!(canonical(&tk.corpo).contains("push"));
@@ -315,10 +329,16 @@ fn push_com_pin_e_recusado_antes_de_ir_para_a_rede() {
     let erro = motor
         .assinar_digest(
             &sha256(b"x"),
-            &Fatores::PinOtp { pin: "1234".into(), otp: "999999".into() },
+            &Fatores::PinOtp {
+                pin: "1234".into(),
+                otp: "999999".into(),
+            },
         )
         .unwrap_err();
-    assert!(erro.to_string().contains("push"), "erro pouco explicativo: {erro}");
+    assert!(
+        erro.to_string().contains("push"),
+        "erro pouco explicativo: {erro}"
+    );
 
     let houve_tokensessao = srv
         .recebidas
@@ -344,11 +364,17 @@ fn erro_de_negocio_com_http_200_vira_erro() {
     let erro = motor
         .assinar_digest(
             &sha256(b"x"),
-            &Fatores::PinOtp { pin: "1234".into(), otp: "".into() },
+            &Fatores::PinOtp {
+                pin: "1234".into(),
+                otp: "".into(),
+            },
         )
         .unwrap_err();
     let texto = erro.to_string();
-    assert!(texto.contains("Informe o e-Token"), "perdeu a mensagem: {texto}");
+    assert!(
+        texto.contains("Informe o e-Token"),
+        "perdeu a mensagem: {texto}"
+    );
     // E a dica tem de dizer que o servidor quer os DOIS fatores.
     assert!(texto.contains("pin + otp"), "sem a dica útil: {texto}");
 }
@@ -361,7 +387,10 @@ fn o_log_de_diagnostico_nao_contem_pin_nem_otp() {
     motor
         .assinar_digest(
             &sha256(b"x"),
-            &Fatores::PinOtp { pin: "271828".into(), otp: "314159".into() },
+            &Fatores::PinOtp {
+                pin: "271828".into(),
+                otp: "314159".into(),
+            },
         )
         .unwrap();
 
@@ -372,10 +401,17 @@ fn o_log_de_diagnostico_nao_contem_pin_nem_otp() {
         if texto.contains("tokensessao") {
             achou = true;
         }
-        assert!(!texto.contains("271828"), "o PIN vazou no log: {}", entrada.path().display());
+        assert!(
+            !texto.contains("271828"),
+            "o PIN vazou no log: {}",
+            entrada.path().display()
+        );
         assert!(!texto.contains("314159"), "o OTP vazou no log");
         // O token de sessão também não sai cru.
-        assert!(!texto.contains("sessaoAssinatura;327989"), "o sessionToken vazou no log");
+        assert!(
+            !texto.contains("sessaoAssinatura;327989"),
+            "o sessionToken vazou no log"
+        );
     }
     assert!(achou, "o log nem registrou o tokensessao");
 }

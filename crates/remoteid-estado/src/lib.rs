@@ -41,7 +41,9 @@ impl Certificado {
     /// vazio: esses nomes só existem na resposta do `tokensessao`.
     pub fn do_key_name(key_name: &str, base64: Option<String>) -> Result<Certificado> {
         let (serial, issuer) = key_name.split_once(';').ok_or_else(|| {
-            Error::estado(format!("keyName sem ';' (esperado '<serial>;<issuer>'): {key_name}"))
+            Error::estado(format!(
+                "keyName sem ';' (esperado '<serial>;<issuer>'): {key_name}"
+            ))
         })?;
         Ok(Certificado {
             key_name: key_name.to_string(),
@@ -104,7 +106,11 @@ pub fn epoch_do_token(token: &str) -> Option<u64> {
 impl SessaoCache {
     pub fn novo(token: String, visto_em: u64) -> SessaoCache {
         let emitido_em = epoch_do_token(&token);
-        SessaoCache { token, emitido_em, visto_em }
+        SessaoCache {
+            token,
+            emitido_em,
+            visto_em,
+        }
     }
 
     /// Verdade se o pré-filtro pelo epoch autoriza uma tentativa.
@@ -186,7 +192,10 @@ impl Estado {
     /// Um estado vazio, já no modo de autorização padrão. É o que a borda
     /// devolve quando não há `state.json` ainda.
     pub fn novo() -> Estado {
-        Estado { auth_mode: modo_padrao(), ..Default::default() }
+        Estado {
+            auth_mode: modo_padrao(),
+            ..Default::default()
+        }
     }
 
     pub fn modo(&self) -> Modo {
@@ -250,7 +259,8 @@ impl Estado {
 
     /// Grava (ou substitui) o cache para um certificado.
     pub fn guardar_sessao(&mut self, cert_key: String, token: String, agora: u64) {
-        self.sessoes.insert(cert_key, SessaoCache::novo(token, agora));
+        self.sessoes
+            .insert(cert_key, SessaoCache::novo(token, agora));
     }
 
     /// Remove o cache de UM certificado. Usado quando o server rejeita a
@@ -315,10 +325,7 @@ mod tests {
     #[test]
     fn cache_valido_dentro_do_ttl() {
         let agora = 1_756_900_100;
-        let s = SessaoCache::novo(
-            format!("x;y;z;serial;0;jwt;{};hmac", 1_756_900_000),
-            agora,
-        );
+        let s = SessaoCache::novo(format!("x;y;z;serial;0;jwt;{};hmac", 1_756_900_000), agora);
         // Emitido 100s atrás, TTL de 900s: passa.
         assert!(s.vale_a_pena_tentar(agora, 900));
     }
@@ -337,13 +344,21 @@ mod tests {
         // seria enganado. Neste caso a última palavra é do servidor.
         let emitido = 1_756_800_000;
         let agora_local = 1_000_000_000; // ~2001
-        let s = SessaoCache { token: "x".into(), emitido_em: Some(emitido), visto_em: agora_local };
+        let s = SessaoCache {
+            token: "x".into(),
+            emitido_em: Some(emitido),
+            visto_em: agora_local,
+        };
         assert!(s.vale_a_pena_tentar(agora_local, 60));
     }
 
     #[test]
     fn cache_sem_epoch_extraivel_deixa_o_server_decidir() {
-        let s = SessaoCache { token: "opaco".into(), emitido_em: None, visto_em: 42 };
+        let s = SessaoCache {
+            token: "opaco".into(),
+            emitido_em: None,
+            visto_em: 42,
+        };
         assert!(s.vale_a_pena_tentar(42, 1));
     }
 

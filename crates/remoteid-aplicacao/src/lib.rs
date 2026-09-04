@@ -71,7 +71,10 @@ impl Default for Opcoes {
         // onde mora a conta real. Ver [[remoteid-teste-local]].
         let (remoteid, certinext) = match std::env::var("TEST_URL").ok().filter(|v| !v.is_empty()) {
             Some(url) => (url.clone(), url),
-            None => (config::REMOTEID_URL.to_string(), config::CERTINEXT_URL.to_string()),
+            None => (
+                config::REMOTEID_URL.to_string(),
+                config::CERTINEXT_URL.to_string(),
+            ),
         };
         Opcoes {
             dir_dados: caminhos::dir_dados(),
@@ -185,7 +188,11 @@ impl Motor {
     }
 
     fn url_rid(&self, caminho: &str) -> String {
-        format!("{}{}", self.opcoes.remoteid_url.trim_end_matches('/'), caminho)
+        format!(
+            "{}{}",
+            self.opcoes.remoteid_url.trim_end_matches('/'),
+            caminho
+        )
     }
 
     fn url_desktop(&self, caminho: &str) -> String {
@@ -353,7 +360,9 @@ impl Motor {
             certificados.push(Certificado::do_key_name(key_name, texto(item, "base64"))?);
         }
         if certificados.is_empty() {
-            return Err(Error::estado("a carteira veio sem nenhum certificado utilizável (sem `keyName`)"));
+            return Err(Error::estado(
+                "a carteira veio sem nenhum certificado utilizável (sem `keyName`)",
+            ));
         }
         self.estado.certificados = certificados;
         Ok(&self.estado.certificados)
@@ -401,13 +410,7 @@ impl Motor {
         }
         let codigo = self.estado.codigo_desktop()?;
         let cert = self.estado.certificado()?;
-        let corpo = protocol::request_hash(
-            codigo,
-            session_token,
-            cert,
-            "SHA256",
-            &[b64(digest)],
-        );
+        let corpo = protocol::request_hash(codigo, session_token, cert, "SHA256", &[b64(digest)]);
         let data = self.op("POST", config::EP_RID_REQUEST_HASH, &corpo, "requestHash")?;
 
         let item = data
@@ -514,7 +517,8 @@ impl Motor {
         let bytes = self.assinar_com_sessao(&novo_token, digest)?;
 
         let visto = self.relogio.agora();
-        self.estado.guardar_sessao(cert_key.clone(), novo_token, visto);
+        self.estado
+            .guardar_sessao(cert_key.clone(), novo_token, visto);
         self.salvar_estado()?;
         self.diag.evento(
             "assinatura.sessao_nova",

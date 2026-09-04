@@ -11,8 +11,8 @@ use std::process::Command;
 
 use der::asn1::ObjectIdentifier;
 use der::{Decode, Encode};
-use remoteid_cripto::sha256;
 use remoteid_assinatura::Montador;
+use remoteid_cripto::sha256;
 use rsa::pkcs8::EncodePublicKey;
 use rsa::{Pkcs1v15Sign, RsaPrivateKey, RsaPublicKey};
 use sha2::Sha256;
@@ -112,7 +112,9 @@ fn openssl_detecta_conteudo_trocado() {
     std::fs::write(&doc, b"OUTRO documento").unwrap();
     std::fs::write(&sig, &p7s).unwrap();
 
-    let Some(saida) = openssl_cms_verify(&sig, &doc) else { return };
+    let Some(saida) = openssl_cms_verify(&sig, &doc) else {
+        return;
+    };
     assert!(
         !saida.status.success(),
         "o openssl aceitou um conteúdo que não é o assinado"
@@ -142,7 +144,10 @@ fn traz_os_quatro_atributos_assinados_e_o_certificado() {
         "assinatura destacada não pode carregar o conteúdo"
     );
     // O certificado viaja, senão o validador não tem a chave pública.
-    assert!(sd.certificates.is_some(), "o certificado do signatário tem de ir junto");
+    assert!(
+        sd.certificates.is_some(),
+        "o certificado do signatário tem de ir junto"
+    );
 
     let si = sd.signer_infos.0.as_slice().first().unwrap();
     let attrs = si.signed_attrs.as_ref().expect("sem atributos assinados");
@@ -158,7 +163,10 @@ fn traz_os_quatro_atributos_assinados_e_o_certificado() {
 
     // RFC 5754: no signatureAlgorithm vai rsaEncryption, não
     // sha256WithRSAEncryption. Trocar isso faz validadores reclamarem.
-    assert_eq!(si.signature_algorithm.oid.to_string(), "1.2.840.113549.1.1.1");
+    assert_eq!(
+        si.signature_algorithm.oid.to_string(),
+        "1.2.840.113549.1.1.1"
+    );
 }
 
 #[test]
@@ -204,7 +212,10 @@ fn anexado_recusa_digest_que_nao_e_do_conteudo() {
         Ok(_) => panic!("aceitou um digest que não é o do conteúdo anexado"),
         Err(e) => e,
     };
-    assert!(erro.to_string().contains("digest"), "erro pouco claro: {erro}");
+    assert!(
+        erro.to_string().contains("digest"),
+        "erro pouco claro: {erro}"
+    );
 }
 
 #[test]
@@ -240,12 +251,23 @@ fn dir_temp(nome: &str) -> std::path::PathBuf {
 /// `-noverify` pula a validação da CADEIA do signatário (o certificado é
 /// autoassinado), mas mantém a verificação da assinatura, do `messageDigest` e
 /// dos atributos ESS — que é justamente o que se quer testar aqui.
-fn openssl_cms_verify(sig: &std::path::Path, conteudo: &std::path::Path) -> Option<std::process::Output> {
+fn openssl_cms_verify(
+    sig: &std::path::Path,
+    conteudo: &std::path::Path,
+) -> Option<std::process::Output> {
     Command::new("openssl")
         .args([
-            "cms", "-verify", "-inform", "DER", "-in",
-            sig.to_str()?, "-content", conteudo.to_str()?,
-            "-noverify", "-out", "/dev/null",
+            "cms",
+            "-verify",
+            "-inform",
+            "DER",
+            "-in",
+            sig.to_str()?,
+            "-content",
+            conteudo.to_str()?,
+            "-noverify",
+            "-out",
+            "/dev/null",
         ])
         .output()
         .ok()

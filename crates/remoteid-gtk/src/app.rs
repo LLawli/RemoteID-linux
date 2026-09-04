@@ -78,7 +78,10 @@ pub fn construir_app(app: &adw::Application) {
             });
         }
         Err(e) => {
-            eprintln!("Aviso: Falha ao iniciar socket UNIX em {}: {e}", caminho_socket.display());
+            eprintln!(
+                "Aviso: Falha ao iniciar socket UNIX em {}: {e}",
+                caminho_socket.display()
+            );
         }
     }
 
@@ -88,10 +91,7 @@ pub fn construir_app(app: &adw::Application) {
 }
 
 /// Sobe o socket UNIX não-bloqueante e integra ao loop de eventos do GLib.
-pub fn iniciar_socket(
-    servico: ServicoCompartilhado,
-    caminho: PathBuf,
-) -> Result<PathBuf, String> {
+pub fn iniciar_socket(servico: ServicoCompartilhado, caminho: PathBuf) -> Result<PathBuf, String> {
     limpar_socket(&caminho);
     let listener = socket::bind_manual(&caminho).map_err(|e| e.to_string())?;
     listener.set_nonblocking(true).map_err(|e| e.to_string())?;
@@ -237,7 +237,9 @@ pub fn navegar_para_estado_atual(
         return;
     };
     let estado = match status_resp {
-        Resposta::Sucesso(ref s) => EstadoApp::de_status(s).unwrap_or_else(EstadoApp::mock_nao_preparado),
+        Resposta::Sucesso(ref s) => {
+            EstadoApp::de_status(s).unwrap_or_else(EstadoApp::mock_nao_preparado)
+        }
         _ => EstadoApp::mock_nao_preparado(),
     };
 
@@ -272,32 +274,36 @@ fn mostrar_tela_login(
                 let _ = tx.send(resultado);
             });
 
-            glib::timeout_add_local(Duration::from_millis(100), move || {
-                match rx.try_recv() {
-                    Ok(resultado) => {
-                        match resultado {
-                            Ok(()) => {
-                                match s_async.try_borrow_mut() {
-                                    Ok(mut s) => {
-                                        if let Err(e) = s.reabrir() {
-                                            drop(s);
-                                            mostrar_erro(&j_async, "Instalação concluída com ressalva", &format!("O estado foi gravado, mas a recarga falhou: {e}"));
-                                        }
+            glib::timeout_add_local(Duration::from_millis(100), move || match rx.try_recv() {
+                Ok(resultado) => {
+                    match resultado {
+                        Ok(()) => {
+                            match s_async.try_borrow_mut() {
+                                Ok(mut s) => {
+                                    if let Err(e) = s.reabrir() {
+                                        drop(s);
+                                        mostrar_erro(
+                                            &j_async,
+                                            "Instalação concluída com ressalva",
+                                            &format!(
+                                                "O estado foi gravado, mas a recarga falhou: {e}"
+                                            ),
+                                        );
                                     }
-                                    Err(_) => avisar_ocupado(&j_async),
                                 }
-                                navegar_para_estado_atual(&j_async, &s_async, teste);
+                                Err(_) => avisar_ocupado(&j_async),
                             }
-                            Err(msg) => {
-                                mostrar_erro(&j_async, "Falha ao preparar instalação", &msg);
-                                navegar_para_estado_atual(&j_async, &s_async, teste);
-                            }
+                            navegar_para_estado_atual(&j_async, &s_async, teste);
                         }
-                        glib::ControlFlow::Break
+                        Err(msg) => {
+                            mostrar_erro(&j_async, "Falha ao preparar instalação", &msg);
+                            navegar_para_estado_atual(&j_async, &s_async, teste);
+                        }
                     }
-                    Err(std::sync::mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
-                    Err(std::sync::mpsc::TryRecvError::Disconnected) => glib::ControlFlow::Break,
+                    glib::ControlFlow::Break
                 }
+                Err(std::sync::mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => glib::ControlFlow::Break,
             });
         }),
     };
@@ -378,7 +384,9 @@ fn mostrar_tela_selecao(
         return;
     };
     let estado = match status_resp {
-        Resposta::Sucesso(ref s) => EstadoApp::de_status(s).unwrap_or_else(EstadoApp::mock_nao_preparado),
+        Resposta::Sucesso(ref s) => {
+            EstadoApp::de_status(s).unwrap_or_else(EstadoApp::mock_nao_preparado)
+        }
         _ => EstadoApp::mock_nao_preparado(),
     };
 
@@ -407,7 +415,8 @@ fn mostrar_tela_selecao(
             move || navegar_para_estado_atual(&j, &s, teste)
         }),
         confirmar: Rc::new(move |key_name| {
-            let Some(r) = tratar_se_livre(&s_sel, Requisicao::EscolherCertificado { key_name }) else {
+            let Some(r) = tratar_se_livre(&s_sel, Requisicao::EscolherCertificado { key_name })
+            else {
                 avisar_ocupado(&j_sel);
                 return;
             };
@@ -437,7 +446,9 @@ fn mostrar_tela_configuracoes(
         return;
     };
     let estado = match status_resp {
-        Resposta::Sucesso(ref s) => EstadoApp::de_status(s).unwrap_or_else(EstadoApp::mock_nao_preparado),
+        Resposta::Sucesso(ref s) => {
+            EstadoApp::de_status(s).unwrap_or_else(EstadoApp::mock_nao_preparado)
+        }
         _ => EstadoApp::mock_nao_preparado(),
     };
 
@@ -541,7 +552,10 @@ fn preparar_via_cli(email: &str, senha: &str) -> Result<(), String> {
         Ok(())
     } else {
         let err = String::from_utf8_lossy(&saida.stderr);
-        Err(format!("`remoteid preparar` retornou erro:\n{}", err.trim()))
+        Err(format!(
+            "`remoteid preparar` retornou erro:\n{}",
+            err.trim()
+        ))
     }
 }
 

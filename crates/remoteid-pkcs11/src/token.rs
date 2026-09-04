@@ -3,7 +3,7 @@
 //! O `state.json` já tem tudo o que a fatia offline precisa: o certificado X.509
 //! do titular em DER. A chave privada NÃO está aqui e nunca estará — ela mora no
 //! HSM da Certisign, e é por isso que este módulo existe (ver
-//! `docs/memoria/remoteid-pkcs7-e-o-caminho-do-papers.md`).
+//! [[remoteid-pkcs7-e-o-caminho-do-papers]]).
 
 use base64::Engine as _;
 use der::{Decode as _, Encode as _};
@@ -46,8 +46,8 @@ impl Token {
     pub fn carregar() -> Result<Option<Token>, String> {
         let dir = remoteid_caminhos::dir_dados();
         let caminho = remoteid_caminhos::caminho_estado(&dir);
-        let estado = remoteid_store_json::ler(&caminho)
-            .map_err(|e| format!("state.json ilegível: {e}"))?;
+        let estado =
+            remoteid_store_json::ler(&caminho).map_err(|e| format!("state.json ilegível: {e}"))?;
 
         let Some(cert) = estado.certificados.first() else {
             return Ok(None);

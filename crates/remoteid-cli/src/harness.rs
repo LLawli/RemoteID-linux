@@ -19,11 +19,11 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
+use remoteid_aplicacao::Motor;
 use remoteid_autorizacao::Fatores;
 use remoteid_cripto::sha256;
 use remoteid_diag_jsonl::iso8601;
 use remoteid_tipos::Origem;
-use remoteid_aplicacao::Motor;
 
 /// Conteúdo assinado no teste. Fixo, para o relatório ser comparável entre runs.
 const MENSAGEM_TESTE: &[u8] = b"RemoteID-linux harness teste";
@@ -75,7 +75,11 @@ impl Harness {
     fn passo(&mut self, rotulo: &str, marca: Marca, detalhe: impl Into<String>) {
         let detalhe = detalhe.into();
         println!("  {} {rotulo}{}", marca.simbolo(), sufixo(&detalhe));
-        self.passos.push(Passo { rotulo: rotulo.into(), marca, detalhe });
+        self.passos.push(Passo {
+            rotulo: rotulo.into(),
+            marca,
+            detalhe,
+        });
     }
 
     fn nota(&mut self, linha: impl Into<String>) {
@@ -310,7 +314,11 @@ impl Harness {
                 let confere = verificar_com_o_certificado(&self.motor, &digest, &assinatura);
                 self.passo(
                     "assinatura confere com o certificado",
-                    if confere == Some(true) { Marca::Ok } else { Marca::Falha },
+                    if confere == Some(true) {
+                        Marca::Ok
+                    } else {
+                        Marca::Falha
+                    },
                     match confere {
                         Some(true) => "verificada com a chave pública do titular".into(),
                         Some(false) => "NÃO confere — o HSM assinou outra coisa".to_string(),
@@ -323,7 +331,12 @@ impl Harness {
     }
 
     fn pular_resto(&mut self, motivo: &str) {
-        for r in ["registrar desktop", "statusCelular", "carteira", "assinatura"] {
+        for r in [
+            "registrar desktop",
+            "statusCelular",
+            "carteira",
+            "assinatura",
+        ] {
             if !self.passos.iter().any(|p| p.rotulo == r) {
                 self.passo(r, Marca::Pulado, motivo);
             }
@@ -357,16 +370,26 @@ impl Harness {
              material privado e envie por canal fechado."
         );
 
-        let _ = writeln!(s, "\n------------------------------------------------------------------------------");
+        let _ = writeln!(
+            s,
+            "\n------------------------------------------------------------------------------"
+        );
         let _ = writeln!(s, "RESUMO");
-        let _ = writeln!(s, "------------------------------------------------------------------------------");
+        let _ = writeln!(
+            s,
+            "------------------------------------------------------------------------------"
+        );
         for p in &self.passos {
             let _ = writeln!(s, "{} {}", p.marca.simbolo(), p.rotulo);
             if !p.detalhe.is_empty() {
                 let _ = writeln!(s, "       {}", p.detalhe);
             }
         }
-        let falhou = self.passos.iter().filter(|p| p.marca == Marca::Falha).count();
+        let falhou = self
+            .passos
+            .iter()
+            .filter(|p| p.marca == Marca::Falha)
+            .count();
         let _ = writeln!(
             s,
             "\nresultado: {}",
@@ -377,16 +400,31 @@ impl Harness {
             }
         );
 
-        let _ = writeln!(s, "\n------------------------------------------------------------------------------");
+        let _ = writeln!(
+            s,
+            "\n------------------------------------------------------------------------------"
+        );
         let _ = writeln!(s, "DIÁRIO");
-        let _ = writeln!(s, "------------------------------------------------------------------------------");
+        let _ = writeln!(
+            s,
+            "------------------------------------------------------------------------------"
+        );
         for l in &self.diario {
             let _ = writeln!(s, "{l}");
         }
 
-        let _ = writeln!(s, "\n------------------------------------------------------------------------------");
-        let _ = writeln!(s, "TRANSCRIÇÃO HTTP (uma linha JSON por evento, já redigida)");
-        let _ = writeln!(s, "------------------------------------------------------------------------------");
+        let _ = writeln!(
+            s,
+            "\n------------------------------------------------------------------------------"
+        );
+        let _ = writeln!(
+            s,
+            "TRANSCRIÇÃO HTTP (uma linha JSON por evento, já redigida)"
+        );
+        let _ = writeln!(
+            s,
+            "------------------------------------------------------------------------------"
+        );
         match self.motor.caminho_diag().map(std::fs::read_to_string) {
             Some(Ok(conteudo)) => s.push_str(&conteudo),
             _ => {

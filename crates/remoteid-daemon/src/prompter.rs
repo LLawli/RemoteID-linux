@@ -33,7 +33,11 @@ pub struct FatoresFixos {
 
 impl FatoresFixos {
     pub fn novo(pin: impl Into<String>, otp: impl Into<String>) -> Self {
-        FatoresFixos { pin: pin.into(), otp: otp.into(), cancelar: false }
+        FatoresFixos {
+            pin: pin.into(),
+            otp: otp.into(),
+            cancelar: false,
+        }
     }
 }
 
@@ -42,6 +46,9 @@ impl Prompter for FatoresFixos {
         if self.cancelar {
             return Err(Error::uso("cancelado pelo usuário no diálogo"));
         }
-        Ok(Fatores::PinOtp { pin: self.pin.clone(), otp: self.otp.clone() })
+        Ok(Fatores::PinOtp {
+            pin: self.pin.clone(),
+            otp: self.otp.clone(),
+        })
     }
 }

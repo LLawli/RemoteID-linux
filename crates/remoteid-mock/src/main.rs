@@ -42,7 +42,10 @@ const CODIGO_DESKTOP: &str = "4d1f71d2-c20b-44d0-9bb0-5629015f21e8";
 const JWT_FALSO: &str = "jwt.do.login";
 
 fn main() {
-    let porta: u16 = std::env::args().nth(1).and_then(|a| a.parse().ok()).unwrap_or(8799);
+    let porta: u16 = std::env::args()
+        .nth(1)
+        .and_then(|a| a.parse().ok())
+        .unwrap_or(8799);
 
     let chave = ChaveInstalacao::de_pem(CHAVE_PEM).expect("chave falsa embutida inválida");
     let cert_b64 = b64(CERT_DER);
@@ -144,7 +147,8 @@ fn rotear(caminho: &str, corpo: &Value, chave: &ChaveInstalacao, cert_b64: &str)
             json!({ "status": false, "message": "Informe o e-Token(Otp) correto (teste: 123456)", "token": null })
         } else {
             let epoch = agora();
-            let token = format!("sessaoAssinatura;327989;CN%3DAC%20TESTE;{SERIAL};0;ZXlK;{epoch};hmac=");
+            let token =
+                format!("sessaoAssinatura;327989;CN%3DAC%20TESTE;{SERIAL};0;ZXlK;{epoch};hmac=");
             json!({ "status": true, "message": "Token gerado com sucesso", "token": token })
         }
     } else if caminho.ends_with("/requestHashSessionSignature") {
@@ -183,19 +187,30 @@ fn assinar_hash(corpo: &Value, chave: &ChaveInstalacao) -> Result<String, String
         .ok_or("hashArray[0].hash ausente")?;
     let digest = de_b64(hash_b64).map_err(|e| format!("hash não é base64: {e}"))?;
     if digest.len() != 32 {
-        return Err(format!("digest tem que ter 32 bytes, veio com {}", digest.len()));
+        return Err(format!(
+            "digest tem que ter 32 bytes, veio com {}",
+            digest.len()
+        ));
     }
-    let assinatura = chave.assinar_digest(&digest).map_err(|e| format!("falha ao assinar: {e}"))?;
+    let assinatura = chave
+        .assinar_digest(&digest)
+        .map_err(|e| format!("falha ao assinar: {e}"))?;
     Ok(b64(&assinatura))
 }
 
 fn agora() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 fn resumo(v: &Value) -> String {
     if let Some(false) = v.get("status").and_then(Value::as_bool) {
-        format!("ERRO: {}", v.get("message").and_then(Value::as_str).unwrap_or("?"))
+        format!(
+            "ERRO: {}",
+            v.get("message").and_then(Value::as_str).unwrap_or("?")
+        )
     } else if v.get("certificados").is_some() {
         "OK (carteira: 1 certificado)".to_string()
     } else if v.get("idArray").is_some() {

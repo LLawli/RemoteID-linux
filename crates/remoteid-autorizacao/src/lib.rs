@@ -220,7 +220,10 @@ mod tests {
         // otp e pin NÃO são comparados no binário: caem no default.
         assert_eq!("otp".parse::<Modo>().unwrap().estado(), Estado::Interativo);
         assert_eq!("pin".parse::<Modo>().unwrap().estado(), Estado::Interativo);
-        assert_eq!("bloop".parse::<Modo>().unwrap().estado(), Estado::Interativo);
+        assert_eq!(
+            "bloop".parse::<Modo>().unwrap().estado(),
+            Estado::Interativo
+        );
     }
 
     #[test]
@@ -232,14 +235,20 @@ mod tests {
 
     #[test]
     fn push_com_pin_e_recusado() {
-        let fatores = Fatores::PinOtp { pin: "1234".into(), otp: "999999".into() };
+        let fatores = Fatores::PinOtp {
+            pin: "1234".into(),
+            otp: "999999".into(),
+        };
         assert!(fatores.compativel_com(&Modo::Push).is_err());
         assert!(Fatores::Push.compativel_com(&Modo::Local).is_err());
     }
 
     #[test]
     fn cada_fator_casa_com_o_seu_estado() {
-        let pinotp = Fatores::PinOtp { pin: "1".into(), otp: "2".into() };
+        let pinotp = Fatores::PinOtp {
+            pin: "1".into(),
+            otp: "2".into(),
+        };
         assert!(pinotp.compativel_com(&Modo::Local).is_ok());
         assert!(pinotp.compativel_com(&"otp".parse().unwrap()).is_ok());
         assert!(Fatores::Push.compativel_com(&Modo::Push).is_ok());

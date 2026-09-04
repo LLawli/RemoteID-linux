@@ -32,9 +32,7 @@ pub fn montar(estado: &EstadoApp, acoes: AcoesPainel) -> gtk::Widget {
     let pagina = adw::PreferencesPage::new();
 
     // 1. Grupo Identidade
-    let grupo_identidade = adw::PreferencesGroup::builder()
-        .title("Identidade")
-        .build();
+    let grupo_identidade = adw::PreferencesGroup::builder().title("Identidade").build();
 
     let (nome_titular, doc_titular) = estado.nome_e_documento_titular();
     let linha_titular = match doc_titular {
@@ -153,14 +151,13 @@ pub fn montar(estado: &EstadoApp, acoes: AcoesPainel) -> gtk::Widget {
     pagina.add(&grupo_certificados);
 
     // 3. Grupo Assinatura
-    let grupo_assinatura = adw::PreferencesGroup::builder()
-        .title("Assinatura")
-        .build();
+    let grupo_assinatura = adw::PreferencesGroup::builder().title("Assinatura").build();
 
     let cert_key_ativo = cert_ativo.map(|c| c.key_name.as_str());
-    let sessao_ativa = estado.sessoes.iter().find(|s| {
-        cert_key_ativo.is_some_and(|k| s.cert_key == k || k.starts_with(&s.cert_key))
-    });
+    let sessao_ativa = estado
+        .sessoes
+        .iter()
+        .find(|s| cert_key_ativo.is_some_and(|k| s.cert_key == k || k.starts_with(&s.cert_key)));
 
     let (texto_status_assinatura, tem_sessao) = match sessao_ativa {
         Some(s) => {
@@ -174,13 +171,22 @@ pub fn montar(estado: &EstadoApp, acoes: AcoesPainel) -> gtk::Widget {
                             true,
                         )
                     } else {
-                        ("Sessão em cache ativa (não pedirá PIN nem OTP)".to_string(), true)
+                        (
+                            "Sessão em cache ativa (não pedirá PIN nem OTP)".to_string(),
+                            true,
+                        )
                     }
                 } else {
-                    ("Sessão em cache ativa (não pedirá PIN nem OTP)".to_string(), true)
+                    (
+                        "Sessão em cache ativa (não pedirá PIN nem OTP)".to_string(),
+                        true,
+                    )
                 }
             } else {
-                ("Sessão em cache ativa (não pedirá PIN nem OTP)".to_string(), true)
+                (
+                    "Sessão em cache ativa (não pedirá PIN nem OTP)".to_string(),
+                    true,
+                )
             }
         }
         None => (

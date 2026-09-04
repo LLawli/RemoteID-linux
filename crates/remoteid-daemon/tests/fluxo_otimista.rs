@@ -19,9 +19,9 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use remoteid_aplicacao::{Motor, Opcoes};
 use remoteid_autorizacao::Fatores;
 use remoteid_cripto::{b64, de_b64};
-use remoteid_aplicacao::{Motor, Opcoes};
 use serde_json::{json, Value};
 
 use remoteid_daemon::prompter::{Contexto, Prompter};
@@ -143,7 +143,10 @@ fn atender(
         leitor.read_exact(&mut buf)?;
     }
     let corpo: Value = serde_json::from_slice(&buf).unwrap_or(Value::Null);
-    recebidas.lock().unwrap().push(ReqHttp { caminho: caminho.clone(), corpo });
+    recebidas.lock().unwrap().push(ReqHttp {
+        caminho: caminho.clone(),
+        corpo,
+    });
 
     let resposta = if caminho.ends_with("/login/usrsenha") {
         json!({
@@ -175,7 +178,11 @@ fn atender(
         json!({"status": true, "message": "Token gerado com sucesso", "token": token})
     } else if caminho.ends_with("/requestHashSessionSignature") {
         *contador_rh.lock().unwrap() += 1;
-        let modo = modos_reqhash.lock().unwrap().pop_front().unwrap_or(ModoReq::Ok);
+        let modo = modos_reqhash
+            .lock()
+            .unwrap()
+            .pop_front()
+            .unwrap_or(ModoReq::Ok);
         match modo {
             ModoReq::Ok => json!({
                 "status": true, "message": "ok",
@@ -209,7 +216,10 @@ fn assinatura_falsa() -> Vec<u8> {
 
 fn agora_test() -> u64 {
     use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
 }
 
 // ---------------- prompter que conta chamadas ----------------------------
@@ -234,22 +244,19 @@ impl PrompterEspiao {
 }
 
 impl Prompter for PrompterEspiao {
-    fn pedir_pin_otp(
-        &self,
-        _: &Contexto,
-    ) -> remoteid_tipos::Result<Fatores> {
+    fn pedir_pin_otp(&self, _: &Contexto) -> remoteid_tipos::Result<Fatores> {
         *self.chamadas.lock().unwrap() += 1;
-        Ok(Fatores::PinOtp { pin: self.pin.clone(), otp: self.otp.clone() })
+        Ok(Fatores::PinOtp {
+            pin: self.pin.clone(),
+            otp: self.otp.clone(),
+        })
     }
 }
 
 // Wrapper para o Servico aceitar o Arc<PrompterEspiao> como Box<dyn>.
 struct ProxyPrompter(Arc<PrompterEspiao>);
 impl Prompter for ProxyPrompter {
-    fn pedir_pin_otp(
-        &self,
-        c: &Contexto,
-    ) -> remoteid_tipos::Result<Fatores> {
+    fn pedir_pin_otp(&self, c: &Contexto) -> remoteid_tipos::Result<Fatores> {
         self.0.pedir_pin_otp(c)
     }
 }
@@ -308,7 +315,10 @@ fn primeira_assinatura_sem_cache_pede_pin_otp_e_grava_a_sessao() {
     let prompter = PrompterEspiao::novo();
     let mut s = servico(&amb, &srv, Arc::clone(&prompter));
 
-    let req = Requisicao::Sign { digest_b64: b64(&[0u8; 32]), hospedeiro: Some("papers".into()) };
+    let req = Requisicao::Sign {
+        digest_b64: b64(&[0u8; 32]),
+        hospedeiro: Some("papers".into()),
+    };
     let resp = s.tratar(req);
 
     match resp {
@@ -318,7 +328,11 @@ fn primeira_assinatura_sem_cache_pede_pin_otp_e_grava_a_sessao() {
         outro => panic!("resposta inesperada: {outro:?}"),
     }
     assert_eq!(prompter.contagem(), 1, "pediu PIN+OTP uma vez");
-    assert_eq!(srv.contagem_de_tokensessao(), 1, "chamou tokensessao uma vez");
+    assert_eq!(
+        srv.contagem_de_tokensessao(),
+        1,
+        "chamou tokensessao uma vez"
+    );
 }
 
 #[test]
@@ -331,9 +345,15 @@ fn segunda_assinatura_com_cache_valido_nao_pede_pin_otp_nem_toca_tokensessao() {
     let mut s = servico(&amb, &srv, Arc::clone(&prompter));
 
     // primeira: gasta OTP.
-    s.tratar(Requisicao::Sign { digest_b64: b64(&[0u8; 32]), hospedeiro: None });
+    s.tratar(Requisicao::Sign {
+        digest_b64: b64(&[0u8; 32]),
+        hospedeiro: None,
+    });
     // segunda: deve reusar.
-    let resp = s.tratar(Requisicao::Sign { digest_b64: b64(&[1u8; 32]), hospedeiro: None });
+    let resp = s.tratar(Requisicao::Sign {
+        digest_b64: b64(&[1u8; 32]),
+        hospedeiro: None,
+    });
 
     match resp {
         Resposta::Sucesso(SucessoResposta::Sign { cache_hit, .. }) => {
@@ -341,8 +361,16 @@ fn segunda_assinatura_com_cache_valido_nao_pede_pin_otp_nem_toca_tokensessao() {
         }
         outro => panic!("resposta inesperada: {outro:?}"),
     }
-    assert_eq!(prompter.contagem(), 1, "prompter só foi chamado uma vez (a primeira)");
-    assert_eq!(srv.contagem_de_tokensessao(), 1, "tokensessao só foi chamado uma vez");
+    assert_eq!(
+        prompter.contagem(),
+        1,
+        "prompter só foi chamado uma vez (a primeira)"
+    );
+    assert_eq!(
+        srv.contagem_de_tokensessao(),
+        1,
+        "tokensessao só foi chamado uma vez"
+    );
 }
 
 #[test]
@@ -355,7 +383,10 @@ fn cache_recusado_pelo_server_invalida_e_reemite_transparente() {
     let mut s = servico(&amb, &srv, Arc::clone(&prompter));
 
     // Primeira assinatura: emite token normalmente (server OK) e cacheia.
-    s.tratar(Requisicao::Sign { digest_b64: b64(&[0u8; 32]), hospedeiro: None });
+    s.tratar(Requisicao::Sign {
+        digest_b64: b64(&[0u8; 32]),
+        hospedeiro: None,
+    });
     assert_eq!(prompter.contagem(), 1);
     assert_eq!(srv.contagem_de_tokensessao(), 1);
 
@@ -365,20 +396,33 @@ fn cache_recusado_pelo_server_invalida_e_reemite_transparente() {
     srv.programar_request_hash(ModoReq::SessaoInvalida);
     srv.programar_request_hash(ModoReq::Ok);
 
-    let resp = s.tratar(Requisicao::Sign { digest_b64: b64(&[2u8; 32]), hospedeiro: None });
+    let resp = s.tratar(Requisicao::Sign {
+        digest_b64: b64(&[2u8; 32]),
+        hospedeiro: None,
+    });
 
     match resp {
         Resposta::Sucesso(SucessoResposta::Sign { cache_hit, .. }) => {
             // Não foi hit puro: hit → invalidação → reemissão nova.
             assert!(!cache_hit, "após retry, cache_hit deve ser false");
         }
-        outro => panic!(
-            "resposta inesperada, deveria ter feito retry silencioso: {outro:?}"
-        ),
+        outro => panic!("resposta inesperada, deveria ter feito retry silencioso: {outro:?}"),
     }
-    assert_eq!(prompter.contagem(), 2, "prompter chamado no retry silencioso");
-    assert_eq!(srv.contagem_de_tokensessao(), 2, "reemitiu o tokensessao no retry");
-    assert_eq!(srv.contagem_de_reqhash(), 3, "1 primeiro + 1 recusa + 1 retry OK");
+    assert_eq!(
+        prompter.contagem(),
+        2,
+        "prompter chamado no retry silencioso"
+    );
+    assert_eq!(
+        srv.contagem_de_tokensessao(),
+        2,
+        "reemitiu o tokensessao no retry"
+    );
+    assert_eq!(
+        srv.contagem_de_reqhash(),
+        3,
+        "1 primeiro + 1 recusa + 1 retry OK"
+    );
 }
 
 #[test]
@@ -391,14 +435,27 @@ fn reautorizar_proxima_forca_pin_otp_na_proxima() {
     let mut s = servico(&amb, &srv, Arc::clone(&prompter));
 
     // Cria cache.
-    s.tratar(Requisicao::Sign { digest_b64: b64(&[0u8; 32]), hospedeiro: None });
+    s.tratar(Requisicao::Sign {
+        digest_b64: b64(&[0u8; 32]),
+        hospedeiro: None,
+    });
     // Reset leve.
     let ack = s.tratar(Requisicao::ReautorizarProxima);
-    assert!(matches!(ack, Resposta::Sucesso(SucessoResposta::Ack { .. })));
+    assert!(matches!(
+        ack,
+        Resposta::Sucesso(SucessoResposta::Ack { .. })
+    ));
     // Próxima assinatura precisa pedir de novo.
-    s.tratar(Requisicao::Sign { digest_b64: b64(&[1u8; 32]), hospedeiro: None });
+    s.tratar(Requisicao::Sign {
+        digest_b64: b64(&[1u8; 32]),
+        hospedeiro: None,
+    });
 
-    assert_eq!(prompter.contagem(), 2, "reautorizar forçou o segundo PIN+OTP");
+    assert_eq!(
+        prompter.contagem(),
+        2,
+        "reautorizar forçou o segundo PIN+OTP"
+    );
     assert_eq!(srv.contagem_de_tokensessao(), 2);
 }
 
@@ -411,7 +468,10 @@ fn digest_com_tamanho_errado_devolve_entrada_invalida_nao_erro_interno() {
     let prompter = PrompterEspiao::novo();
     let mut s = servico(&amb, &srv, Arc::clone(&prompter));
 
-    let req = Requisicao::Sign { digest_b64: b64(&[0u8; 20]), hospedeiro: None };
+    let req = Requisicao::Sign {
+        digest_b64: b64(&[0u8; 20]),
+        hospedeiro: None,
+    };
     match s.tratar(req) {
         Resposta::Falha { codigo, .. } => assert_eq!(codigo, CodigoErro::EntradaInvalida),
         outro => panic!("digest inválido não pode virar sucesso: {outro:?}"),
@@ -431,7 +491,12 @@ fn status_espelha_o_estado() {
 
     let mut s = servico(&amb, &srv, PrompterEspiao::novo());
     match s.tratar(Requisicao::Status) {
-        Resposta::Sucesso(SucessoResposta::Status { preparado, codigo_desktop, certificados, .. }) => {
+        Resposta::Sucesso(SucessoResposta::Status {
+            preparado,
+            codigo_desktop,
+            certificados,
+            ..
+        }) => {
             assert!(preparado);
             assert_eq!(codigo_desktop.as_deref(), Some("cd-uuid"));
             assert_eq!(certificados.len(), 1);

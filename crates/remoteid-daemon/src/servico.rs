@@ -6,9 +6,9 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use remoteid_aplicacao::{Motor, Opcoes};
 use remoteid_cripto::{b64, de_b64};
 use remoteid_tipos::{Error, Origem};
-use remoteid_aplicacao::{Motor, Opcoes};
 
 use crate::prompter::{Contexto, Prompter};
 use crate::protocolo::{
@@ -29,7 +29,12 @@ impl Servico {
     pub fn novo(opcoes: Opcoes, prompter: Box<dyn Prompter>) -> remoteid_tipos::Result<Servico> {
         let opcoes_base = clonar_opcoes(&opcoes);
         let motor = Motor::abrir(opcoes)?;
-        Ok(Servico { motor, opcoes_base, prompter, encerrar: AtomicBool::new(false) })
+        Ok(Servico {
+            motor,
+            opcoes_base,
+            prompter,
+            encerrar: AtomicBool::new(false),
+        })
     }
 
     pub fn deve_encerrar(&self) -> bool {
@@ -48,7 +53,10 @@ impl Servico {
 
     pub fn tratar(&mut self, req: Requisicao) -> Resposta {
         match req {
-            Requisicao::Sign { digest_b64, hospedeiro } => self.tratar_sign(digest_b64, hospedeiro),
+            Requisicao::Sign {
+                digest_b64,
+                hospedeiro,
+            } => self.tratar_sign(digest_b64, hospedeiro),
             Requisicao::Status => self.tratar_status(),
             Requisicao::ReautorizarProxima => self.tratar_reautorizar(),
             Requisicao::EscolherCertificado { key_name } => self.tratar_escolher(key_name),
@@ -73,7 +81,10 @@ impl Servico {
         if digest.len() != 32 {
             return Resposta::falha(
                 CodigoErro::EntradaInvalida,
-                format!("digest tem que ser SHA-256 (32 bytes), veio com {}", digest.len()),
+                format!(
+                    "digest tem que ser SHA-256 (32 bytes), veio com {}",
+                    digest.len()
+                ),
             );
         }
         // Se `hospedeiro` não veio na mensagem, a camada de socket já teve a
@@ -106,8 +117,9 @@ impl Servico {
             .map(|s| s.token.clone());
 
         let prompter = &*self.prompter;
-        let resultado =
-            self.motor.assinar_com_cache(&digest, || prompter.pedir_pin_otp(&contexto));
+        let resultado = self
+            .motor
+            .assinar_com_cache(&digest, || prompter.pedir_pin_otp(&contexto));
 
         match resultado {
             Ok(bytes) => {
@@ -217,9 +229,7 @@ impl Servico {
 
 fn erro_para_resposta(erro: Error) -> Resposta {
     match erro {
-        Error::Uso(msg) if msg.contains("cancelado") => {
-            Resposta::falha(CodigoErro::Cancelado, msg)
-        }
+        Error::Uso(msg) if msg.contains("cancelado") => Resposta::falha(CodigoErro::Cancelado, msg),
         Error::Uso(msg) => Resposta::falha(CodigoErro::EntradaInvalida, msg),
         Error::Estado(msg) => Resposta::falha(CodigoErro::NaoPreparado, msg),
         Error::Rede(msg) => Resposta::falha(CodigoErro::ErroRede, msg),

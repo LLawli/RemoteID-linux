@@ -685,7 +685,7 @@ pub unsafe extern "C" fn C_Login(
         // qualquer PIN. É deliberado: a validação de PIN não é o que este
         // módulo prova. Quando o daemon com UI entrar, o PIN e o OTP vão pelo
         // canal do daemon, não pelo `C_Login`. Ver a decisão em aberto no
-        // final de `docs/memoria/remoteid-pkcs11-registro-nss.md`.
+        // final de [[remoteid-pkcs11-registro-nss]].
         modulo.logado = true;
         CKR_OK
     })

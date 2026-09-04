@@ -72,7 +72,10 @@ pub struct CofrePem {
 
 impl CofrePem {
     pub fn novo(base: impl Into<PathBuf>) -> Self {
-        CofrePem { base: base.into(), cache: Mutex::new(HashMap::new()) }
+        CofrePem {
+            base: base.into(),
+            cache: Mutex::new(HashMap::new()),
+        }
     }
 
     fn caminho(&self, id: &IdInstalacao) -> PathBuf {
@@ -150,8 +153,14 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
         let dir = std::env::temp_dir().join(format!("rid-cofre-perm-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
-        CofrePem::novo(&dir).publica_pem(&IdInstalacao::local()).unwrap();
-        let modo = fs::metadata(dir.join("installation-key.pem")).unwrap().permissions().mode() & 0o777;
+        CofrePem::novo(&dir)
+            .publica_pem(&IdInstalacao::local())
+            .unwrap();
+        let modo = fs::metadata(dir.join("installation-key.pem"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
         assert_eq!(modo, 0o600, "a chave privada não pode nascer legível");
         let _ = fs::remove_dir_all(&dir);
     }
