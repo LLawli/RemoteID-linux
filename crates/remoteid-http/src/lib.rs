@@ -16,9 +16,9 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
-use remoteid_protocolo_servidor::config;
+use remoteid_protocolo_servidor::{config, resposta};
 use remoteid_portas::{Diagnostico, RequisicaoHttp, RespostaHttp, TransporteRemoteId};
-use remoteid_tipos::{Error, Result, ServerError};
+use remoteid_tipos::{Error, Result};
 
 pub struct Resposta {
     pub status: u16,
@@ -26,48 +26,16 @@ pub struct Resposta {
 }
 
 impl Resposta {
-    /// JSON da resposta, sem julgar o campo `status`.
+    /// JSON da resposta, sem julgar o campo `status`. A interpretação é do
+    /// domínio do protocolo, não do transporte (ver [`remoteid_protocolo_servidor::resposta`]).
     pub fn json(&self) -> Result<Value> {
-        if self.corpo.trim().is_empty() {
-            return Ok(Value::Null);
-        }
-        serde_json::from_str(&self.corpo).map_err(|_| Error::RespostaNaoJson {
-            status: self.status,
-            trecho: self.corpo.chars().take(300).collect(),
-        })
+        resposta::json(self.status, &self.corpo)
     }
 
-    /// JSON da resposta, falhando quando o backend sinaliza erro de negócio.
-    ///
-    /// Cobre as duas formas em que o `status` aparece: booleano `false` e a
-    /// string `"false"`.
+    /// JSON da resposta, falhando quando o backend sinaliza erro de negócio
+    /// ("HTTP 200 pode ser erro"). Delega ao domínio.
     pub fn ok_json(&self) -> Result<Value> {
-        let data = self.json()?;
-
-        // O backend às vezes manda o booleano como string ("false").
-        let negado = match data.get("status") {
-            Some(Value::Bool(b)) => !b,
-            Some(Value::String(s)) => s.eq_ignore_ascii_case("false"),
-            _ => false, // login e registro não devolvem `status`
-        };
-        let http_ruim = !(200..300).contains(&self.status);
-        if !negado && !http_ruim {
-            return Ok(data);
-        }
-
-        let mensagem = ["message", "mensagem", "error", "exception"]
-            .iter()
-            .find_map(|k| data.get(*k).and_then(|v| v.as_str()))
-            .filter(|s| !s.is_empty())
-            .map(str::to_string)
-            .unwrap_or_else(|| format!("HTTP {}", self.status));
-        let (origem, hint) = config::classificar(&mensagem, &self.corpo);
-        Err(Error::Servidor(ServerError {
-            http_status: self.status,
-            message: mensagem,
-            origem,
-            hint,
-        }))
+        resposta::ok_json(self.status, &self.corpo)
     }
 }
 
@@ -187,59 +155,6 @@ impl TransporteRemoteId for Http {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn resp(status: u16, corpo: &str) -> Resposta {
-        Resposta { status, corpo: corpo.to_string() }
-    }
-
-    #[test]
-    fn http_200_com_status_false_e_erro() {
-        // A armadilha central do backend: 200 não quer dizer sucesso.
-        let r = resp(200, r#"{"status":false,"message":"Informe o Pin","token":null}"#);
-        let erro = r.ok_json().unwrap_err();
-        match erro {
-            Error::Servidor(s) => {
-                assert_eq!(s.http_status, 200);
-                assert_eq!(s.message, "Informe o Pin");
-                assert_eq!(s.origem, remoteid_tipos::Origem::Usuario);
-                assert!(s.hint.is_some());
-            }
-            outro => panic!("classificou errado: {outro}"),
-        }
-    }
-
-    #[test]
-    fn http_200_com_status_true_passa() {
-        let r = resp(200, r#"{"status":true,"message":"Token gerado com sucesso","token":"t"}"#);
-        let v = r.ok_json().unwrap();
-        assert_eq!(v["token"], "t");
-    }
-
-    #[test]
-    fn resposta_sem_campo_status_passa() {
-        // O login e o registro não devolvem `status`; só os dados.
-        let r = resp(200, r#"{"token":"jwt","id":327989}"#);
-        assert_eq!(r.ok_json().unwrap()["id"], 327989);
-    }
-
-    #[test]
-    fn erro_http_com_corpo_de_excecao_e_classificado() {
-        let r = resp(
-            500,
-            r#"{"exception":"UsuarioSenhaInvalidoException","message":"Usuário ou senha inválidos"}"#,
-        );
-        match r.ok_json().unwrap_err() {
-            Error::Servidor(s) => assert_eq!(s.origem, remoteid_tipos::Origem::Usuario),
-            outro => panic!("esperava erro de servidor: {outro}"),
-        }
-    }
-
-    #[test]
-    fn corpo_que_nao_e_json_vira_erro_legivel() {
-        let r = resp(502, "<html>Bad Gateway</html>");
-        assert!(matches!(r.ok_json(), Err(Error::RespostaNaoJson { .. })));
-    }
-}
+// A interpretação da resposta (e seus testes) mora no domínio
+// `remoteid_protocolo_servidor::resposta`. O transporte em si é exercitado
+// pelos testes de integração que sobem um servidor HTTP local.
