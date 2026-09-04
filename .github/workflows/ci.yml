@@ -16,7 +16,7 @@ jobs:
     name: testes, clippy e build
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # A crate do app precisa de GTK4 e Libadwaita de desenvolvimento. Só
       # ela: a CLI e o módulo PKCS#11 compilam sem nada disso.
       - name: dependências de sistema (GTK4 + Libadwaita)
@@ -36,7 +36,7 @@ jobs:
     name: gate PKCS#11 ponta a ponta
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # `pkcs11-tool` vem do opensc: é o hospedeiro PKCS#11 de verdade que o
       # gate usa para carregar o nosso módulo. Sem GTK aqui de propósito — o
       # gate roda headless, com o `servidor-fixo` no lugar da janela.
@@ -52,7 +52,7 @@ jobs:
     name: auditoria de segredos
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: tools/auditar-segredos.sh
 
   dependencias:
@@ -64,7 +64,7 @@ jobs:
       contents: read
       checks: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
