@@ -12,8 +12,15 @@ que ninguém sabe o que mudou.
 
 ## [Não publicado]
 
-Primeira versão em preparação. Quando ela sair, esta seção vira `[0.1.0]` com a
-data, e o conteúdo abaixo passa a valer como as notas dessa release.
+## [0.1.0] - 2026-09-04
+
+Primeira versão pública. O protocolo do certificado em nuvem RemoteID foi
+reconstruído por engenharia reversa do aplicativo oficial de macOS e confirmado
+ao vivo: assinar pelo caminho **PIN + OTP** funciona ponta a ponta, com a
+assinatura devolvida pelo HSM verificada contra a chave pública do certificado
+do titular. O caminho **push** (aprovar no celular) está implementado com
+paridade byte a byte com o app oficial, mas **nunca foi exercitado com uma conta
+real** — é hipótese até que alguém prove o contrário.
 
 ### Adicionado
 
