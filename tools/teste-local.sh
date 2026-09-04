@@ -18,8 +18,8 @@ DIR="/tmp/remoteid-teste"
 RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$RAIZ"
 
-echo "→ compilando (mock, cli, app)…"
-cargo build -q -p remoteid-mock -p remoteid-cli -p remoteid-gtk
+echo "→ compilando (mock, cli)…"
+cargo build -q -p remoteid-mock -p remoteid-cli
 
 rm -rf "$DIR"
 
@@ -44,20 +44,17 @@ cat <<EOF
  juntos para /tmp e falam com o mock. Sem ele, tudo usa os caminhos de produção
  (e aí basta o módulo estar registrado no p11-kit — nada de variáveis).
 
- Em OUTRO terminal:
+ A conta de teste já está preparada. Exercite o protocolo pela CLI, em OUTRO
+ terminal (contra o mock, sem tocar produção):
 
- 1) Suba o app (janela + servidor do socket), em modo de teste — DEIXE ABERTO:
-      TEST_URL=${URL} ${RAIZ}/target/debug/remoteid-app
-    (abre "MODO DE TESTE", já preparado, mostrando o certificado falso)
+      TEST_URL=${URL} ${RAIZ}/target/debug/remoteid assinar --arquivo algum.pdf
+    (pede PIN 1234 / OTP 123456; a assinatura vai pelo motor → mock e confere
+     com o certificado falso)
 
- 2) Abra o Papers no MESMO modo de teste:
-      TEST_URL=${URL} papers
-    Assine um PDF: o módulo pede a assinatura AO APP, que mostra o diálogo de
-    PIN/OTP (preencha PIN 1234 / OTP 123456). A assinatura vai pelo app → mock
-    e confere com o certificado. É o fluxo de produção, contra o servidor falso.
-
- Pré-requisito: o módulo registrado no p11-kit (uma vez):
-   echo "module: ${RAIZ}/target/debug/libremoteid_pkcs11.so" > ~/.config/pkcs11/modules/remoteid.module
+ NOTA: o app GTK (que hospedava o servidor do socket e o diálogo de PIN/OTP)
+ está sendo RECONSTRUÍDO do zero — ver docs/gtk-app-spec.md. Enquanto ele não
+ volta, o caminho "Papers → módulo PKCS#11 → app" fica indisponível (o módulo
+ precisa do app no socket); o fluxo de protocolo continua testável pela CLI.
 
  Credenciais: login teste@remoteid.local / teste-1234
               PIN 1234   OTP 123456
