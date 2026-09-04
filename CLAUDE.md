@@ -76,6 +76,23 @@ de diretório: o núcleo é a fonte, e a borda referencia, nunca hardcoda de nov
 - **Licença:** GPLv3-only.
 - **Commits:** assinados por SSH, sem co-autoria de IA, escopo por mudança
   lógica. Só commitar quando o usuário pedir.
+- **Branches e PR, nunca push direto na `main`.** Desde 04/09/2026, todo
+  trabalho nasce em branch e entra por pull request — inclusive correção de uma
+  linha, inclusive quando o repositório é de uma pessoa só.
+
+  ```sh
+  git checkout -b <tipo>/<assunto-curto>   # feat/, fix/, docs/, ci/, style/…
+  # … commits assinados, escopados …
+  git push -u origin <a branch>
+  gh pr create --fill
+  ```
+
+  **Por quê:** a `main` é o que o `install.sh` do README baixa por
+  `curl | sh` e o que o `release.yml` transforma em release. Push direto
+  publica antes de qualquer gate rodar; num PR o CI (fmt, testes, clippy, gate
+  PKCS#11, auditoria de segredos, `cargo audit`) fecha antes de a `main` mudar.
+  O PR também é onde a mudança fica explicada para quem chegar depois — o
+  histórico de um projeto público é documentação.
 
 ## Segurança, que aqui não é abstrata
 
