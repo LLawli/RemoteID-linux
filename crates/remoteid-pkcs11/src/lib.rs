@@ -94,15 +94,93 @@ pub(crate) struct Sessao {
     pub assinatura: Option<EstadoAssinatura>,
 }
 
-/// O que `C_SignInit` fixa: com qual chave e por qual mecanismo. O digest de
-/// entrada em si só chega no `C_Sign`.
+/// A operação de assinatura de uma sessão, do `C_SignInit` até o fim.
+///
+/// Guarda o que o `C_SignInit` fixou (chave e mecanismo) e, para quem assina em
+/// FLUXO, os bytes que o `C_SignUpdate` foi juntando. São os dois caminhos que
+/// o Cryptoki oferece e um hospedeiro escolhe um:
+///
+/// - de um tiro: `C_SignInit` → `C_Sign`, e `acumulado` fica vazio;
+/// - em fluxo: `C_SignInit` → `C_SignUpdate`(n) → `C_SignFinal`.
+///
+/// O segundo não é exotismo: o BouncyCastle escreve o documento num
+/// `SignatureUpdatingOutputStream` e nunca chama `C_Sign`, então é assim que o
+/// PJeOffice assina.
+///
+/// A acumulação é pura de propósito — nada de I/O aqui, para poder ser testada
+/// sem token, sem rede e sem FFI.
 pub(crate) struct EstadoAssinatura {
-    #[allow(dead_code)] // usado quando um segundo mecanismo entrar
     pub mecanismo: CK_MECHANISM_TYPE,
     #[allow(dead_code)] // o `C_Sign` já lê a chave do token pela chave_teste;
     // o handle fica registrado para depuração e para o dia
     // em que houver mais de uma chave.
     pub chave: CK_OBJECT_HANDLE,
+    acumulado: Vec<u8>,
+}
+
+impl EstadoAssinatura {
+    pub fn novo(mecanismo: CK_MECHANISM_TYPE, chave: CK_OBJECT_HANDLE) -> Self {
+        EstadoAssinatura {
+            mecanismo,
+            chave,
+            acumulado: Vec::new(),
+        }
+    }
+
+    /// Junta mais um pedaço do que será assinado.
+    pub fn acumular(&mut self, pedaco: &[u8]) {
+        self.acumulado.extend_from_slice(pedaco);
+    }
+
+    /// Tudo o que foi acumulado até aqui, na ordem em que chegou.
+    pub fn acumulado(&self) -> &[u8] {
+        &self.acumulado
+    }
+}
+
+#[cfg(test)]
+mod testes_estado_assinatura {
+    use super::*;
+
+    fn estado() -> EstadoAssinatura {
+        EstadoAssinatura::novo(CKM_SHA256_RSA_PKCS, 1)
+    }
+
+    #[test]
+    fn comeca_sem_nada_acumulado() {
+        assert!(estado().acumulado().is_empty());
+    }
+
+    #[test]
+    fn os_pedacos_entram_na_ordem_em_que_chegam() {
+        // É o ponto do fluxo: o BouncyCastle escreve o documento em pedaços, e
+        // trocar a ordem produz uma assinatura de outro conteúdo.
+        let mut e = estado();
+        e.acumular(b"con");
+        e.acumular(b"teudo ");
+        e.acumular(b"de teste");
+        assert_eq!(e.acumulado(), b"conteudo de teste");
+    }
+
+    #[test]
+    fn pedaco_vazio_nao_muda_nada() {
+        // `C_SignUpdate` com comprimento zero é chamada legítima.
+        let mut e = estado();
+        e.acumular(b"abc");
+        e.acumular(b"");
+        assert_eq!(e.acumulado(), b"abc");
+    }
+
+    #[test]
+    fn acumular_muitos_pedacos_equivale_a_um_bloco_so() {
+        // O `C_SignFinal` tem de assinar exatamente o que o `C_Sign` assinaria.
+        let bloco: Vec<u8> = (0..=255u8).cycle().take(5000).collect();
+        let mut e = estado();
+        for pedaco in bloco.chunks(97) {
+            e.acumular(pedaco);
+        }
+        assert_eq!(e.acumulado(), &bloco[..]);
+    }
 }
 
 /// Tranca o estado global, recuperando de envenenamento.
@@ -187,8 +265,8 @@ static LISTA: CK_FUNCTION_LIST = CK_FUNCTION_LIST {
     C_DigestFinal: Some(stubs::C_DigestFinal),
     C_SignInit: Some(funcoes::C_SignInit),
     C_Sign: Some(funcoes::C_Sign),
-    C_SignUpdate: Some(stubs::C_SignUpdate),
-    C_SignFinal: Some(stubs::C_SignFinal),
+    C_SignUpdate: Some(funcoes::C_SignUpdate),
+    C_SignFinal: Some(funcoes::C_SignFinal),
     C_SignRecoverInit: Some(stubs::C_SignRecoverInit),
     C_SignRecover: Some(stubs::C_SignRecover),
     C_VerifyInit: Some(stubs::C_VerifyInit),

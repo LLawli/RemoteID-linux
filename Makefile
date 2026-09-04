@@ -62,6 +62,8 @@ test:
 clippy:
 	cargo clippy --all-targets
 
-# A porta de validação do projeto (CLAUDE.md).
+# A porta de validação do projeto (CLAUDE.md). A ORDEM e o conteúdo espelham o
+# job `verificacao` do CI: um `make check` verde que quebra no CI não serve de
+# porta. O `fmt --check` vem primeiro porque é o mais rápido a reprovar.
 check:
-	cargo test && cargo clippy --all-targets && cargo build --release
+	cargo fmt --all --check && cargo test && cargo clippy --all-targets -- -D warnings && cargo build --release
