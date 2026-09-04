@@ -53,12 +53,39 @@ const ISSUER: &str = "CN=AC TESTE DESKTOPID, OU=AC TESTE RAIZ, O=ICP-Brasil TEST
 /// "assinatura não confere".
 fn serial_do_cert(der: &[u8]) -> String {
     let cert = Certificate::from_der(der).expect("certificado falso embutido inválido");
-    cert.tbs_certificate
-        .serial_number
-        .as_bytes()
-        .iter()
-        .map(|b| format!("{b:02X}"))
-        .collect()
+    let bytes = cert.tbs_certificate.serial_number.as_bytes();
+
+    // O DER prefixa um 0x00 quando o primeiro byte tem o bit alto setado, para o
+    // INTEGER não ser lido como negativo. Esse zero é da CODIFICAÇÃO, não do
+    // número: a Certisign devolve 32 hex para um serial de 16 bytes, e manter o
+    // padding produziria 34 — um `keyName` que não casa com o do servidor real.
+    let bytes = match bytes.split_first() {
+        Some((0x00, resto)) if !resto.is_empty() => resto,
+        _ => bytes,
+    };
+
+    bytes.iter().map(|b| format!("{b:02X}")).collect()
+}
+
+#[cfg(test)]
+mod testes {
+    use super::*;
+
+    #[test]
+    fn serial_nao_carrega_o_zero_de_padding_do_der() {
+        let serial = serial_do_cert(CERT_DER);
+        assert_eq!(
+            serial.len(),
+            32,
+            "o serial do keyName tem de ter 32 hex (16 bytes), veio {serial:?}"
+        );
+        assert!(!serial.starts_with("00"), "o padding do DER vazou para o keyName: {serial:?}");
+    }
+
+    #[test]
+    fn o_emissor_do_der_bate_com_a_constante_issuer() {
+        conferir_emissor(CERT_DER);
+    }
 }
 
 /// Falha cedo e alto se as fixtures forem regeradas com outra AC.
