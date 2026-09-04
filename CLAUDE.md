@@ -9,9 +9,16 @@ do antigo `DesktopID-linux` sob uma arquitetura de núcleo funcional e portas.
 
 Este projeto **usa o ai-memory** para memória e handoff (recall no início da
 sessão, salvar decisões e handoff no fim). Não versionar memória em arquivos.
-As páginas em `docs/memoria/`, `docs/PROTOCOLO.md`, `docs/PAYLOADS.md` e
+As páginas em `docs/PROTOCOLO.md`, `docs/PAYLOADS.md` e
 `docs/ARQUITETURA-SO.md` são **documentação de referência** da engenharia
 reversa (o que o servidor faz e por quê), não o sistema de memória.
+
+As notas de sessão que viviam em `docs/memoria/` saíram do repositório em
+04/09/2026, antes da publicação: elas citam caminhos da máquina e são raciocínio
+de trabalho, não documentação do projeto. Ficam em
+`../RemoteID-linux-memoria/`, fora do git. Comentários no código referenciam
+essas notas na forma `[[nome-da-nota]]`, que é uma chave do ai-memory, não um
+caminho de arquivo — não transforme em link.
 
 ## Arquitetura (as regras desta reconstrução)
 
@@ -63,6 +70,9 @@ de diretório: o núcleo é a fonte, e a borda referencia, nunca hardcoda de nov
   original (`codigoDesktop`, `nomeAplicacaoDesktop`, `signatureBase64`).
 - **Comentários explicam o porquê**, principalmente quando o código parece errado
   e não está (a maior parte deste protocolo é contraintuitiva).
+- **Formatação:** o estilo é o do `rustfmt` padrão, sem discussão e sem
+  `rustfmt.toml`. O repositório não briga com o formatador: `cargo fmt --all` é
+  a autoridade, e `cargo fmt --all --check` é gate no CI. Escreveu, formatou.
 - **Licença:** GPLv3-only.
 - **Commits:** assinados por SSH, sem co-autoria de IA, escopo por mudança
   lógica. Só commitar quando o usuário pedir.

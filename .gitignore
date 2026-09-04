@@ -21,3 +21,7 @@ diag/
 # Bytecode do tools/extract-payloads.py
 __pycache__/
 *.pyc
+
+# Notas de sessão: raciocínio de trabalho, fora do repositório
+# (ficam em ../RemoteID-linux-memoria/). Ver CLAUDE.md.
+docs/memoria/
