@@ -829,7 +829,6 @@ unsafe fn bloco_do_host<'a>(p: *mut CK_BYTE, n: CK_ULONG) -> Result<&'a [u8], CK
     Ok(std::slice::from_raw_parts(p as *const u8, n as usize))
 }
 
-
 /// Assinatura de uma parte só (o que o poppler faz ao assinar PDF).
 ///
 /// # Safety

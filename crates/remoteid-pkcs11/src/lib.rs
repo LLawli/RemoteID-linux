@@ -120,7 +120,11 @@ pub(crate) struct EstadoAssinatura {
 
 impl EstadoAssinatura {
     pub fn novo(mecanismo: CK_MECHANISM_TYPE, chave: CK_OBJECT_HANDLE) -> Self {
-        EstadoAssinatura { mecanismo, chave, acumulado: Vec::new() }
+        EstadoAssinatura {
+            mecanismo,
+            chave,
+            acumulado: Vec::new(),
+        }
     }
 
     /// Junta mais um pedaço do que será assinado.
