@@ -24,15 +24,30 @@ use std::time::Duration;
 
 use serde_json::Value;
 
+use remoteid_portas::{
+    Ambiente, CofreDeChave, Diagnostico, Relogio, RepositorioEstado, RequisicaoHttp,
+    TransporteRemoteId,
+};
+use remoteid_tipos::IdInstalacao;
+
 use crate::authmode::{Fatores, Modo};
 use crate::canonical::canonical;
 use crate::config;
-use crate::crypto::{b64, de_b64, sha256, ChaveInstalacao};
-use crate::diag::Diag;
+use crate::crypto::{b64, de_b64, sha256};
 use crate::error::{Error, Result};
-use crate::http::Http;
 use crate::protocol;
+use crate::resposta;
 use crate::state::{self, Certificado, Estado};
+
+// Adaptadores padrão do desktop, montados por `Motor::abrir`. A raiz de
+// composição de uma outra edição (p.ex. a central em Postgres) usa
+// `Motor::com_dependencias` e não passa por aqui.
+use crate::diag::Diag;
+use crate::http::Http;
+use remoteid_ambiente_sistema::AmbienteSistema;
+use remoteid_chave_pem::CofrePem;
+use remoteid_relogio_sistema::RelogioSistema;
+use remoteid_store_json::RepositorioJson;
 
 /// Onde e como o motor opera.
 pub struct Opcoes {
@@ -71,30 +86,69 @@ impl Default for Opcoes {
     }
 }
 
+/// As portas que o motor consome. A raiz de composição as monta e injeta; o
+/// motor não conhece nenhuma implementação concreta. `Motor::abrir` monta as
+/// padrão do desktop (JSON, PEM, ureq, JSONL, relógio e ambiente do sistema);
+/// uma outra edição (a central em Postgres) monta as suas e chama
+/// [`Motor::com_dependencias`].
+pub struct Dependencias {
+    pub repo: Box<dyn RepositorioEstado>,
+    pub cofre: Box<dyn CofreDeChave>,
+    pub transporte: Box<dyn TransporteRemoteId>,
+    pub diag: Arc<dyn Diagnostico>,
+    pub relogio: Box<dyn Relogio>,
+    pub ambiente: Box<dyn Ambiente>,
+    /// Qual instalação/conta este motor serve. No desktop, [`IdInstalacao::local`].
+    pub id: IdInstalacao,
+}
+
 pub struct Motor {
     opcoes: Opcoes,
     pub estado: Estado,
-    chave: ChaveInstalacao,
-    http: Http,
-    diag: Arc<Diag>,
+    repo: Box<dyn RepositorioEstado>,
+    cofre: Box<dyn CofreDeChave>,
+    transporte: Box<dyn TransporteRemoteId>,
+    diag: Arc<dyn Diagnostico>,
+    relogio: Box<dyn Relogio>,
+    ambiente: Box<dyn Ambiente>,
+    id: IdInstalacao,
     /// JWT do login. Só serve para o registro, e não é persistido: expira, e
     /// gravá-lo seria guardar uma credencial de sessão sem necessidade.
     jwt: Option<String>,
 }
 
 impl Motor {
+    /// Abre o motor com os adaptadores PADRÃO do desktop, montados a partir de
+    /// `opcoes`: estado em JSON e chave em PEM em `dir_dados`, transporte ureq,
+    /// diag JSONL em `dir_diag`, relógio e ambiente do sistema, instalação
+    /// [`IdInstalacao::local`].
     pub fn abrir(opcoes: Opcoes) -> Result<Motor> {
-        let diag = Arc::new(Diag::abrir(&opcoes.dir_diag));
-        let estado = state::carregar(&state::caminho_estado(&opcoes.dir_dados))?;
-        let chave = crate::crypto::carregar_ou_gerar(&state::caminho_chave(&opcoes.dir_dados))?;
-        // O transporte fala com o diag pela porta `Diagnostico`, não pelo tipo
-        // concreto: por isso o `Arc<Diag>` é coagido para `Arc<dyn Diagnostico>`
-        // aqui (a canônica, que o motor loga direto, não está na porta e usa o
-        // `Diag` concreto guardado em `self.diag`).
-        let diag_transporte: Arc<dyn remoteid_portas::Diagnostico> = diag.clone();
-        let http = Http::novo(diag_transporte, opcoes.timeout);
+        let dir = opcoes.dir_dados.clone();
+        let diag: Arc<dyn Diagnostico> = Arc::new(Diag::abrir(&opcoes.dir_diag));
+        let transporte = Box::new(Http::novo(diag.clone(), opcoes.timeout));
+        let deps = Dependencias {
+            repo: Box::new(RepositorioJson::novo(dir.clone())),
+            cofre: Box::new(CofrePem::novo(dir)),
+            transporte,
+            diag,
+            relogio: Box::new(RelogioSistema),
+            ambiente: Box::new(AmbienteSistema),
+            id: IdInstalacao::local(),
+        };
+        let motor = Motor::com_dependencias(opcoes, deps)?;
+        // Preserva o comportamento antigo (a chave nasce no abrir do desktop):
+        // força a geração agora, para o harness poder afirmar "chave pronta" e
+        // para o primeiro registro não pagar a latência da geração.
+        motor.cofre.publica_pem(&motor.id)?;
+        Ok(motor)
+    }
 
-        diag.evento(
+    /// Abre o motor com dependências INJETADAS. É por aqui que uma edição
+    /// diferente (central em Postgres, testes com adaptadores em memória) troca
+    /// as implementações sem tocar em nada da lógica abaixo.
+    pub fn com_dependencias(opcoes: Opcoes, deps: Dependencias) -> Result<Motor> {
+        let estado = deps.repo.carregar(&deps.id)?;
+        deps.diag.evento(
             "sessao.inicio",
             serde_json::json!({
                 "versao": env!("CARGO_PKG_VERSION"),
@@ -105,20 +159,31 @@ impl Motor {
                 "auth_mode": estado.auth_mode,
             }),
         );
-        Ok(Motor { opcoes, estado, chave, http, diag, jwt: None })
+        Ok(Motor {
+            opcoes,
+            estado,
+            repo: deps.repo,
+            cofre: deps.cofre,
+            transporte: deps.transporte,
+            diag: deps.diag,
+            relogio: deps.relogio,
+            ambiente: deps.ambiente,
+            id: deps.id,
+            jwt: None,
+        })
     }
 
     /// Caminho do log desta execução, para o CLI mostrar num erro.
-    pub fn caminho_diag(&self) -> Option<&std::path::Path> {
+    pub fn caminho_diag(&self) -> Option<PathBuf> {
         self.diag.caminho()
     }
 
     pub fn salvar_estado(&self) -> Result<()> {
-        state::salvar(&self.estado, &state::caminho_estado(&self.opcoes.dir_dados))
+        self.repo.salvar(&self.id, &self.estado)
     }
 
     pub fn chave_publica_pem(&self) -> Result<String> {
-        self.chave.publica_pem()
+        self.cofre.publica_pem(&self.id)
     }
 
     fn url_rid(&self, caminho: &str) -> String {
@@ -138,50 +203,64 @@ impl Motor {
     /// Bearer dos endpoints de operação: a assinatura da canônica do corpo.
     fn bearer(&self, corpo: &Value, rotulo: &str) -> Result<String> {
         let canon = canonical(corpo);
-        let bearer = self.chave.bearer_assinado(&canon)?;
+        let bearer = self.cofre.bearer_assinado(&self.id, &canon)?;
         // A canônica NÃO é gravada crua: no tokensessao ela contém o PIN e o
         // OTP concatenados. Só o hash, que é o que responde "cliente e servidor
         // calcularam a mesma coisa?".
-        self.diag.canonica(rotulo, &canon, &bearer);
+        self.diag.evento(
+            "assinatura",
+            serde_json::json!({
+                "rotulo": rotulo,
+                "canonica_sha256": hex(&sha256(canon.as_bytes())),
+                "canonica_bytes": canon.len(),
+                "bearer_sha256": hex(&sha256(bearer.as_bytes())),
+                "bearer_bytes": bearer.len(),
+            }),
+        );
         Ok(bearer)
     }
 
     /// Requisição assinada com a chave da instalação.
     fn op(&self, metodo: &str, caminho: &str, corpo: &Value, rotulo: &str) -> Result<Value> {
         let bearer = self.bearer(corpo, rotulo)?;
-        self.http
-            .requisitar(metodo, &self.url_rid(caminho), Some(corpo), Some(&bearer), rotulo)?
-            .ok_json()
+        let req = RequisicaoHttp {
+            metodo: metodo.to_string(),
+            url: self.url_rid(caminho),
+            corpo: Some(corpo.clone()),
+            bearer: Some(bearer),
+            rotulo: rotulo.to_string(),
+        };
+        let r = self.transporte.requisitar(&req)?;
+        resposta::ok_json(r.status, &r.corpo)
     }
 
     // --- passos do fluxo -------------------------------------------------
 
     /// Teste de conectividade: a única rota que responde sem nenhum estado.
     pub fn hierarquias(&self) -> Result<Value> {
-        self.http
-            .requisitar(
-                "GET",
-                &self.url_desktop(config::EP_LIST_HIERARCHIES),
-                None,
-                None,
-                "listHierarchies",
-            )?
-            .ok_json()
+        let req = RequisicaoHttp {
+            metodo: "GET".to_string(),
+            url: self.url_desktop(config::EP_LIST_HIERARCHIES),
+            corpo: None,
+            bearer: None,
+            rotulo: "listHierarchies".to_string(),
+        };
+        let r = self.transporte.requisitar(&req)?;
+        resposta::ok_json(r.status, &r.corpo)
     }
 
     /// `login/usrsenha`. Guarda userId/organizacaoId no estado e o JWT em memória.
     pub fn login(&mut self, email: &str, senha: &str) -> Result<()> {
         let corpo = protocol::login(email, senha);
-        let data = self
-            .http
-            .requisitar(
-                "POST",
-                &self.url_rid(config::EP_RID_LOGIN),
-                Some(&corpo),
-                None,
-                "login",
-            )?
-            .ok_json()?;
+        let req = RequisicaoHttp {
+            metodo: "POST".to_string(),
+            url: self.url_rid(config::EP_RID_LOGIN),
+            corpo: Some(corpo),
+            bearer: None,
+            rotulo: "login".to_string(),
+        };
+        let r = self.transporte.requisitar(&req)?;
+        let data = resposta::ok_json(r.status, &r.corpo)?;
 
         let token = data
             .get("token")
@@ -213,20 +292,19 @@ impl Motor {
 
         let corpo = protocol::registrar_desktop(
             nome_desktop,
-            &usuario_local(),
-            &dominio_rede(),
-            &self.chave.publica_pem()?,
+            &self.ambiente.usuario_local(),
+            &self.ambiente.hostname(),
+            &self.cofre.publica_pem(&self.id)?,
         );
-        let data = self
-            .http
-            .requisitar(
-                "POST",
-                &self.url_rid(&config::ep_registrar_desktop(user_id, org_id)),
-                Some(&corpo),
-                Some(&jwt),
-                "registrar-desktop",
-            )?
-            .ok_json()?;
+        let req = RequisicaoHttp {
+            metodo: "POST".to_string(),
+            url: self.url_rid(&config::ep_registrar_desktop(user_id, org_id)),
+            corpo: Some(corpo),
+            bearer: Some(jwt),
+            rotulo: "registrar-desktop".to_string(),
+        };
+        let r = self.transporte.requisitar(&req)?;
+        let data = resposta::ok_json(r.status, &r.corpo)?;
 
         let codigo = texto(&data, "codigoDesktop")
             .ok_or_else(|| Error::estado("registro sem `codigoDesktop` na resposta"))?;
@@ -243,7 +321,7 @@ impl Motor {
     /// sentido tentar o push, mas ele não decide nada sozinho.
     pub fn status_celular(&mut self) -> Result<bool> {
         let codigo = self.estado.codigo_desktop()?.to_string();
-        let corpo = protocol::momento(agora());
+        let corpo = protocol::momento(self.relogio.agora());
         let data = self.op(
             "POST",
             &config::ep_status_celular(&codigo),
@@ -261,7 +339,7 @@ impl Motor {
     /// `carteira`: baixa os certificados e guarda serial e emissor.
     pub fn carteira(&mut self) -> Result<&[Certificado]> {
         let codigo = self.estado.codigo_desktop()?.to_string();
-        let corpo = protocol::momento(agora());
+        let corpo = protocol::momento(self.relogio.agora());
         let data = self.op("POST", &config::ep_carteira(&codigo), &corpo, "carteira")?;
 
         let lista = data
@@ -398,7 +476,7 @@ impl Motor {
             )));
         }
         let cert_key = self.estado.certificado()?.chave_cache();
-        let agora_s = agora();
+        let agora_s = self.relogio.agora();
         let ttl = self.opcoes.ttl_sessao_hipotetico_s;
 
         // Tentativa otimista: usa o cache se o pré-filtro autoriza.
@@ -437,7 +515,8 @@ impl Motor {
         let novo_token = self.abrir_sessao(&fatores)?;
         let bytes = self.assinar_com_sessao(&novo_token, digest)?;
 
-        self.estado.guardar_sessao(cert_key.clone(), novo_token, agora());
+        let visto = self.relogio.agora();
+        self.estado.guardar_sessao(cert_key.clone(), novo_token, visto);
         self.salvar_estado()?;
         self.diag.evento(
             "assinatura.sessao_nova",
@@ -471,37 +550,8 @@ fn texto(v: &Value, chave: &str) -> Option<String> {
     v.get(chave).and_then(|x| x.as_str()).map(str::to_string)
 }
 
-// Fatos de host e relógio moram nos adaptadores de borda (fonte única); o motor
-// só delega, até a Fase 3 injetá-los como portas. Instanciar o adaptador aqui é
-// barato: ambos são structs sem estado.
-fn agora() -> u64 {
-    use remoteid_portas::Relogio;
-    remoteid_relogio_sistema::RelogioSistema.agora()
-}
-
-fn usuario_local() -> String {
-    use remoteid_portas::Ambiente;
-    remoteid_ambiente_sistema::AmbienteSistema.usuario_local()
-}
-
-/// Hostname para `dominioRede`, que NÃO pode ir vazio.
-fn dominio_rede() -> String {
-    use remoteid_portas::Ambiente;
-    remoteid_ambiente_sistema::AmbienteSistema.hostname()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn dominio_rede_nunca_volta_vazio() {
-        // O servidor recusa com DomainNameLeftBlank.
-        assert!(!dominio_rede().is_empty());
-    }
-
-    #[test]
-    fn usuario_local_nunca_volta_vazio() {
-        assert!(!usuario_local().is_empty());
-    }
+/// Hex de um buffer, para o log seguro da canônica (só o hash, nunca o texto,
+/// que no tokensessao contém PIN e OTP).
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }

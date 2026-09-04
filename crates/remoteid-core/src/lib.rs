@@ -45,7 +45,7 @@ pub use remoteid_http as http;
 pub use remoteid_tipos as error;
 pub use remoteid_autorizacao as authmode;
 pub use remoteid_assinatura as pkcs7;
-pub use remoteid_protocolo_servidor::{canonical, config, protocol};
+pub use remoteid_protocolo_servidor::{canonical, config, protocol, resposta};
 
 /// Fachada de criptografia: as primitivas puras de [`remoteid_cripto`] mais os
 /// helpers de I/O da chave ([`crate::chave`], futuro adaptador `chave-pem`). O

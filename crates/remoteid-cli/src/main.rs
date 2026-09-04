@@ -250,7 +250,7 @@ fn abrir_motor(args: &Args) -> Result<Motor, remoteid_core::Error> {
         opcoes.certinext_url = u;
     }
     let motor = Motor::abrir(opcoes)?;
-    *args.ultimo_diag.borrow_mut() = motor.caminho_diag().map(PathBuf::from);
+    *args.ultimo_diag.borrow_mut() = motor.caminho_diag();
     Ok(motor)
 }
 
