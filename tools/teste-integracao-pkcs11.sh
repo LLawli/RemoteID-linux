@@ -208,6 +208,19 @@ TOKENS_DEPOIS="$(grep -c '"rotulo":"tokensessao (pin+otp)"' "$DIAG" || true)"
     || falhar "a 2ª assinatura reemitiu tokensessao ($TOKENS_ANTES → $TOKENS_DEPOIS); o cache não pegou"
 ok "cache_hit, sem novo tokensessao, e assinatura válida"
 
+# --------------------------------------------------------------- override do socket
+# `REMOTEID_SOCKET` é o override do empacotamento Flatpak, e tem de VENCER o
+# caminho do modo de teste: apontado para um socket inexistente, a assinatura
+# tem de falhar. Se passasse, o módulo estaria ignorando a variável e caindo
+# no caminho padrão, e o Flatpak nunca acharia o app.
+passo "REMOTEID_SOCKET inválido tem de derrubar a assinatura (o override é honrado)"
+if REMOTEID_SOCKET="$TRABALHO/nao-existe.sock" \
+    p11 --sign -m SHA256-RSA-PKCS -i "$TRABALHO/dados.txt" -o "$TRABALHO/sig-nunca.bin" >"$TRABALHO/sign-override.log" 2>&1; then
+    falhar "assinou com REMOTEID_SOCKET apontando para um socket inexistente: o override foi ignorado"
+fi
+[ ! -s "$TRABALHO/sig-nunca.bin" ] || falhar "saiu assinatura mesmo sem socket"
+ok "com REMOTEID_SOCKET inválido o C_Sign falha, como deve"
+
 # --------------------------------------------------------------- modo cru
 # O que o PJeOffice manda para autenticar: um DigestInfo(MD5) de 34 bytes pelo
 # CKM_RSA_PKCS. O módulo repassa o bloco inteiro com `algorithm: ""` (issue
