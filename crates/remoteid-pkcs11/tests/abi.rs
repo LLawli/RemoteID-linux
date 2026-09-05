@@ -496,6 +496,77 @@ fn o_nss_consegue_chegar_ao_certificado_pelo_abi() {
             CKR_OPERATION_NOT_INITIALIZED
         );
 
+        // --- CKM_RSA_PKCS é passagem direta: o bloco vai como está ---
+        //
+        // O modo cru (issue #11): o que chega no CKM_RSA_PKCS recebe SÓ o
+        // padding PKCS#1 v1.5, seja um DigestInfo(MD5) de 34 bytes (o que o
+        // PJeOffice manda para autenticar), seja um hash cru de 32 bytes. Nada
+        // de reconhecer DigestInfo de SHA-256 e desmontar. Verificação com
+        // `new_unprefixed`: a assinatura fecha sobre os bytes enviados, e
+        // NÃO como SHA-256 do bloco.
+        for bloco in [
+            // DigestInfo(MD5) sintético: prefixo DER real, hash de mentira.
+            {
+                let mut b = vec![
+                    0x30, 0x20, 0x30, 0x0c, 0x06, 0x08, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x02,
+                    0x05, 0x05, 0x00, 0x04, 0x10,
+                ];
+                b.extend_from_slice(&[0x5a; 16]);
+                b
+            },
+            vec![0x33; 32],
+            vec![0x44; 245],
+        ] {
+            let mut bloco = bloco;
+            assert_eq!(lista.C_SignInit.unwrap()(sessao, &mut mec, chave), CKR_OK);
+            let mut ass = vec![0u8; 256];
+            let mut n: CK_ULONG = 256;
+            assert_eq!(
+                lista.C_Sign.unwrap()(
+                    sessao,
+                    bloco.as_mut_ptr(),
+                    bloco.len() as CK_ULONG,
+                    ass.as_mut_ptr(),
+                    &mut n,
+                ),
+                CKR_OK,
+                "bloco de {} bytes",
+                bloco.len()
+            );
+            pubkey
+                .verify(Pkcs1v15Sign::new_unprefixed(), &bloco, &ass)
+                .expect("assinatura crua sobre o bloco inteiro");
+            assert!(
+                pubkey
+                    .verify(Pkcs1v15Sign::new::<Sha256>(), &bloco, &ass)
+                    .is_err(),
+                "o módulo NÃO pode ter embrulhado o bloco em SHA-256"
+            );
+        }
+        // Acima do teto do PKCS#1 v1.5: recusado, e o erro consome a operação.
+        let mut grande = vec![0x55u8; 246];
+        assert_eq!(lista.C_SignInit.unwrap()(sessao, &mut mec, chave), CKR_OK);
+        assert_eq!(
+            lista.C_Sign.unwrap()(
+                sessao,
+                grande.as_mut_ptr(),
+                grande.len() as CK_ULONG,
+                assinatura.as_mut_ptr(),
+                &mut tam_ass,
+            ),
+            CKR_DATA_LEN_RANGE
+        );
+        assert_eq!(
+            lista.C_Sign.unwrap()(
+                sessao,
+                digestinfo.as_mut_ptr(),
+                digestinfo.len() as CK_ULONG,
+                assinatura.as_mut_ptr(),
+                &mut tam_ass,
+            ),
+            CKR_OPERATION_NOT_INITIALIZED
+        );
+
         // --- assinatura em FLUXO: C_SignInit → C_SignUpdate(n) → C_SignFinal ---
         //
         // É o caminho que o BouncyCastle usa, e portanto o PJeOffice: ele
