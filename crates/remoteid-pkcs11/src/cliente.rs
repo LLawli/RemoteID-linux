@@ -30,7 +30,10 @@ pub fn assinar_pelo_app(digest: &[u8]) -> Result<Vec<u8>, CK_RV> {
     // travar para sempre se o app morrer no meio.
     let _ = stream.set_read_timeout(Some(Duration::from_secs(300)));
 
+    // Ainda sem o modo cru neste ponto: sem o campo, o daemon usa o padrão
+    // (SHA256), que é o comportamento de antes.
     let req = Requisicao::Sign {
+        algoritmo: None,
         digest_b64: b64(digest),
         hospedeiro: comm_do_processo(),
     };

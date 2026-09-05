@@ -1282,6 +1282,7 @@ name = "remoteid-protocolo-servidor"
 version = "0.1.2"
 dependencies = [
  "remoteid-autorizacao",
+ "remoteid-cripto",
  "remoteid-estado",
  "remoteid-tipos",
  "serde_json",
