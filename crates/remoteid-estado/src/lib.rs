@@ -412,6 +412,20 @@ mod tests {
     }
 
     #[test]
+    fn invalidar_todas_as_sessoes_esvazia_o_cache() {
+        // O reset leve global: depois dele, NENHUM certificado pode assinar
+        // sem PIN+OTP.
+        let mut e = Estado::default();
+        e.guardar_sessao("AAA;CN=AC1".into(), "t;1".into(), 10);
+        e.guardar_sessao("BBB;CN=AC2".into(), "t;2".into(), 10);
+        assert!(e.sessao("AAA;CN=AC1", 10, 900).is_some());
+        e.invalidar_todas_sessoes();
+        assert!(e.sessoes.is_empty());
+        assert!(e.sessao("AAA;CN=AC1", 10, 900).is_none());
+        assert!(e.sessao("BBB;CN=AC2", 10, 900).is_none());
+    }
+
+    #[test]
     fn guardar_e_ler_sessao_preserva_o_epoch_do_token() {
         // A persistência em disco é testada na borda (remoteid-store-json);
         // aqui garantimos a parte pura: guardar uma sessão parseia o epoch do

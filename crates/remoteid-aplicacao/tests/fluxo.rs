@@ -292,6 +292,29 @@ fn fluxo_pin_otp_ponta_a_ponta() {
 }
 
 #[test]
+fn assinar_conteudo_manda_o_sha256_do_conteudo() {
+    // A conveniência não pode mandar o conteúdo nem outro hash: o que vai no
+    // `hash` é o base64 do SHA-256 do conteúdo, com `algorithm: "SHA256"`.
+    let amb = Ambiente::novo("conteudo");
+    let srv = Servidor::subir(respostas_padrao());
+    let motor = motor_preparado(&amb, &srv);
+    let fatores = Fatores::PinOtp {
+        pin: "1234".into(),
+        otp: "999999".into(),
+    };
+    let assinatura = motor
+        .assinar_conteudo(b"um documento inteiro", &fatores)
+        .unwrap();
+    assert_eq!(assinatura, assinatura_falsa());
+    let rh = srv.requisicao("/requestHashSessionSignature");
+    assert_eq!(rh.corpo["algorithm"], "SHA256");
+    assert_eq!(
+        rh.corpo["hashArray"][0]["hash"],
+        b64(&sha256(b"um documento inteiro"))
+    );
+}
+
+#[test]
 fn modo_cru_manda_o_bloco_inteiro_e_algorithm_vazio() {
     // O corpo do caso 4 da sondagem de 05/09/2026: `algorithm` presente e
     // vazio, e o `hash` é o bloco inteiro (um DigestInfo(MD5) de 34 bytes),

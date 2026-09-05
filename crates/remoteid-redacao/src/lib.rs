@@ -114,6 +114,25 @@ mod tests {
     }
 
     #[test]
+    fn campos_comuns_ficam_em_claro() {
+        // A redação tem de ser cirúrgica: o diag só serve para depurar se
+        // `desktopCode`, `issue`, `algorithm` e afins continuarem legíveis.
+        // Redigir demais é o outro jeito de o diag ficar inútil.
+        let v = json!({"desktopCode": "DC-1", "algorithm": "", "hashArray": [{"id": 0, "hash": "QQ=="}]});
+        let saida = redigir(&v, false);
+        assert_eq!(saida["desktopCode"], "DC-1");
+        assert_eq!(saida["algorithm"], "");
+        assert_eq!(saida["hashArray"][0]["hash"], "QQ==");
+    }
+
+    #[test]
+    fn segredo_preenchido_e_redigido_e_nao_rotulado_como_vazio() {
+        let saida = redigir(&json!({"pin": "1234", "senha": "s3cr3t"}), false);
+        assert_eq!(saida["pin"], "<redigido>");
+        assert_eq!(saida["senha"], "<redigido>");
+    }
+
+    #[test]
     fn distingue_campo_vazio_de_ausente() {
         assert!(redigir(&json!({"otp": ""}), false)
             .to_string()

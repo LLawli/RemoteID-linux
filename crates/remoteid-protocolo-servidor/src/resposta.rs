@@ -104,6 +104,21 @@ mod tests {
     }
 
     #[test]
+    fn status_como_string_false_tambem_e_erro() {
+        // O backend às vezes manda o booleano como STRING. "false" tem de
+        // reprovar como o `false`; "true" tem de passar.
+        assert!(matches!(
+            ok_json(200, r#"{"status":"false","message":"Informe o Pin"}"#),
+            Err(Error::Servidor(_))
+        ));
+        assert!(matches!(
+            ok_json(200, r#"{"status":"FALSE","message":"x"}"#),
+            Err(Error::Servidor(_))
+        ));
+        assert!(ok_json(200, r#"{"status":"true","token":"t"}"#).is_ok());
+    }
+
+    #[test]
     fn http_200_com_status_true_passa() {
         let v = ok_json(200, r#"{"status":true,"message":"ok","token":"t"}"#).unwrap();
         assert_eq!(v["token"], "t");

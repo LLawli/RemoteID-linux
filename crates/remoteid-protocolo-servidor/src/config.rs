@@ -252,6 +252,25 @@ mod tests {
     }
 
     #[test]
+    fn so_falha_de_sessao_autoriza_reemitir() {
+        // O guarda do retry silencioso. Errar para o lado do `true` faria o
+        // daemon invalidar o cache e pedir PIN+OTP a cada recusa do HSM,
+        // gastando OTP para receber o mesmo erro de novo.
+        assert!(e_falha_de_sessao(
+            "Não existe autorização válida para este token",
+            ""
+        ));
+        assert!(e_falha_de_sessao("Token expirado", ""));
+        assert!(e_falha_de_sessao("", r#"{"message":"Sessão inválida"}"#));
+        // A recusa medida ao vivo em 05/09/2026 e os erros de fator: NÃO são
+        // falha de sessão, e a mensagem tem de subir como está.
+        assert!(!e_falha_de_sessao("Erro ao gerar assinatura RSA.", ""));
+        assert!(!e_falha_de_sessao("Informe o Pin", ""));
+        assert!(!e_falha_de_sessao("Error sending apns server", ""));
+        assert!(!e_falha_de_sessao("", ""));
+    }
+
+    #[test]
     fn monta_os_paths_com_codigo_desktop_nao_com_cpf() {
         // Armadilha já mapeada: carteira e statusCelular usam o codigoDesktop
         // no path, não o CPF.
@@ -262,6 +281,10 @@ mod tests {
         assert_eq!(
             ep_registrar_desktop(327989, 0),
             "/api/manager/desktopid/usuario/327989/organizacao/0"
+        );
+        assert_eq!(
+            ep_status_celular("4d1f71d2-c20b-44d0-9bb0-5629015f21e8"),
+            "/api/manager/desktopid/4d1f71d2-c20b-44d0-9bb0-5629015f21e8/statusCelular"
         );
     }
 }

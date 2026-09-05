@@ -318,3 +318,79 @@ fn extrair_validade_e_ous(issue: &str, base64_der: Option<&str>) -> (Option<Stri
 
     (validade, ous)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// O certificado FALSO do mock (sintético, versionado): subject com
+    /// `OU=DesktopID TESTE`, válido até 31/08/2036.
+    const CERT_FALSO: &[u8] = include_bytes!("../../remoteid-mock/fixtures/fake-cert.der");
+
+    #[test]
+    fn validade_e_ous_saem_do_certificado_quando_ha_der() {
+        let (validade, ous) =
+            extrair_validade_e_ous("CN=AC de outra, OU=OU DO ISSUE", Some(&b64(CERT_FALSO)));
+        assert_eq!(validade.as_deref(), Some("31/08/2036"));
+        // Do SUBJECT do certificado, não do `issue`.
+        assert_eq!(ous, vec!["DesktopID TESTE".to_string()]);
+    }
+
+    #[test]
+    fn sem_der_as_ous_vem_do_issue_e_sem_validade() {
+        let (validade, ous) = extrair_validade_e_ous(
+            "CN=AC OAB G3, OU=ORDEM DOS ADVOGADOS, OU=X, O=ICP-Brasil",
+            None,
+        );
+        assert!(validade.is_none());
+        assert_eq!(
+            ous,
+            vec!["ORDEM DOS ADVOGADOS".to_string(), "X".to_string()]
+        );
+    }
+
+    #[test]
+    fn ou_vazia_e_repetida_nao_entram() {
+        let (_, ous) = extrair_validade_e_ous("OU=A, OU=, OU=A, O=ICP-Brasil", None);
+        assert_eq!(ous, vec!["A".to_string()]);
+    }
+
+    #[test]
+    fn origem_do_erro_do_servidor_decide_o_codigo() {
+        // Erro de servidor com origem no USUÁRIO (PIN/OTP errados) vira
+        // EntradaInvalida, para a janela pedir de novo; as outras origens
+        // viram ErroServidor. O hint entra na mensagem quando existe.
+        use remoteid_tipos::ServerError;
+        let de = |origem, hint: Option<&'static str>| {
+            erro_para_resposta(Error::Servidor(ServerError {
+                http_status: 200,
+                message: "msg".into(),
+                origem,
+                hint,
+            }))
+        };
+        match de(Origem::Usuario, Some("confira o PIN")) {
+            Resposta::Falha { codigo, erro, .. } => {
+                assert_eq!(codigo, CodigoErro::EntradaInvalida);
+                assert!(erro.contains("confira o PIN"));
+            }
+            outro => panic!("{outro:?}"),
+        }
+        for origem in [Origem::Servidor, Origem::Cliente, Origem::Desconhecida] {
+            match de(origem, None) {
+                Resposta::Falha { codigo, erro, .. } => {
+                    assert_eq!(codigo, CodigoErro::ErroServidor);
+                    assert_eq!(erro, "msg");
+                }
+                outro => panic!("{outro:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn der_ilegivel_cai_no_issue() {
+        let (validade, ous) = extrair_validade_e_ous("OU=DO ISSUE", Some("AAAA"));
+        assert!(validade.is_none());
+        assert_eq!(ous, vec!["DO ISSUE".to_string()]);
+    }
+}

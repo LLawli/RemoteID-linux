@@ -139,6 +139,15 @@ mod tests {
     }
 
     #[test]
+    fn login_manda_email_e_senha_com_essas_chaves() {
+        // Ouro: `email` (não `usuario`/`login`) e `senha`. Só os dois.
+        let p = login("titular@exemplo.br", "s3nh4");
+        assert_eq!(p["email"], "titular@exemplo.br");
+        assert_eq!(p["senha"], "s3nh4");
+        assert_eq!(p.as_object().unwrap().len(), 2);
+    }
+
+    #[test]
     fn tokensessao_manda_os_sete_campos_sempre() {
         let p = tokensessao("DC", &cert(), &Fatores::Push, "RemoteID-linux");
         for chave in [

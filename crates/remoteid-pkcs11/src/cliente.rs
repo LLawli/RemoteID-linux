@@ -120,3 +120,25 @@ fn uid() -> u32 {
     }
     1000
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cancelamento_do_dialogo_vira_function_canceled() {
+        // É o código que faz o poppler dizer "cancelado" em vez de "falhou":
+        // o usuário fechou o diálogo de PIN/OTP de propósito.
+        assert_eq!(traduzir_erro(CodigoErro::Cancelado), CKR_FUNCTION_CANCELED);
+        for outro in [
+            CodigoErro::ErroServidor,
+            CodigoErro::ErroRede,
+            CodigoErro::EntradaInvalida,
+            CodigoErro::NaoPreparado,
+            CodigoErro::ErroInterno,
+            CodigoErro::RequisicaoInvalida,
+        ] {
+            assert_eq!(traduzir_erro(outro), CKR_FUNCTION_FAILED);
+        }
+    }
+}

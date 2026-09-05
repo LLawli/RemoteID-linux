@@ -214,6 +214,23 @@ fn o_nss_consegue_chegar_ao_certificado_pelo_abi() {
         assert_eq!(lista.C_GetSessionInfo.unwrap()(sessao, &mut si), CKR_OK);
         assert_eq!(si.state, CKS_RO_PUBLIC_SESSION);
 
+        // Uma segunda sessão ganha outro handle, e nenhum deles pode ser zero
+        // (`CK_INVALID_HANDLE`): o NSS abre várias e as distingue pelo handle.
+        let mut sessao2: CK_SESSION_HANDLE = 0;
+        assert_eq!(
+            abrir(
+                slot,
+                CKF_SERIAL_SESSION,
+                ptr::null_mut(),
+                None,
+                &mut sessao2
+            ),
+            CKR_OK
+        );
+        assert_ne!(sessao2, 0);
+        assert_ne!(sessao2, sessao);
+        assert_eq!(lista.C_CloseSession.unwrap()(sessao2), CKR_OK);
+
         // --- busca: exatamente o que o NSS pergunta ao varrer certificados ---
         let classe = CKO_CERTIFICATE;
         let mut gabarito = [CK_ATTRIBUTE {
@@ -496,6 +513,42 @@ fn o_nss_consegue_chegar_ao_certificado_pelo_abi() {
             CKR_OPERATION_NOT_INITIALIZED
         );
 
+        let mut mec_sha = CK_MECHANISM {
+            mechanism: CKM_SHA256_RSA_PKCS,
+            pParameter: ptr::null_mut(),
+            ulParameterLen: 0,
+        };
+        // --- CKM_SHA256_RSA_PKCS: o módulo hasheia, a chave embrulha ---
+        //
+        // É o mecanismo que o poppler (Papers) escolhe. O conteúdo vai cru, o
+        // módulo calcula o SHA-256 e a assinatura sai como SHA256withRSA
+        // sobre o conteúdo, verificável por quem só tem a chave pública.
+        let mut conteudo = b"documento inteiro, nao o hash".to_vec();
+        assert_eq!(
+            lista.C_SignInit.unwrap()(sessao, &mut mec_sha, chave),
+            CKR_OK
+        );
+        let mut ass_sha = vec![0u8; 256];
+        let mut tam_sha: CK_ULONG = 256;
+        assert_eq!(
+            lista.C_Sign.unwrap()(
+                sessao,
+                conteudo.as_mut_ptr(),
+                conteudo.len() as CK_ULONG,
+                ass_sha.as_mut_ptr(),
+                &mut tam_sha,
+            ),
+            CKR_OK
+        );
+        assert_eq!(tam_sha, 256);
+        let hash_conteudo: [u8; 32] = {
+            use sha2::Digest as _;
+            sha2::Sha256::digest(&conteudo).into()
+        };
+        pubkey
+            .verify(Pkcs1v15Sign::new::<Sha256>(), &hash_conteudo, &ass_sha)
+            .expect("CKM_SHA256_RSA_PKCS tem de sair como SHA256withRSA do conteúdo");
+
         // --- CKM_RSA_PKCS é passagem direta: o bloco vai como está ---
         //
         // O modo cru (issue #11): o que chega no CKM_RSA_PKCS recebe SÓ o
@@ -689,11 +742,6 @@ fn o_nss_consegue_chegar_ao_certificado_pelo_abi() {
             cifra_init(sessao + 99, &mut mec, publica),
             CKR_SESSION_HANDLE_INVALID
         );
-        let mut mec_sha = CK_MECHANISM {
-            mechanism: CKM_SHA256_RSA_PKCS,
-            pParameter: ptr::null_mut(),
-            ulParameterLen: 0,
-        };
         assert_eq!(
             cifra_init(sessao, &mut mec_sha, publica),
             CKR_MECHANISM_INVALID,
@@ -756,9 +804,23 @@ fn o_nss_consegue_chegar_ao_certificado_pelo_abi() {
         );
         assert_eq!(tam_curto, 256);
 
-        // Bloco maior que `k - 11`: recusado, e o erro consome a operação.
+        // Bloco maior que `k - 11`: recusado, e o erro consome a operação. No
+        // teto exato (245) a cifra tem de passar.
         let mut cifrado = vec![0u8; 256];
         let mut tam_cifrado: CK_ULONG = 256;
+        let mut no_teto = vec![0xABu8; 245];
+        assert_eq!(
+            cifrar(
+                sessao,
+                no_teto.as_mut_ptr(),
+                no_teto.len() as CK_ULONG,
+                cifrado.as_mut_ptr(),
+                &mut tam_cifrado,
+            ),
+            CKR_OK,
+            "245 bytes é o máximo do PKCS#1 v1.5 e tem de caber"
+        );
+        assert_eq!(cifra_init(sessao, &mut mec, publica), CKR_OK);
         let mut grande = vec![0xAAu8; 246];
         assert_eq!(
             cifrar(

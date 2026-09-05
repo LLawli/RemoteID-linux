@@ -24,7 +24,7 @@ use remoteid_autorizacao::Fatores;
 use remoteid_cripto::{b64, de_b64};
 use serde_json::{json, Value};
 
-use remoteid_daemon::prompter::{Contexto, Prompter};
+use remoteid_daemon::prompter::{Contexto, FatoresFixos, Prompter};
 use remoteid_daemon::protocolo::{CodigoErro, Requisicao, Resposta, SucessoResposta};
 use remoteid_daemon::servico::Servico;
 
@@ -46,6 +46,9 @@ enum ModoReq {
     /// Devolve `{"status":false, "message":"Não existe autorização válida para este token"}`,
     /// como o servidor faria com um `sessionToken` já vencido.
     SessaoInvalida,
+    /// A recusa do HSM medida ao vivo em 05/09/2026: erro de domínio que NÃO
+    /// é falha de sessão. O daemon tem de subir o erro, sem pedir PIN+OTP.
+    ErroHsm,
 }
 
 struct Servidor {
@@ -192,6 +195,10 @@ fn atender(
             ModoReq::SessaoInvalida => json!({
                 "status": false,
                 "message": "Não existe autorização válida para este token"
+            }),
+            ModoReq::ErroHsm => json!({
+                "certificate": null, "idArray": null,
+                "message": "Erro ao gerar assinatura RSA.", "status": false
             }),
         }
     } else {
@@ -489,6 +496,102 @@ fn digest_com_tamanho_errado_devolve_entrada_invalida_nao_erro_interno() {
     assert_eq!(srv.contagem_de_tokensessao(), 0);
     // usa o b64 pra silenciar warning no import
     let _ = de_b64(&b64(&[0u8; 32]));
+}
+
+#[test]
+fn recusa_do_hsm_com_cache_nao_gasta_otp_nem_invalida_a_sessao() {
+    // O outro lado do retry silencioso: só falha de SESSÃO reemite. Uma
+    // recusa do HSM ("Erro ao gerar assinatura RSA.") com o cache válido tem
+    // de subir como erro de servidor, sem prompt, sem tokensessao novo, e o
+    // cache continua valendo para a próxima assinatura.
+    let amb = Ambiente::novo("erro_hsm");
+    let srv = Servidor::subir();
+    preparar_motor(&amb, &srv);
+
+    let prompter = PrompterEspiao::novo();
+    let mut s = servico(&amb, &srv, Arc::clone(&prompter));
+
+    // Primeira assinatura: enche o cache (pede PIN+OTP uma vez).
+    s.tratar(Requisicao::Sign {
+        algoritmo: None,
+        digest_b64: b64(&[0u8; 32]),
+        hospedeiro: None,
+    });
+    assert_eq!(prompter.contagem(), 1);
+
+    srv.programar_request_hash(ModoReq::ErroHsm);
+    match s.tratar(Requisicao::Sign {
+        algoritmo: None,
+        digest_b64: b64(&[1u8; 32]),
+        hospedeiro: None,
+    }) {
+        Resposta::Falha { codigo, erro, .. } => {
+            assert_eq!(codigo, CodigoErro::ErroServidor);
+            assert!(erro.contains("Erro ao gerar assinatura RSA."), "{erro}");
+        }
+        outro => panic!("a recusa do HSM não pode virar sucesso: {outro:?}"),
+    }
+    assert_eq!(prompter.contagem(), 1, "NÃO pediu PIN+OTP de novo");
+    assert_eq!(srv.contagem_de_tokensessao(), 1, "NÃO reemitiu a sessão");
+
+    // O cache sobreviveu: a próxima assinatura é cache hit.
+    match s.tratar(Requisicao::Sign {
+        algoritmo: None,
+        digest_b64: b64(&[2u8; 32]),
+        hospedeiro: None,
+    }) {
+        Resposta::Sucesso(SucessoResposta::Sign { cache_hit, .. }) => assert!(cache_hit),
+        outro => panic!("resposta inesperada: {outro:?}"),
+    }
+    assert_eq!(prompter.contagem(), 1);
+}
+
+#[test]
+fn cancelar_o_dialogo_vira_codigo_cancelado() {
+    // O módulo PKCS#11 traduz CANCELADO em CKR_FUNCTION_CANCELED, e o
+    // poppler mostra "cancelado" em vez de "falhou". Qualquer outro código
+    // aqui vira erro genérico para o usuário.
+    let amb = Ambiente::novo("cancelado");
+    let srv = Servidor::subir();
+    preparar_motor(&amb, &srv);
+
+    let mut cancela = FatoresFixos::novo("1234", "999999");
+    cancela.cancelar = true;
+    let mut s = Servico::novo(amb.opcoes(&srv.base), Box::new(cancela)).unwrap();
+    match s.tratar(Requisicao::Sign {
+        algoritmo: None,
+        digest_b64: b64(&[0u8; 32]),
+        hospedeiro: None,
+    }) {
+        Resposta::Falha { codigo, .. } => assert_eq!(codigo, CodigoErro::Cancelado),
+        outro => panic!("cancelar não pode virar sucesso: {outro:?}"),
+    }
+    assert_eq!(srv.contagem_de_tokensessao(), 0);
+}
+
+#[test]
+fn registrado_sem_carteira_nao_conta_como_preparado() {
+    // `preparado` exige as DUAS coisas: codigoDesktop E certificado. Só o
+    // registro não basta, e a janela tem de empurrar para o wizard.
+    let amb = Ambiente::novo("sem_carteira");
+    let srv = Servidor::subir();
+    let mut motor = Motor::abrir(amb.opcoes(&srv.base)).unwrap();
+    motor.login("teste@exemplo.br", "senha").unwrap();
+    motor.registrar("maquina-teste").unwrap();
+    motor.salvar_estado().unwrap();
+
+    let mut s = servico(&amb, &srv, PrompterEspiao::novo());
+    match s.tratar(Requisicao::Status) {
+        Resposta::Sucesso(SucessoResposta::Status {
+            preparado,
+            codigo_desktop,
+            ..
+        }) => {
+            assert!(codigo_desktop.is_some());
+            assert!(!preparado);
+        }
+        outro => panic!("resposta inesperada: {outro:?}"),
+    }
 }
 
 #[test]
