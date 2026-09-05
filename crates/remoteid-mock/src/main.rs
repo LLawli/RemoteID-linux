@@ -152,9 +152,11 @@ fn rotear(caminho: &str, corpo: &Value, chave: &ChaveInstalacao, cert_b64: &str)
             json!({ "status": true, "message": "Token gerado com sucesso", "token": token })
         }
     } else if caminho.ends_with("/requestHashSessionSignature") {
-        // 6. requestHash: assina o digest recebido com a chave FALSA, para a
+        // 6. requestHash: assina o que veio com a chave FALSA, para a
         // assinatura verificar contra o certificado falso. idArray[0].id volta
-        // como STRING (assimetria do backend real, reproduzida aqui).
+        // como STRING (assimetria do backend real, reproduzida aqui). A recusa
+        // tem a forma medida ao vivo em 05/09/2026: `certificate` e `idArray`
+        // presentes como null, HTTP 200.
         match assinar_hash(corpo, chave) {
             Ok(sig_b64) => json!({
                 "status": true,
@@ -165,7 +167,10 @@ fn rotear(caminho: &str, corpo: &Value, chave: &ChaveInstalacao, cert_b64: &str)
                     "signatureBase64": sig_b64
                 } ]
             }),
-            Err(msg) => json!({ "status": false, "message": msg, "idArray": [] }),
+            Err(msg) => json!({
+                "certificate": null, "idArray": null,
+                "message": msg, "status": false
+            }),
         }
     } else if caminho.contains("listHierarchies") || caminho.contains("/CertisignerServices/") {
         // Check de conectividade (certinext). Só precisa de um 200 são.
@@ -175,8 +180,21 @@ fn rotear(caminho: &str, corpo: &Value, chave: &ChaveInstalacao, cert_b64: &str)
     }
 }
 
-/// Extrai `hashArray[0].hash` (base64 de 32 bytes), assina com a chave falsa
-/// (PKCS#1 v1.5 sobre SHA-256 — o que o HSM faz) e devolve base64 dos 256 bytes.
+/// A mensagem de recusa do servidor real, medida com `algorithm: "MD5"`.
+const ERRO_ASSINATURA: &str = "Erro ao gerar assinatura RSA.";
+
+/// Extrai `hashArray[0].hash` e `algorithm`, e assina com a chave falsa do
+/// jeito que o HSM faz em cada modo (sondagem ao vivo de 05/09/2026):
+///
+/// - `"SHA256"`: o hash tem 32 bytes; embrulha em DigestInfo(SHA-256) e assina.
+/// - `""` (vazio): modo CRU; o bloco (1 a 245 bytes) só recebe o padding
+///   PKCS#1 v1.5. É o que assina o DigestInfo(MD5) do PJeOffice.
+/// - qualquer outro valor: recusa com a mensagem do servidor real. (O real
+///   também honra `"SHA1"` por nome; o cliente não emite, o mock não imita.)
+///
+/// Os literais ficam AQUI, de propósito, e não vêm do domínio do cliente: o
+/// mock é o oráculo do que foi medido no servidor, e se o cliente errar o
+/// literal, o gate tem de ficar vermelho, não concordar.
 fn assinar_hash(corpo: &Value, chave: &ChaveInstalacao) -> Result<String, String> {
     let hash_b64 = corpo
         .get("hashArray")
@@ -185,16 +203,17 @@ fn assinar_hash(corpo: &Value, chave: &ChaveInstalacao) -> Result<String, String
         .and_then(|item| item.get("hash"))
         .and_then(Value::as_str)
         .ok_or("hashArray[0].hash ausente")?;
-    let digest = de_b64(hash_b64).map_err(|e| format!("hash não é base64: {e}"))?;
-    if digest.len() != 32 {
-        return Err(format!(
-            "digest tem que ter 32 bytes, veio com {}",
-            digest.len()
-        ));
+    let algorithm = corpo
+        .get("algorithm")
+        .and_then(Value::as_str)
+        .ok_or("algorithm ausente")?;
+    let bloco = de_b64(hash_b64).map_err(|e| format!("hash não é base64: {e}"))?;
+    let assinatura = match algorithm {
+        "SHA256" if bloco.len() == 32 => chave.assinar_digest(&bloco),
+        "" if !bloco.is_empty() && bloco.len() <= 245 => chave.assinar_pkcs1_v15_cru(&bloco),
+        _ => return Err(ERRO_ASSINATURA.to_string()),
     }
-    let assinatura = chave
-        .assinar_digest(&digest)
-        .map_err(|e| format!("falha ao assinar: {e}"))?;
+    .map_err(|e| format!("falha ao assinar: {e}"))?;
     Ok(b64(&assinatura))
 }
 
