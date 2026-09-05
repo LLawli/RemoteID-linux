@@ -6,7 +6,7 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use remoteid_aplicacao::{Motor, Opcoes};
+use remoteid_aplicacao::{Algoritmo, Motor, Opcoes};
 use remoteid_cripto::{b64, de_b64};
 use remoteid_tipos::{Error, Origem};
 
@@ -54,9 +54,10 @@ impl Servico {
     pub fn tratar(&mut self, req: Requisicao) -> Resposta {
         match req {
             Requisicao::Sign {
+                algoritmo,
                 digest_b64,
                 hospedeiro,
-            } => self.tratar_sign(digest_b64, hospedeiro),
+            } => self.tratar_sign(algoritmo, digest_b64, hospedeiro),
             Requisicao::Status => self.tratar_status(),
             Requisicao::ReautorizarProxima => self.tratar_reautorizar(),
             Requisicao::EscolherCertificado { key_name } => self.tratar_escolher(key_name),
@@ -68,8 +69,28 @@ impl Servico {
         }
     }
 
-    fn tratar_sign(&mut self, digest_b64: String, hospedeiro: Option<String>) -> Resposta {
-        let digest = match de_b64(&digest_b64) {
+    fn tratar_sign(
+        &mut self,
+        algoritmo: Option<String>,
+        digest_b64: String,
+        hospedeiro: Option<String>,
+    ) -> Resposta {
+        // A borda: a string opaca do socket vira o tipo do domínio. Ausente é
+        // o padrão (SHA256, o módulo de antes do modo cru); desconhecido é
+        // entrada inválida, nunca um chute.
+        let algoritmo = match algoritmo.as_deref() {
+            None => Algoritmo::default(),
+            Some(nome) => match Algoritmo::do_nome(nome) {
+                Some(a) => a,
+                None => {
+                    return Resposta::falha(
+                        CodigoErro::EntradaInvalida,
+                        format!("algoritmo desconhecido: {nome:?}"),
+                    );
+                }
+            },
+        };
+        let dados = match de_b64(&digest_b64) {
             Ok(d) => d,
             Err(e) => {
                 return Resposta::falha(
@@ -78,15 +99,9 @@ impl Servico {
                 );
             }
         };
-        if digest.len() != 32 {
-            return Resposta::falha(
-                CodigoErro::EntradaInvalida,
-                format!(
-                    "digest tem que ser SHA-256 (32 bytes), veio com {}",
-                    digest.len()
-                ),
-            );
-        }
+        // O tamanho do bloco é regra do `Algoritmo`, conferida pelo motor antes
+        // de tocar o cache ou pedir PIN: um `Error::Uso` de lá vira
+        // `EntradaInvalida` em `erro_para_resposta`.
         // Se `hospedeiro` não veio na mensagem, a camada de socket já teve a
         // chance de preencher com `SO_PEERCRED`; se ainda é `None`, deixa
         // como está (o diag registra "hospedeiro desconhecido"). Ver o TODO
@@ -119,7 +134,7 @@ impl Servico {
         let prompter = &*self.prompter;
         let resultado = self
             .motor
-            .assinar_com_cache(&digest, || prompter.pedir_pin_otp(&contexto));
+            .assinar_com_cache(algoritmo, &dados, || prompter.pedir_pin_otp(&contexto));
 
         match resultado {
             Ok(bytes) => {

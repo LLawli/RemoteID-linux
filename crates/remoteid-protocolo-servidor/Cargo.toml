@@ -11,6 +11,9 @@ repository.workspace = true
 remoteid-tipos = { path = "../remoteid-tipos" }
 remoteid-autorizacao = { path = "../remoteid-autorizacao" }
 remoteid-estado = { path = "../remoteid-estado" }
+# Só pelo teto do bloco PKCS#1 v1.5 (`MAX_BLOCO_PKCS1_V15`), que é a regra de
+# tamanho do modo cru do requestHash. Domínio puro dependendo de domínio puro.
+remoteid-cripto = { path = "../remoteid-cripto" }
 serde_json.workspace = true
 
 [dev-dependencies]

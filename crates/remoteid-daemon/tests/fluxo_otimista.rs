@@ -316,6 +316,7 @@ fn primeira_assinatura_sem_cache_pede_pin_otp_e_grava_a_sessao() {
     let mut s = servico(&amb, &srv, Arc::clone(&prompter));
 
     let req = Requisicao::Sign {
+        algoritmo: None,
         digest_b64: b64(&[0u8; 32]),
         hospedeiro: Some("papers".into()),
     };
@@ -346,11 +347,13 @@ fn segunda_assinatura_com_cache_valido_nao_pede_pin_otp_nem_toca_tokensessao() {
 
     // primeira: gasta OTP.
     s.tratar(Requisicao::Sign {
+        algoritmo: None,
         digest_b64: b64(&[0u8; 32]),
         hospedeiro: None,
     });
     // segunda: deve reusar.
     let resp = s.tratar(Requisicao::Sign {
+        algoritmo: None,
         digest_b64: b64(&[1u8; 32]),
         hospedeiro: None,
     });
@@ -384,6 +387,7 @@ fn cache_recusado_pelo_server_invalida_e_reemite_transparente() {
 
     // Primeira assinatura: emite token normalmente (server OK) e cacheia.
     s.tratar(Requisicao::Sign {
+        algoritmo: None,
         digest_b64: b64(&[0u8; 32]),
         hospedeiro: None,
     });
@@ -397,6 +401,7 @@ fn cache_recusado_pelo_server_invalida_e_reemite_transparente() {
     srv.programar_request_hash(ModoReq::Ok);
 
     let resp = s.tratar(Requisicao::Sign {
+        algoritmo: None,
         digest_b64: b64(&[2u8; 32]),
         hospedeiro: None,
     });
@@ -436,6 +441,7 @@ fn reautorizar_proxima_forca_pin_otp_na_proxima() {
 
     // Cria cache.
     s.tratar(Requisicao::Sign {
+        algoritmo: None,
         digest_b64: b64(&[0u8; 32]),
         hospedeiro: None,
     });
@@ -447,6 +453,7 @@ fn reautorizar_proxima_forca_pin_otp_na_proxima() {
     ));
     // Próxima assinatura precisa pedir de novo.
     s.tratar(Requisicao::Sign {
+        algoritmo: None,
         digest_b64: b64(&[1u8; 32]),
         hospedeiro: None,
     });
@@ -469,6 +476,7 @@ fn digest_com_tamanho_errado_devolve_entrada_invalida_nao_erro_interno() {
     let mut s = servico(&amb, &srv, Arc::clone(&prompter));
 
     let req = Requisicao::Sign {
+        algoritmo: None,
         digest_b64: b64(&[0u8; 20]),
         hospedeiro: None,
     };
@@ -481,6 +489,88 @@ fn digest_com_tamanho_errado_devolve_entrada_invalida_nao_erro_interno() {
     assert_eq!(srv.contagem_de_tokensessao(), 0);
     // usa o b64 pra silenciar warning no import
     let _ = de_b64(&b64(&[0u8; 32]));
+}
+
+#[test]
+fn modo_cru_manda_o_bloco_inteiro_com_algorithm_vazio() {
+    // O caminho do PJeOffice: o módulo recebe o DigestInfo(MD5) pronto no
+    // CKM_RSA_PKCS (34 bytes) e pede ao daemon o modo cru. O que tem de
+    // chegar ao servidor é o bloco INTEIRO, com `algorithm` presente e vazio,
+    // que foi o corpo que a sondagem de 05/09/2026 provou funcionar.
+    let amb = Ambiente::novo("cru");
+    let srv = Servidor::subir();
+    preparar_motor(&amb, &srv);
+
+    let prompter = PrompterEspiao::novo();
+    let mut s = servico(&amb, &srv, Arc::clone(&prompter));
+
+    let bloco: Vec<u8> = (0..34u8).collect();
+    let resp = s.tratar(Requisicao::Sign {
+        algoritmo: Some(String::new()),
+        digest_b64: b64(&bloco),
+        hospedeiro: Some("java".into()),
+    });
+    match resp {
+        Resposta::Sucesso(SucessoResposta::Sign { assinatura_b64, .. }) => {
+            assert_eq!(de_b64(&assinatura_b64).unwrap().len(), 256);
+        }
+        outro => panic!("resposta inesperada: {outro:?}"),
+    }
+    let recebidas = srv.recebidos_para("/requestHashSessionSignature");
+    assert_eq!(recebidas.len(), 1);
+    let corpo = &recebidas[0].corpo;
+    assert_eq!(corpo["algorithm"], "", "o campo vai presente e vazio");
+    assert_eq!(corpo["hashArray"][0]["hash"], b64(&bloco));
+    assert_eq!(prompter.contagem(), 1);
+
+    // A mesma sessão serve o outro modo em seguida, sem PIN de novo: os dois
+    // modos compartilham o cache (a sondagem fez cinco casos numa sessão só).
+    match s.tratar(Requisicao::Sign {
+        algoritmo: Some("SHA256".into()),
+        digest_b64: b64(&[7u8; 32]),
+        hospedeiro: None,
+    }) {
+        Resposta::Sucesso(SucessoResposta::Sign { cache_hit, .. }) => assert!(cache_hit),
+        outro => panic!("resposta inesperada: {outro:?}"),
+    }
+    assert_eq!(prompter.contagem(), 1, "não pediu PIN+OTP de novo");
+    assert_eq!(srv.contagem_de_tokensessao(), 1);
+}
+
+#[test]
+fn algoritmo_desconhecido_ou_bloco_fora_do_teto_nao_gastam_otp() {
+    let amb = Ambiente::novo("cru_ruim");
+    let srv = Servidor::subir();
+    preparar_motor(&amb, &srv);
+
+    let prompter = PrompterEspiao::novo();
+    let mut s = servico(&amb, &srv, Arc::clone(&prompter));
+
+    // O servidor até honra SHA1 por nome, mas este cliente só fala os dois
+    // modos do domínio: o resto é entrada inválida, sem chute.
+    let casos: Vec<(Option<String>, Vec<u8>)> = vec![
+        (Some("SHA1".into()), vec![0u8; 20]),
+        (Some("MD5".into()), vec![0u8; 16]),
+        (Some(String::new()), vec![0u8; 246]),
+        (Some(String::new()), vec![]),
+        (Some("SHA256".into()), vec![0u8; 34]),
+    ];
+    for (algoritmo, dados) in casos {
+        let rotulo = format!("{algoritmo:?} com {} bytes", dados.len());
+        match s.tratar(Requisicao::Sign {
+            algoritmo,
+            digest_b64: b64(&dados),
+            hospedeiro: None,
+        }) {
+            Resposta::Falha { codigo, .. } => {
+                assert_eq!(codigo, CodigoErro::EntradaInvalida, "{rotulo}")
+            }
+            outro => panic!("{rotulo} não pode virar sucesso: {outro:?}"),
+        }
+    }
+    assert_eq!(prompter.contagem(), 0, "nenhum caso pediu PIN+OTP");
+    assert_eq!(srv.contagem_de_tokensessao(), 0);
+    assert_eq!(srv.contagem_de_reqhash(), 0);
 }
 
 #[test]

@@ -28,14 +28,29 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Requisicao {
-    /// Assinar um digest SHA-256. Verbo do módulo PKCS#11.
+    /// Assinar um bloco. Verbo do módulo PKCS#11.
+    ///
+    /// `algoritmo` espelha, verbatim, o campo `algorithm` do
+    /// `requestHashSessionSignature`: `"SHA256"` (o padrão, quando ausente)
+    /// diz que `digest_b64` é o hash de 32 bytes e o HSM embrulha em
+    /// DigestInfo; `""` (vazio) é o modo CRU, em que `digest_b64` é o bloco
+    /// pronto (o DigestInfo que o `CKM_RSA_PKCS` recebe, de até 245 bytes) e
+    /// o HSM só aplica o padding. É o que permite `MD5withRSA` no PJeOffice.
+    /// Este crate não interpreta o valor: os literais e a regra de tamanho
+    /// moram no domínio do protocolo do servidor (`Algoritmo`), e o daemon
+    /// converte na borda. Opcional para um módulo antigo continuar falando
+    /// com um daemon novo durante uma atualização.
     ///
     /// `hospedeiro` é o nome do processo que pediu (para diagnóstico e para
     /// registrar no diag qual app disparou o `C_Sign`). Opcional: se
     /// omitido, o daemon lê `SO_PEERCRED` do socket e resolve pelo
     /// `/proc/<pid>/comm` do cliente.
     Sign {
-        /// SHA-256 do conteúdo, em base64 padrão (32 bytes → 44 chars).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        algoritmo: Option<String>,
+        /// O que assinar, em base64 padrão: o SHA-256 (32 bytes → 44 chars)
+        /// ou, no modo cru, o bloco pronto. O nome ficou por compatibilidade
+        /// com o módulo de antes do modo cru.
         digest_b64: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         hospedeiro: Option<String>,
@@ -152,7 +167,8 @@ pub enum CodigoErro {
     /// Antes de assinar é preciso `login` + `registrar` + `carteira`. A
     /// janela GTK vai empurrar pro wizard nesse caso.
     NaoPreparado,
-    /// Nenhum certificado disponível ou o `digest_b64` não é SHA-256 válido.
+    /// Nenhum certificado disponível, `algoritmo` desconhecido, ou o
+    /// `digest_b64` não tem o tamanho que o algoritmo exige.
     EntradaInvalida,
     /// Pedimos PIN+OTP e o usuário cancelou o diálogo.
     Cancelado,
@@ -176,11 +192,13 @@ mod tests {
                 .unwrap();
         match r {
             Requisicao::Sign {
+                algoritmo,
                 digest_b64,
                 hospedeiro,
             } => {
                 assert_eq!(digest_b64, "AAA=");
                 assert_eq!(hospedeiro.as_deref(), Some("papers"));
+                assert!(algoritmo.is_none(), "sem o campo, o daemon usa o padrão");
             }
             _ => panic!("parseou variante errada"),
         }
@@ -196,26 +214,53 @@ mod tests {
     }
 
     #[test]
+    fn parse_sign_com_algoritmo_vazio_preserva_a_string_vazia() {
+        // O modo cru é a string VAZIA, e ela não pode virar `None` no caminho:
+        // `None` é "o padrão" (SHA256), o oposto do que o módulo pediu.
+        let r: Requisicao =
+            serde_json::from_str(r#"{"op":"sign","algoritmo":"","digest_b64":"AAA="}"#).unwrap();
+        match r {
+            Requisicao::Sign { algoritmo, .. } => assert_eq!(algoritmo.as_deref(), Some("")),
+            _ => panic!(),
+        }
+    }
+
+    #[test]
     fn sign_faz_ida_e_volta_pela_serializacao() {
         // O cliente serializa, o daemon desserializa: o round-trip tem que
         // fechar, senão a janela e o daemon falam línguas diferentes.
         let original = Requisicao::Sign {
+            algoritmo: Some("".into()),
             digest_b64: "AAA=".into(),
             hospedeiro: Some("papers".into()),
         };
         let linha = serde_json::to_string(&original).unwrap();
         assert!(linha.contains(r#""op":"sign"#));
+        assert!(linha.contains(r#""algoritmo":"""#));
         let volta: Requisicao = serde_json::from_str(&linha).unwrap();
         match volta {
             Requisicao::Sign {
+                algoritmo,
                 digest_b64,
                 hospedeiro,
             } => {
+                assert_eq!(algoritmo.as_deref(), Some(""));
                 assert_eq!(digest_b64, "AAA=");
                 assert_eq!(hospedeiro.as_deref(), Some("papers"));
             }
             _ => panic!(),
         }
+
+        // Sem algoritmo, o campo nem aparece: é a mensagem do módulo antigo.
+        let antigo = Requisicao::Sign {
+            algoritmo: None,
+            digest_b64: "AAA=".into(),
+            hospedeiro: None,
+        };
+        assert_eq!(
+            serde_json::to_string(&antigo).unwrap(),
+            r#"{"op":"sign","digest_b64":"AAA="}"#
+        );
     }
 
     #[test]
