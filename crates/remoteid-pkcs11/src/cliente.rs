@@ -1,9 +1,10 @@
 //! O braço de PRODUÇÃO do `C_Sign`: cliente do socket do app.
 //!
 //! Quando NÃO há chave local de teste, a assinatura vem do app
-//! (`remoteid-app`): o módulo manda o digest SHA-256 e recebe os 256 bytes
-//! crus. É o app que cuida do PIN/OTP (diálogo), do `tokensessao`, do
-//! `requestHash` e do cache — aqui só falamos o protocolo.
+//! (`remoteid-app`): o módulo manda o que assinar (o hash SHA-256, ou o bloco
+//! pronto no modo cru) e recebe os 256 bytes crus. É o app que cuida do
+//! PIN/OTP (diálogo), do `tokensessao`, do `requestHash` e do cache — aqui só
+//! falamos o protocolo.
 //!
 //! O socket é `$REMOTEID_SOCKET` (o app em modo de teste aponta para /tmp) ou
 //! `$XDG_RUNTIME_DIR/remoteid.sock`. Não escrevemos em stdout/stderr (o
@@ -19,10 +20,13 @@ use cryptoki_sys::*;
 
 use remoteid_cripto::{b64, de_b64};
 use remoteid_protocolo::{CodigoErro, Requisicao, Resposta, SucessoResposta};
+use remoteid_protocolo_servidor::algoritmo::Algoritmo;
 
-/// Pede ao app a assinatura RSA do `digest` (SHA-256, 32 bytes). Devolve os
-/// 256 bytes crus, ou um `CK_RV` traduzido do erro do app.
-pub fn assinar_pelo_app(digest: &[u8]) -> Result<Vec<u8>, CK_RV> {
+/// Pede ao app a assinatura RSA de `dados`, que são o hash SHA-256 de 32 bytes
+/// (`Algoritmo::Sha256`) ou o bloco pronto de até 245 bytes
+/// (`Algoritmo::Cru`, em que o HSM só aplica o padding). Devolve os 256 bytes
+/// crus, ou um `CK_RV` traduzido do erro do app.
+pub fn assinar_pelo_app(algoritmo: Algoritmo, dados: &[u8]) -> Result<Vec<u8>, CK_RV> {
     let caminho = caminho_socket();
     let stream = UnixStream::connect(&caminho).map_err(|_| CKR_DEVICE_ERROR)?;
     // A assinatura pode demorar: o app faz rede E mostra o diálogo de PIN/OTP,
@@ -30,11 +34,11 @@ pub fn assinar_pelo_app(digest: &[u8]) -> Result<Vec<u8>, CK_RV> {
     // travar para sempre se o app morrer no meio.
     let _ = stream.set_read_timeout(Some(Duration::from_secs(300)));
 
-    // Ainda sem o modo cru neste ponto: sem o campo, o daemon usa o padrão
-    // (SHA256), que é o comportamento de antes.
+    // O literal vai sempre, mesmo sendo o padrão: o socket carrega a string
+    // opaca e o daemon converte; a fonte dos valores é o `Algoritmo`.
     let req = Requisicao::Sign {
-        algoritmo: None,
-        digest_b64: b64(digest),
+        algoritmo: Some(algoritmo.nome().to_string()),
+        digest_b64: b64(dados),
         hospedeiro: comm_do_processo(),
     };
     let mut linha = serde_json::to_string(&req).map_err(|_| CKR_FUNCTION_FAILED)?;
