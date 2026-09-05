@@ -36,6 +36,11 @@ use remoteid_estado::{Certificado, Estado};
 use remoteid_protocolo_servidor::canonical::canonical;
 use remoteid_protocolo_servidor::{config, protocol, resposta};
 
+// O que o motor recebe junto com os bytes a assinar. Reexportado para o daemon
+// (e quem mais chamar `assinar_com_cache`) não precisar depender do domínio do
+// protocolo só por este tipo.
+pub use remoteid_protocolo_servidor::algoritmo::Algoritmo;
+
 // Adaptadores e composição padrão do desktop, montados por `Motor::abrir`. Uma
 // outra edição (a central em Postgres) usa `Motor::com_dependencias` e não passa
 // por aqui, então não linka estes.
@@ -397,20 +402,26 @@ impl Motor {
             .ok_or_else(|| Error::estado("tokensessao respondeu sucesso mas sem `token`"))
     }
 
-    /// `requestHashSessionSignature`: manda o digest e recebe a assinatura.
+    /// `requestHashSessionSignature`: manda os bytes e recebe a assinatura.
+    ///
+    /// O que os bytes são depende do [`Algoritmo`]: o hash SHA-256 (o HSM
+    /// embrulha em DigestInfo) ou, no modo cru, o bloco pronto (o HSM só aplica
+    /// o padding). A regra de tamanho é a do próprio `Algoritmo`, e vale aqui e
+    /// no caminho com cache, para nenhum dos dois mandar ao servidor um bloco
+    /// que ele vai recusar.
     ///
     /// Devolve o bloco RSA **cru** (256 bytes para RSA-2048), não um PKCS#7.
     /// Quem quiser assinar PDF/CAdES monta o PKCS#7 em volta disto.
-    pub fn assinar_com_sessao(&self, session_token: &str, digest: &[u8]) -> Result<Vec<u8>> {
-        if digest.len() != 32 {
-            return Err(Error::uso(format!(
-                "o digest tem de ser SHA-256 (32 bytes); veio com {}",
-                digest.len()
-            )));
-        }
+    pub fn assinar_com_sessao(
+        &self,
+        session_token: &str,
+        algoritmo: Algoritmo,
+        dados: &[u8],
+    ) -> Result<Vec<u8>> {
+        algoritmo.validar(dados)?;
         let codigo = self.estado.codigo_desktop()?;
         let cert = self.estado.certificado()?;
-        let corpo = protocol::request_hash(codigo, session_token, cert, "SHA256", &[b64(digest)]);
+        let corpo = protocol::request_hash(codigo, session_token, cert, algoritmo, &[b64(dados)]);
         let data = self.op("POST", config::EP_RID_REQUEST_HASH, &corpo, "requestHash")?;
 
         let item = data
@@ -430,19 +441,23 @@ impl Motor {
 
         self.diag.evento(
             "assinatura.recebida",
-            serde_json::json!({ "bytes": assinatura.len() }),
+            serde_json::json!({
+                "bytes": assinatura.len(),
+                "algoritmo": algoritmo.nome(),
+                "bloco_bytes": dados.len(),
+            }),
         );
         Ok(assinatura)
     }
 
-    /// O contrato do motor: digest + fatores → assinatura crua.
+    /// O contrato do motor: digest SHA-256 + fatores → assinatura crua.
     ///
     /// Abre a sessão e assina em seguida, porque o OTP é de uso único e tem
     /// validade de uns 30 segundos: qualquer pausa entre os dois passos é uma
     /// chance de o token nascer velho.
     pub fn assinar_digest(&self, digest: &[u8], fatores: &Fatores) -> Result<Vec<u8>> {
         let token = self.abrir_sessao(fatores)?;
-        self.assinar_com_sessao(&token, digest)
+        self.assinar_com_sessao(&token, Algoritmo::Sha256, digest)
     }
 
     /// Conveniência: assina o SHA-256 de um conteúdo.
@@ -466,16 +481,20 @@ impl Motor {
     /// `obter_fatores` é fechado à parte porque um daemon com UI pode demorar
     /// segundos (o humano digita), e mantê-lo fora deste método permite testar
     /// o fluxo com um closure sem depender de GTK.
-    pub fn assinar_com_cache<F>(&mut self, digest: &[u8], obter_fatores: F) -> Result<Vec<u8>>
+    ///
+    /// `algoritmo` e `dados` são os de [`Self::assinar_com_sessao`]. A
+    /// validação vem ANTES de qualquer coisa: um bloco inválido não pode gastar
+    /// a tentativa do cache nem, pior, pedir PIN e OTP ao usuário para nada.
+    pub fn assinar_com_cache<F>(
+        &mut self,
+        algoritmo: Algoritmo,
+        dados: &[u8],
+        obter_fatores: F,
+    ) -> Result<Vec<u8>>
     where
         F: FnOnce() -> Result<Fatores>,
     {
-        if digest.len() != 32 {
-            return Err(Error::uso(format!(
-                "o digest tem de ser SHA-256 (32 bytes); veio com {}",
-                digest.len()
-            )));
-        }
+        algoritmo.validar(dados)?;
         let cert_key = self.estado.certificado()?.chave_cache();
         let agora_s = self.relogio.agora();
         let ttl = self.opcoes.ttl_sessao_hipotetico_s;
@@ -487,7 +506,7 @@ impl Motor {
             .map(|s| s.token.clone());
 
         if let Some(token) = token_cached {
-            match self.assinar_com_sessao(&token, digest) {
+            match self.assinar_com_sessao(&token, algoritmo, dados) {
                 Ok(bytes) => {
                     self.diag.evento(
                         "assinatura.cache_hit",
@@ -514,7 +533,7 @@ impl Motor {
         // Caminho pessimista: pede fatores, abre sessão nova, assina.
         let fatores = obter_fatores()?;
         let novo_token = self.abrir_sessao(&fatores)?;
-        let bytes = self.assinar_com_sessao(&novo_token, digest)?;
+        let bytes = self.assinar_com_sessao(&novo_token, algoritmo, dados)?;
 
         let visto = self.relogio.agora();
         self.estado

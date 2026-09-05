@@ -7,6 +7,7 @@
 //! canônica quebra a assinatura do `Bearer`. Mudanças aqui só quando o servidor
 //! muda, e cobertas por testes de ouro.
 
+pub mod algoritmo;
 pub mod canonical;
 pub mod config;
 pub mod protocol;

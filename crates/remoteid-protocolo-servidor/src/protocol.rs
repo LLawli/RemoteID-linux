@@ -19,6 +19,8 @@ use serde_json::{json, Value};
 use remoteid_autorizacao::Fatores;
 use remoteid_estado::Certificado;
 
+use crate::algoritmo::Algoritmo;
+
 /// `POST /api/manager/usuarios/login/usrsenha`
 ///
 /// A chave é `email`, não `usuario` nem `login`.
@@ -100,11 +102,16 @@ pub fn tokensessao(
 /// `id` é o ÍNDICE do hash, inteiro. A resposta devolve o mesmo id como
 /// **string**: assimetria do backend, não erro do cliente. O `hash` é o base64
 /// do digest binário, não do hexadecimal.
+///
+/// `algorithm` vai SEMPRE, inclusive como string vazia no modo cru
+/// ([`Algoritmo::Cru`]): foi com o campo presente e vazio que a sondagem provou
+/// o modo, e omitir não foi testado. Na canônica a string vazia não contribui,
+/// então a assinatura do Bearer não muda por isso.
 pub fn request_hash(
     codigo_desktop: &str,
     session_token: &str,
     cert: &Certificado,
-    algoritmo: &str,
+    algoritmo: Algoritmo,
     hashes_b64: &[String],
 ) -> Value {
     let hash_array: Vec<Value> = hashes_b64
@@ -117,7 +124,7 @@ pub fn request_hash(
         "sessionToken": session_token,
         "issue": cert.issue,
         "serialNumber": cert.serial_number,
-        "algorithm": algoritmo,
+        "algorithm": algoritmo.nome(),
         "hashArray": hash_array,
     })
 }
@@ -196,7 +203,7 @@ mod tests {
     #[test]
     fn request_hash_usa_id_inteiro_e_indice_crescente() {
         let hashes = vec!["QQ==".to_string(), "Ug==".to_string()];
-        let p = request_hash("DC", "ST", &cert(), "SHA256", &hashes);
+        let p = request_hash("DC", "ST", &cert(), Algoritmo::Sha256, &hashes);
         assert_eq!(p["hashArray"][0]["id"], 0);
         assert_eq!(p["hashArray"][1]["id"], 1);
         assert!(
@@ -204,6 +211,39 @@ mod tests {
             "id vai como inteiro, não string"
         );
         assert_eq!(p["algorithm"], "SHA256");
+    }
+
+    #[test]
+    fn modo_cru_manda_algorithm_presente_e_vazio() {
+        // Ouro: é o corpo do caso 4 da sondagem de 05/09/2026 (o que fez o
+        // servidor assinar um DigestInfo(MD5) sem embrulhar). O campo vai
+        // como string vazia, não some do JSON.
+        let bloco = vec!["MCAwDAYIKoZIhvcNAgUFAAQQ".to_string()];
+        let p = request_hash("DC", "ST", &cert(), Algoritmo::Cru, &bloco);
+        assert_eq!(p["algorithm"], "");
+        assert!(p.get("algorithm").is_some(), "a chave tem de existir");
+        assert_eq!(p["hashArray"][0]["hash"], "MCAwDAYIKoZIhvcNAgUFAAQQ");
+        assert_eq!(p["hashArray"][0]["id"], 0);
+    }
+
+    #[test]
+    fn o_modo_so_muda_o_literal_de_algorithm_no_corpo_e_na_canonica() {
+        // Os dois modos usam a MESMA sessão e o mesmo Bearer; a única
+        // diferença no fio é o valor de `algorithm`. Na canônica a string
+        // vazia não contribui, então o corpo cru canonicaliza como se o campo
+        // não existisse: quem assinar o Bearer precisa assinar o corpo de
+        // verdade (é o que o motor faz), nunca reserializar.
+        let h = vec!["QQ==".to_string()];
+        let sha = request_hash("DC", "ST", &cert(), Algoritmo::Sha256, &h);
+        let cru = request_hash("DC", "ST", &cert(), Algoritmo::Cru, &h);
+        let mut sha_sem = sha.clone();
+        let mut cru_sem = cru.clone();
+        sha_sem.as_object_mut().unwrap().remove("algorithm");
+        cru_sem.as_object_mut().unwrap().remove("algorithm");
+        assert_eq!(sha_sem, cru_sem, "fora do algorithm, os corpos são iguais");
+        assert!(canonical(&sha).contains("SHA256"));
+        assert!(!canonical(&cru).contains("SHA256"));
+        assert_eq!(canonical(&cru), canonical(&cru_sem));
     }
 
     #[test]

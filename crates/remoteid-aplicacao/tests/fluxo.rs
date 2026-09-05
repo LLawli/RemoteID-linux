@@ -16,7 +16,7 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use remoteid_aplicacao::{Motor, Opcoes};
+use remoteid_aplicacao::{Algoritmo, Motor, Opcoes};
 use remoteid_autorizacao::{Fatores, Modo};
 use remoteid_cripto::{b64, de_b64, sha256};
 use remoteid_protocolo_servidor::canonical::canonical;
@@ -289,6 +289,57 @@ fn fluxo_pin_otp_ponta_a_ponta() {
         .unwrap()
         .starts_with("-----BEGIN PUBLIC KEY-----"));
     assert!(!rg.corpo["dominioRede"].as_str().unwrap().is_empty());
+}
+
+#[test]
+fn modo_cru_manda_o_bloco_inteiro_e_algorithm_vazio() {
+    // O corpo do caso 4 da sondagem de 05/09/2026: `algorithm` presente e
+    // vazio, e o `hash` é o bloco inteiro (um DigestInfo(MD5) de 34 bytes),
+    // que o HSM só embrulha no padding. A sessão é a mesma do modo SHA256.
+    let amb = Ambiente::novo("cru");
+    let srv = Servidor::subir(respostas_padrao());
+    let motor = motor_preparado(&amb, &srv);
+
+    let fatores = Fatores::PinOtp {
+        pin: "1234".into(),
+        otp: "999999".into(),
+    };
+    let token = motor.abrir_sessao(&fatores).unwrap();
+    let bloco: Vec<u8> = (0..34u8).collect();
+    let assinatura = motor
+        .assinar_com_sessao(&token, Algoritmo::Cru, &bloco)
+        .unwrap();
+    assert_eq!(assinatura, assinatura_falsa());
+
+    let rh = srv.requisicao("/requestHashSessionSignature");
+    assert_eq!(rh.corpo["algorithm"], "");
+    assert!(rh.corpo.get("algorithm").is_some(), "presente, não omitido");
+    assert_eq!(rh.corpo["hashArray"][0]["hash"], b64(&bloco));
+    assert_eq!(rh.corpo["hashArray"][0]["id"], 0);
+    // O Bearer cobre o corpo cru como está: a string vazia não entra na
+    // canônica, e a assinatura tem de ser da canônica DESTE corpo.
+    conferir_bearer(&amb, &rh);
+
+    // A regra de tamanho barra antes da rede: 246 bytes e vazio.
+    assert!(motor
+        .assinar_com_sessao(&token, Algoritmo::Cru, &[0u8; 246])
+        .is_err());
+    assert!(motor
+        .assinar_com_sessao(&token, Algoritmo::Cru, &[])
+        .is_err());
+    assert!(motor
+        .assinar_com_sessao(&token, Algoritmo::Sha256, &bloco)
+        .is_err());
+    assert_eq!(
+        srv.recebidas
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|r| r.caminho.ends_with("/requestHashSessionSignature"))
+            .count(),
+        1,
+        "os blocos inválidos não chegaram ao servidor"
+    );
 }
 
 #[test]
