@@ -24,6 +24,9 @@ remoteid-estado = { path = "../remoteid-estado" }
 # fala com o app por ele. NUNCA depender de remoteid-gtk/daemon aqui — este é
 # um cdylib e não pode linkar GTK.
 remoteid-protocolo = { path = "../remoteid-protocolo" }
+# O `Algoritmo` (os literais do campo `algorithm` do servidor): o socket carrega
+# a string opaca, e é daqui que o módulo tira o valor certo. Domínio puro.
+remoteid-protocolo-servidor = { path = "../remoteid-protocolo-servidor" }
 serde_json.workspace = true
 base64.workspace = true
 der.workspace = true

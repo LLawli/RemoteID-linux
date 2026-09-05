@@ -10,6 +10,8 @@ use std::collections::HashMap;
 
 use cryptoki_sys::*;
 
+use remoteid_protocolo_servidor::algoritmo::Algoritmo;
+
 use crate::objetos::Objeto;
 use crate::token::{Token, ID_SLOT};
 use crate::{entrada, trava, Modulo};
@@ -1025,83 +1027,68 @@ pub unsafe extern "C" fn C_SignFinal(
     })
 }
 
-/// Faz a assinatura de fato. Dois caminhos:
+/// O que cada mecanismo faz com os bytes do hospedeiro, ANTES de a chave (local
+/// ou no HSM) entrar. É a semântica do Cryptoki, igual nos dois caminhos:
 ///
-/// - **teste** (há `chave_teste` local): assina aqui mesmo, com a chave local.
-///   Comportamento inalterado — é o que `p11tool --test-sign` e o Papers em
-///   modo de teste exercitam.
-/// - **produção** (sem chave local): pede ao app via socket. O digest SHA-256
-///   é extraído conforme o mecanismo e o app assina (com a chave real no HSM),
-///   cuidando de PIN/OTP, `tokensessao` e `requestHash`.
-fn assinar(token: &Token, mecanismo: CK_MECHANISM_TYPE, dados: &[u8]) -> Result<Vec<u8>, CK_RV> {
-    match token.chave_teste.as_ref() {
-        Some(chave) => assinar_local(chave, mecanismo, dados),
-        None => {
-            let digest = digest_sha256(mecanismo, dados)?;
-            crate::cliente::assinar_pelo_app(&digest)
-        }
-    }
-}
-
-/// Assinatura local com a chave de teste (modo de teste). Inalterado.
-fn assinar_local(
-    chave: &remoteid_cripto::ChaveInstalacao,
+/// - `CKM_RSA_PKCS`: os bytes JÁ SÃO o bloco final (tipicamente o DigestInfo
+///   de um hash, mas podem ser qualquer coisa de até `k - 11` bytes), e a chave
+///   só aplica o padding PKCS#1 v1.5. É o modo cru: o servidor faz isso com
+///   `algorithm: ""`, e é o que o módulo oficial manda.
+/// - `CKM_SHA256_RSA_PKCS`: os bytes são o conteúdo; o módulo hasheia aqui e a
+///   chave embrulha o hash em DigestInfo(SHA-256) e aplica o padding. É o
+///   `algorithm: "SHA256"` do servidor.
+///
+/// Devolve o algoritmo do servidor e os bytes que vão para a chave.
+fn preparar_bloco(
     mecanismo: CK_MECHANISM_TYPE,
     dados: &[u8],
-) -> Result<Vec<u8>, CK_RV> {
+) -> Result<(Algoritmo, Vec<u8>), CK_RV> {
     match mecanismo {
         CKM_RSA_PKCS => {
-            // Quem chama já entregou o bloco final (tipicamente o DigestInfo do
-            // hash). O comprimento é limitado a `k - 11` bytes; o `sign` do
-            // `rsa` também rejeita, mas com o código errado.
             if dados.len() > remoteid_cripto::MAX_BLOCO_PKCS1_V15 {
                 return Err(CKR_DATA_LEN_RANGE);
             }
-            chave
-                .assinar_pkcs1_v15_cru(dados)
-                .map_err(|_| CKR_FUNCTION_FAILED)
+            Ok((Algoritmo::Cru, dados.to_vec()))
         }
-        CKM_SHA256_RSA_PKCS => {
-            // O módulo hasheia, insere o DigestInfo do SHA-256 e assina — que é
-            // exatamente o que a `assinar_digest` faz, com o SHA-256 embutido.
-            let hash = remoteid_cripto::sha256(dados);
-            chave.assinar_digest(&hash).map_err(|_| CKR_FUNCTION_FAILED)
-        }
+        CKM_SHA256_RSA_PKCS => Ok((Algoritmo::Sha256, remoteid_cripto::sha256(dados).to_vec())),
         _ => Err(CKR_MECHANISM_INVALID),
     }
 }
 
-/// O prefixo do `DigestInfo` do SHA-256 (RFC 8017): 19 bytes antes do hash.
-const PREFIXO_DIGESTINFO_SHA256: [u8; 19] = [
-    0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05,
-    0x00, 0x04, 0x20,
-];
-
-/// Extrai o digest SHA-256 de 32 bytes que o app espera, conforme o mecanismo.
+/// Faz a assinatura de fato. Dois caminhos, com a MESMA preparação
+/// ([`preparar_bloco`]), para nunca divergirem:
 ///
-/// O servidor RemoteID só assina SHA-256, então recusamos qualquer outra coisa:
-/// - `CKM_SHA256_RSA_PKCS`: `dados` é o conteúdo cru; hasheamos aqui.
-/// - `CKM_RSA_PKCS`: o poppler/NSS mandam o `DigestInfo` do SHA-256 (51 bytes);
-///   tiramos o prefixo. Alguns hosts mandam o hash cru (32 bytes).
-fn digest_sha256(mecanismo: CK_MECHANISM_TYPE, dados: &[u8]) -> Result<[u8; 32], CK_RV> {
-    match mecanismo {
-        CKM_SHA256_RSA_PKCS => Ok(remoteid_cripto::sha256(dados)),
-        CKM_RSA_PKCS => {
-            if dados.len() == 51 && dados[..19] == PREFIXO_DIGESTINFO_SHA256 {
-                let mut h = [0u8; 32];
-                h.copy_from_slice(&dados[19..]);
-                Ok(h)
-            } else if dados.len() == 32 {
-                let mut h = [0u8; 32];
-                h.copy_from_slice(dados);
-                Ok(h)
-            } else {
-                // Não é SHA-256: o RemoteID não sabe assinar isto.
-                Err(CKR_DATA_LEN_RANGE)
-            }
-        }
-        _ => Err(CKR_MECHANISM_INVALID),
+/// - **teste** (há `chave_teste` local): assina aqui mesmo, com a chave local.
+///   É o que `p11tool --test-sign`, o gate de integração em modo local e o
+///   Papers em modo de teste exercitam.
+/// - **produção** (sem chave local): pede ao app via socket, com o algoritmo e
+///   os bytes preparados. O app assina com a chave real no HSM, cuidando de
+///   PIN/OTP, `tokensessao` e `requestHash`.
+///
+/// Antes do modo cru, o `CKM_RSA_PKCS` em produção desmontava o DigestInfo de
+/// SHA-256 (51 bytes) e mandava só o hash, recusando o resto com
+/// `CKR_DATA_LEN_RANGE`. O bloco agora vai inteiro, seja qual for o hash
+/// dentro dele: é assim que o `DigestInfo(MD5)` do PJeOffice chega ao servidor.
+fn assinar(token: &Token, mecanismo: CK_MECHANISM_TYPE, dados: &[u8]) -> Result<Vec<u8>, CK_RV> {
+    let (algoritmo, bloco) = preparar_bloco(mecanismo, dados)?;
+    match token.chave_teste.as_ref() {
+        Some(chave) => assinar_local(chave, algoritmo, &bloco),
+        None => crate::cliente::assinar_pelo_app(algoritmo, &bloco),
     }
+}
+
+/// Assinatura local com a chave de teste: reproduz o que o HSM faz em cada
+/// modo, para o gate local valer como prova do caminho de produção.
+fn assinar_local(
+    chave: &remoteid_cripto::ChaveInstalacao,
+    algoritmo: Algoritmo,
+    bloco: &[u8],
+) -> Result<Vec<u8>, CK_RV> {
+    match algoritmo {
+        Algoritmo::Cru => chave.assinar_pkcs1_v15_cru(bloco),
+        Algoritmo::Sha256 => chave.assinar_digest(bloco),
+    }
+    .map_err(|_| CKR_FUNCTION_FAILED)
 }
 // ---------------------------------------------------------------------------
 // Cifra (só com a chave pública)

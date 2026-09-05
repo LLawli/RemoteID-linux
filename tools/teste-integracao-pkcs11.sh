@@ -208,6 +208,26 @@ TOKENS_DEPOIS="$(grep -c '"rotulo":"tokensessao (pin+otp)"' "$DIAG" || true)"
     || falhar "a 2ª assinatura reemitiu tokensessao ($TOKENS_ANTES → $TOKENS_DEPOIS); o cache não pegou"
 ok "cache_hit, sem novo tokensessao, e assinatura válida"
 
+# --------------------------------------------------------------- modo cru
+# O que o PJeOffice manda para autenticar: um DigestInfo(MD5) de 34 bytes pelo
+# CKM_RSA_PKCS. O módulo repassa o bloco inteiro com `algorithm: ""` (issue
+# #11), o servidor (aqui, o mock) só aplica o padding, e a assinatura verifica
+# como MD5withRSA contra a chave pública do certificado. É o caso 4 da sondagem
+# de 05/09/2026, reproduzido de ponta a ponta sem Java.
+passo "assinatura crua (CKM_RSA_PKCS com DigestInfo(MD5), o caminho do PJeOffice)"
+{
+    printf '\x30\x20\x30\x0c\x06\x08\x2a\x86\x48\x86\xf7\x0d\x02\x05\x05\x00\x04\x10'
+    openssl dgst -md5 -binary "$TRABALHO/dados.txt"
+} >"$TRABALHO/digestinfo-md5.bin"
+[ "$(stat -c%s "$TRABALHO/digestinfo-md5.bin")" -eq 34 ] || falhar "DigestInfo(MD5) montado errado"
+p11 --sign -m RSA-PKCS -i "$TRABALHO/digestinfo-md5.bin" -o "$TRABALHO/sig-md5.bin" \
+    >"$TRABALHO/sign-md5.log" 2>&1 || { cat "$TRABALHO/sign-md5.log"; falhar "C_Sign cru falhou"; }
+[ "$(stat -c%s "$TRABALHO/sig-md5.bin")" -eq 256 ] || falhar "assinatura crua sem 256 bytes"
+openssl dgst -md5 -verify "$TRABALHO/pub.pem" -signature "$TRABALHO/sig-md5.bin" "$TRABALHO/dados.txt" >/dev/null \
+    || falhar "a assinatura crua NÃO verifica como MD5withRSA: o bloco não foi assinado inteiro"
+grep -q '"algorithm":""' "$DIAG" || falhar "o requestHash do modo cru não foi com algorithm vazio"
+ok "DigestInfo(MD5) assinado cru pelo servidor, 'Verified OK' como MD5withRSA"
+
 # --------------------------------------------------------------- java
 # O critério de aceitação da issue #10, na mesma cadeia (módulo → socket →
 # servidor-fixo → mock) e pela porta que o PJeOffice usa: o `Cipher` do
@@ -225,11 +245,15 @@ if [ -z "$JAVA" ]; then
     [ -z "${CI:-}" ] || falhar "sem java no runner: a prova JCA é obrigatória no CI"
     echo "  (pulado: sem java nesta máquina; o CI roda com o Temurin 11 do runner)"
 else
-    "$JAVA" tools/prova-jca-pkcs11/ProvaCipher.java "$MODULO" >"$TRABALHO/java.log" 2>&1 \
+    # `--md5`: o passo que reproduz o PjeAuthenticatorTask (DigestInfo(MD5)
+    # pelo Cipher, verificado como MD5withRSA), que depende do modo cru.
+    "$JAVA" tools/prova-jca-pkcs11/ProvaCipher.java "$MODULO" --md5 >"$TRABALHO/java.log" 2>&1 \
         || { cat "$TRABALHO/java.log"; falhar "a prova JCA reprovou"; }
     grep -q 'Cipher.RSA/ECB/PKCS1Padding registrado' "$TRABALHO/java.log" \
         || { cat "$TRABALHO/java.log"; falhar "a prova JCA não confirmou o Cipher"; }
-    ok "SunPKCS11 registrou o Cipher e a assinatura pelo Cipher verifica como SHA256withRSA"
+    grep -q 'verifica como MD5withRSA' "$TRABALHO/java.log" \
+        || { cat "$TRABALHO/java.log"; falhar "a prova JCA não fechou o MD5withRSA"; }
+    ok "SunPKCS11 registrou o Cipher; SHA256withRSA e MD5withRSA verificam pela porta do PJeOffice"
 fi
 
 # --------------------------------------------------------------- segredos
