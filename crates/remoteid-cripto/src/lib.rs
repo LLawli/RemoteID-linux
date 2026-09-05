@@ -210,6 +210,13 @@ mod tests {
         let sig = chave.assinar_digest(&digest).unwrap();
         assert_eq!(sig.len(), 256);
         assert!(chave.verificar(&digest, &sig));
+        // `verificar` é o que os testes de fluxo usam para afirmar que o
+        // Bearer cobre o corpo: se ele disser sim para tudo, essas asserções
+        // passam vazias. Digest trocado e assinatura corrompida têm de falhar.
+        assert!(!chave.verificar(&sha256(b"outro corpo"), &sig));
+        let mut corrompida = sig.clone();
+        corrompida[0] ^= 0x01;
+        assert!(!chave.verificar(&digest, &corrompida));
 
         // Determinístico: PKCS#1 v1.5 não tem sal, então o mesmo corpo dá o
         // mesmo Bearer. É o que permite reproduzir um request num bug report.
