@@ -208,6 +208,30 @@ TOKENS_DEPOIS="$(grep -c '"rotulo":"tokensessao (pin+otp)"' "$DIAG" || true)"
     || falhar "a 2ª assinatura reemitiu tokensessao ($TOKENS_ANTES → $TOKENS_DEPOIS); o cache não pegou"
 ok "cache_hit, sem novo tokensessao, e assinatura válida"
 
+# --------------------------------------------------------------- java
+# O critério de aceitação da issue #10, na mesma cadeia (módulo → socket →
+# servidor-fixo → mock) e pela porta que o PJeOffice usa: o `Cipher` do
+# SunPKCS11. Sem Java na máquina o passo é pulado; no CI ele é obrigatório (o
+# runner ubuntu-24.04 traz o Temurin 11 em JAVA_HOME_11_X64, a mesma versão da
+# JRE que o PJeOffice embarca).
+passo "prova em Java: o Cipher do SunPKCS11 (critério de aceitação da issue #10)"
+JAVA=""
+if [ -n "${JAVA_HOME_11_X64:-}" ] && [ -x "$JAVA_HOME_11_X64/bin/java" ]; then
+    JAVA="$JAVA_HOME_11_X64/bin/java"
+elif command -v java >/dev/null; then
+    JAVA="$(command -v java)"
+fi
+if [ -z "$JAVA" ]; then
+    [ -z "${CI:-}" ] || falhar "sem java no runner: a prova JCA é obrigatória no CI"
+    echo "  (pulado: sem java nesta máquina; o CI roda com o Temurin 11 do runner)"
+else
+    "$JAVA" tools/prova-jca-pkcs11/ProvaCipher.java "$MODULO" >"$TRABALHO/java.log" 2>&1 \
+        || { cat "$TRABALHO/java.log"; falhar "a prova JCA reprovou"; }
+    grep -q 'Cipher.RSA/ECB/PKCS1Padding registrado' "$TRABALHO/java.log" \
+        || { cat "$TRABALHO/java.log"; falhar "a prova JCA não confirmou o Cipher"; }
+    ok "SunPKCS11 registrou o Cipher e a assinatura pelo Cipher verifica como SHA256withRSA"
+fi
+
 # --------------------------------------------------------------- segredos
 # Regra de domínio, não detalhe: PIN e OTP são permanentes/sensíveis e o diag é
 # um arquivo que o usuário anexa num relatório de bug. Se a redação regredir,
