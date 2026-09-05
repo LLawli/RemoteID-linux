@@ -332,12 +332,28 @@ pub unsafe extern "C" fn C_GetMechanismInfo(
         if pInfo.is_null() {
             return CKR_ARGUMENTS_BAD;
         }
+        // `CKM_RSA_PKCS` anuncia `CKF_ENCRYPT` além de `CKF_SIGN`, e isto é uma
+        // divergência DELIBERADA do módulo oficial (que é sign-only, `0x0801`).
+        // Motivo: desde o JDK-8176837 (11.0.6) o SunPKCS11 só registra o
+        // `Cipher.RSA/ECB/PKCS1Padding` de um token se o mecanismo anunciar
+        // `CKF_ENCRYPT`, e esse `Cipher` é a ÚNICA porta JCA para RSA cru
+        // (`NONEwithRSA` não existe no SunPKCS11). Sem ele o signer4j do
+        // PJeOffice cai num provedor de software e falha ao autenticar. O
+        // `Cipher` em `ENCRYPT_MODE` com a chave PRIVADA vira `C_SignInit` +
+        // `C_Sign`, que já existem; o `C_Encrypt` de verdade só cifra com a
+        // pública. Sem `CKF_DECRYPT`: não há como decifrar sem o HSM. Ver a
+        // issue #10.
+        //
         // O certificado do RemoteID é RSA-2048 e só; não há geração de chave
         // aqui, então mínimo e máximo são o mesmo número.
+        let flags = match type_ {
+            CKM_RSA_PKCS => CKF_SIGN | CKF_ENCRYPT,
+            _ => CKF_SIGN,
+        };
         *pInfo = CK_MECHANISM_INFO {
-            ulMinKeySize: 2048,
-            ulMaxKeySize: 2048,
-            flags: CKF_SIGN,
+            ulMinKeySize: remoteid_cripto::KEY_BITS as CK_ULONG,
+            ulMaxKeySize: remoteid_cripto::KEY_BITS as CK_ULONG,
+            flags,
         };
         CKR_OK
     })
@@ -708,6 +724,39 @@ pub unsafe extern "C" fn C_Logout(hSession: CK_SESSION_HANDLE) -> CK_RV {
     })
 }
 
+/// Lê o mecanismo que o hospedeiro pediu, aceitando só os de `permitidos`.
+///
+/// Nenhum mecanismo deste módulo usa parâmetros. Alguns hosts passam ponteiro
+/// nulo com `ulParameterLen` zero (o esperado); qualquer outro combo é sintoma
+/// de que quem chamou queria PSS ou OAEP, e aí é melhor recusar já.
+///
+/// # Safety
+/// `pMechanism` tem de ser nulo ou apontar para um `CK_MECHANISM` válido.
+unsafe fn ler_mecanismo(
+    pMechanism: *mut CK_MECHANISM,
+    permitidos: &[CK_MECHANISM_TYPE],
+) -> Result<CK_MECHANISM_TYPE, CK_RV> {
+    if pMechanism.is_null() {
+        return Err(CKR_ARGUMENTS_BAD);
+    }
+    let mecanismo = &*pMechanism;
+    if !permitidos.contains(&mecanismo.mechanism) {
+        return Err(CKR_MECHANISM_INVALID);
+    }
+    if mecanismo.ulParameterLen != 0 || !mecanismo.pParameter.is_null() {
+        return Err(CKR_MECHANISM_PARAM_INVALID);
+    }
+    Ok(mecanismo.mechanism)
+}
+
+/// A `CKA_CLASS` de um objeto do token.
+fn classe(objeto: &Objeto) -> Option<CK_OBJECT_CLASS> {
+    let valor = &objeto.atributo(CKA_CLASS)?.valor;
+    Some(CK_OBJECT_CLASS::from_ne_bytes(
+        valor.as_slice().try_into().ok()?,
+    ))
+}
+
 /// # Safety
 /// `pMechanism` tem de apontar para um `CK_MECHANISM` válido.
 pub unsafe extern "C" fn C_SignInit(
@@ -720,19 +769,13 @@ pub unsafe extern "C" fn C_SignInit(
         let Some(modulo) = guarda.as_mut() else {
             return CKR_CRYPTOKI_NOT_INITIALIZED;
         };
-        if pMechanism.is_null() {
-            return CKR_ARGUMENTS_BAD;
+        if !modulo.sessoes.contains_key(&hSession) {
+            return CKR_SESSION_HANDLE_INVALID;
         }
-        let mecanismo = &*pMechanism;
-        if !matches!(mecanismo.mechanism, CKM_RSA_PKCS | CKM_SHA256_RSA_PKCS) {
-            return CKR_MECHANISM_INVALID;
-        }
-        // `CKM_RSA_PKCS` não usa parâmetros. Alguns hosts passam ponteiro nulo
-        // com `ulParameterLen` zero (o esperado); qualquer outro combo é
-        // sintoma de que quem chamou queria PSS ou outra coisa.
-        if mecanismo.ulParameterLen != 0 || !mecanismo.pParameter.is_null() {
-            return CKR_MECHANISM_PARAM_INVALID;
-        }
+        let mecanismo = match ler_mecanismo(pMechanism, &[CKM_RSA_PKCS, CKM_SHA256_RSA_PKCS]) {
+            Ok(m) => m,
+            Err(rv) => return rv,
+        };
 
         // Objeto tem de existir E ser a chave privada. Aceitar o certificado
         // por engano faria o hospedeiro chegar até o `C_Sign` só para receber
@@ -741,9 +784,7 @@ pub unsafe extern "C" fn C_SignInit(
         let Some(objeto) = objeto else {
             return CKR_KEY_HANDLE_INVALID;
         };
-        if objeto.atributo(CKA_CLASS).map(|a| a.valor.as_slice())
-            != Some(CKO_PRIVATE_KEY.to_ne_bytes().as_slice())
-        {
+        if classe(objeto) != Some(CKO_PRIVATE_KEY) {
             return CKR_KEY_HANDLE_INVALID;
         }
         // Sem gate de login: o módulo não faz autenticação (o app faz, no
@@ -756,15 +797,17 @@ pub unsafe extern "C" fn C_SignInit(
         if sessao.assinatura.is_some() {
             return CKR_OPERATION_ACTIVE;
         }
-        sessao.assinatura = Some(crate::EstadoAssinatura::novo(mecanismo.mechanism, hKey));
+        sessao.assinatura = Some(crate::EstadoAssinatura::novo(mecanismo, hKey));
         CKR_OK
     })
 }
-/// Tamanho da assinatura: RSA-2048 sempre devolve 256 bytes, e é o único
+/// Tamanho de tudo o que sai de uma operação RSA deste módulo (assinatura e
+/// cifra): o do módulo da chave, 256 bytes para RSA-2048, que é o único
 /// tamanho que o RemoteID emite e que este módulo publica.
-const N_BYTES_ASSINATURA: usize = 256;
+const N_BYTES_BLOCO: usize = remoteid_cripto::KEY_BYTES;
 
-/// A parte do protocolo de saída que `C_Sign` e `C_SignFinal` têm IGUAL.
+/// A parte do protocolo de saída que `C_Sign`, `C_SignFinal` e `C_Encrypt`
+/// têm IGUAL.
 ///
 /// O Cryptoki manda responder só o tamanho quando o buffer vem nulo, e recusar
 /// quando vem pequeno — e nos dois casos a operação continua ATIVA, para o
@@ -773,21 +816,38 @@ const N_BYTES_ASSINATURA: usize = 256;
 ///
 /// `Err(rv)` quer dizer "já respondi, retorne isto sem tocar no estado".
 unsafe fn conferir_buffer_de_saida(
-    pSignature: *mut CK_BYTE,
-    pulSignatureLen: *mut CK_ULONG,
+    pSaida: *mut CK_BYTE,
+    pulSaidaLen: *mut CK_ULONG,
 ) -> Result<(), CK_RV> {
-    if pulSignatureLen.is_null() {
+    if pulSaidaLen.is_null() {
         return Err(CKR_ARGUMENTS_BAD);
     }
-    if pSignature.is_null() {
-        *pulSignatureLen = N_BYTES_ASSINATURA as CK_ULONG;
+    if pSaida.is_null() {
+        *pulSaidaLen = N_BYTES_BLOCO as CK_ULONG;
         return Err(CKR_OK);
     }
-    if (*pulSignatureLen as usize) < N_BYTES_ASSINATURA {
-        *pulSignatureLen = N_BYTES_ASSINATURA as CK_ULONG;
+    if (*pulSaidaLen as usize) < N_BYTES_BLOCO {
+        *pulSaidaLen = N_BYTES_BLOCO as CK_ULONG;
         return Err(CKR_BUFFER_TOO_SMALL);
     }
     Ok(())
+}
+
+/// Copia um bloco RSA pronto para o buffer do hospedeiro, que
+/// [`conferir_buffer_de_saida`] já garantiu ter espaço.
+///
+/// # Safety
+/// `pSaida` tem de apontar para pelo menos `N_BYTES_BLOCO` bytes graváveis e
+/// `pulSaidaLen` tem de ser gravável.
+unsafe fn entregar_bloco(bloco: &[u8], pSaida: *mut CK_BYTE, pulSaidaLen: *mut CK_ULONG) -> CK_RV {
+    // O RSA-2048 sempre devolve 256 bytes: se não deu isto, é bug e o
+    // hospedeiro vai rejeitar mais adiante mesmo assim.
+    if bloco.len() != N_BYTES_BLOCO {
+        return CKR_FUNCTION_FAILED;
+    }
+    std::ptr::copy_nonoverlapping(bloco.as_ptr(), pSaida, N_BYTES_BLOCO);
+    *pulSaidaLen = N_BYTES_BLOCO as CK_ULONG;
+    CKR_OK
 }
 
 /// Assina `dados` e entrega no buffer do hospedeiro.
@@ -801,18 +861,10 @@ unsafe fn assinar_para_buffer(
     pSignature: *mut CK_BYTE,
     pulSignatureLen: *mut CK_ULONG,
 ) -> CK_RV {
-    let assinatura = match assinar(token, mecanismo, dados) {
-        Ok(v) => v,
-        Err(rv) => return rv,
-    };
-    // O RSA-2048 sempre devolve 256 bytes: se não deu isto, é bug e o
-    // hospedeiro vai rejeitar mais adiante mesmo assim.
-    if assinatura.len() != N_BYTES_ASSINATURA {
-        return CKR_FUNCTION_FAILED;
+    match assinar(token, mecanismo, dados) {
+        Ok(assinatura) => entregar_bloco(&assinatura, pSignature, pulSignatureLen),
+        Err(rv) => rv,
     }
-    std::ptr::copy_nonoverlapping(assinatura.as_ptr(), pSignature, N_BYTES_ASSINATURA);
-    *pulSignatureLen = N_BYTES_ASSINATURA as CK_ULONG;
-    CKR_OK
 }
 
 /// Lê um bloco que o hospedeiro passou como ponteiro + comprimento.
@@ -1000,9 +1052,9 @@ fn assinar_local(
     match mecanismo {
         CKM_RSA_PKCS => {
             // Quem chama já entregou o bloco final (tipicamente o DigestInfo do
-            // hash). O comprimento é limitado a `k - 11` bytes; o gate ficou
-            // em `C_Sign`, mas o `sign` do `rsa` também rejeita.
-            if dados.len() > 256 - 11 {
+            // hash). O comprimento é limitado a `k - 11` bytes; o `sign` do
+            // `rsa` também rejeita, mas com o código errado.
+            if dados.len() > remoteid_cripto::MAX_BLOCO_PKCS1_V15 {
                 return Err(CKR_DATA_LEN_RANGE);
             }
             chave
@@ -1051,6 +1103,127 @@ fn digest_sha256(mecanismo: CK_MECHANISM_TYPE, dados: &[u8]) -> Result<[u8; 32],
         _ => Err(CKR_MECHANISM_INVALID),
     }
 }
+// ---------------------------------------------------------------------------
+// Cifra (só com a chave pública)
+// ---------------------------------------------------------------------------
+
+/// Inicia uma cifra PKCS#1 v1.5 com a chave PÚBLICA do certificado.
+///
+/// Existe pela especificação: o token anuncia `CKF_ENCRYPT` em `CKM_RSA_PKCS`
+/// (ver `C_GetMechanismInfo` para o porquê), e um token que anuncia cifra tem
+/// de cifrar com a pública. A chave privada é recusada com
+/// `CKR_KEY_FUNCTION_NOT_PERMITTED`: cifrar com a privada não é uma operação
+/// do PKCS#11 (o que o SunPKCS11 faz com `Cipher` + chave privada é
+/// `C_SignInit`/`C_Sign`, e nunca chega aqui). Nada passa pelo socket nem pede
+/// PIN.
+///
+/// # Safety
+/// `pMechanism` tem de apontar para um `CK_MECHANISM` válido.
+pub unsafe extern "C" fn C_EncryptInit(
+    hSession: CK_SESSION_HANDLE,
+    pMechanism: *mut CK_MECHANISM,
+    hKey: CK_OBJECT_HANDLE,
+) -> CK_RV {
+    entrada!({
+        let mut guarda = trava();
+        let Some(modulo) = guarda.as_mut() else {
+            return CKR_CRYPTOKI_NOT_INITIALIZED;
+        };
+        if !modulo.sessoes.contains_key(&hSession) {
+            return CKR_SESSION_HANDLE_INVALID;
+        }
+        // Só o cru: `CKM_SHA256_RSA_PKCS` é mecanismo de assinatura e não cifra.
+        if let Err(rv) = ler_mecanismo(pMechanism, &[CKM_RSA_PKCS]) {
+            return rv;
+        }
+
+        let objeto = modulo.token.as_ref().and_then(|t| t.objeto(hKey));
+        let Some(objeto) = objeto else {
+            return CKR_KEY_HANDLE_INVALID;
+        };
+        match classe(objeto) {
+            Some(CKO_PUBLIC_KEY) => {}
+            // É uma chave, mas não cifra: o código específico deixa o
+            // hospedeiro distinguir "handle errado" de "operação proibida".
+            Some(CKO_PRIVATE_KEY) => return CKR_KEY_FUNCTION_NOT_PERMITTED,
+            _ => return CKR_KEY_HANDLE_INVALID,
+        }
+
+        let sessao = modulo
+            .sessoes
+            .get_mut(&hSession)
+            .expect("sessão conferida acima");
+        if sessao.cifra.is_some() {
+            return CKR_OPERATION_ACTIVE;
+        }
+        sessao.cifra = Some(crate::EstadoCifra { chave: hKey });
+        CKR_OK
+    })
+}
+
+/// Cifra de uma parte só: `CKM_RSA_PKCS` é single-part por definição, então
+/// `C_EncryptUpdate`/`C_EncryptFinal` continuam stubs.
+///
+/// Mesmo protocolo de duas passadas do `C_Sign` (consulta de tamanho e buffer
+/// pequeno deixam a operação ativa); qualquer outro resultado a consome.
+///
+/// # Safety
+/// `pData` tem de ser um buffer com `ulDataLen` bytes; `pEncryptedData` — nulo
+/// ou buffer com `*pulEncryptedDataLen` bytes; `pulEncryptedDataLen`, gravável.
+pub unsafe extern "C" fn C_Encrypt(
+    hSession: CK_SESSION_HANDLE,
+    pData: *mut CK_BYTE,
+    ulDataLen: CK_ULONG,
+    pEncryptedData: *mut CK_BYTE,
+    pulEncryptedDataLen: *mut CK_ULONG,
+) -> CK_RV {
+    entrada!({
+        let mut guarda = trava();
+        let Some(modulo) = guarda.as_mut() else {
+            return CKR_CRYPTOKI_NOT_INITIALIZED;
+        };
+        let Some(sessao) = modulo.sessoes.get(&hSession) else {
+            return CKR_SESSION_HANDLE_INVALID;
+        };
+        if sessao.cifra.is_none() {
+            return CKR_OPERATION_NOT_INITIALIZED;
+        }
+
+        if let Err(rv) = conferir_buffer_de_saida(pEncryptedData, pulEncryptedDataLen) {
+            return rv;
+        }
+
+        let Some(token) = modulo.token.as_ref() else {
+            return CKR_TOKEN_NOT_PRESENT;
+        };
+        let rv = match bloco_do_host(pData, ulDataLen) {
+            Ok(dados) => match cifrar(token, dados) {
+                Ok(cifrado) => entregar_bloco(&cifrado, pEncryptedData, pulEncryptedDataLen),
+                Err(rv) => rv,
+            },
+            Err(rv) => rv,
+        };
+
+        modulo
+            .sessoes
+            .get_mut(&hSession)
+            .expect("sessão conferida")
+            .cifra = None;
+        rv
+    })
+}
+
+/// Cifra local com a pública do certificado. Puro: nem socket, nem PIN.
+fn cifrar(token: &Token, dados: &[u8]) -> Result<Vec<u8>, CK_RV> {
+    if dados.len() > remoteid_cripto::MAX_BLOCO_PKCS1_V15 {
+        return Err(CKR_DATA_LEN_RANGE);
+    }
+    // Sem pública não haveria objeto `CKO_PUBLIC_KEY` e o `C_EncryptInit` já
+    // teria recusado o handle; chegar aqui sem ela é bug.
+    let publica = token.publica.as_ref().ok_or(CKR_FUNCTION_FAILED)?;
+    remoteid_cripto::cifrar_pkcs1_v15(publica, dados).map_err(|_| CKR_FUNCTION_FAILED)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -391,6 +391,12 @@ fn o_nss_consegue_chegar_ao_certificado_pelo_abi() {
             lista.C_SignInit.unwrap()(sessao, &mut mec, objeto),
             CKR_KEY_HANDLE_INVALID
         );
+        // Sessão inexistente: o código da especificação, não um pânico
+        // convertido em CKR_GENERAL_ERROR.
+        assert_eq!(
+            lista.C_SignInit.unwrap()(sessao + 99, &mut mec, chave),
+            CKR_SESSION_HANDLE_INVALID
+        );
 
         assert_eq!(lista.C_SignInit.unwrap()(sessao, &mut mec, chave), CKR_OK);
         assert_eq!(
@@ -554,6 +560,215 @@ fn o_nss_consegue_chegar_ao_certificado_pelo_abi() {
         assert_eq!(
             lista.C_SignFinal.unwrap()(sessao, ass_fluxo.as_mut_ptr(), &mut tam_fluxo),
             CKR_OPERATION_NOT_INITIALIZED
+        );
+
+        // --- cifra: C_EncryptInit → C_Encrypt, só com a chave PÚBLICA ---
+        //
+        // O que a issue #10 pede: `CKM_RSA_PKCS` anuncia `CKF_ENCRYPT`, que é
+        // o gate do SunPKCS11 (JDK-8176837) para registrar o `Cipher` de RSA,
+        // a única porta JCA para RSA cru num token. E um token que anuncia
+        // cifra tem de cifrar com a pública e recusar a privada.
+        let info_mec = lista.C_GetMechanismInfo.unwrap();
+        let mut mi: CK_MECHANISM_INFO = std::mem::zeroed();
+        assert_eq!(info_mec(slot, CKM_RSA_PKCS, &mut mi), CKR_OK);
+        assert_eq!(
+            mi.flags & (CKF_SIGN | CKF_ENCRYPT),
+            CKF_SIGN | CKF_ENCRYPT,
+            "CKM_RSA_PKCS assina E cifra"
+        );
+        assert_eq!(mi.flags & CKF_DECRYPT, 0, "não há como decifrar sem o HSM");
+        assert_eq!(mi.ulMinKeySize, 2048);
+        assert_eq!(info_mec(slot, CKM_SHA256_RSA_PKCS, &mut mi), CKR_OK);
+        assert_eq!(mi.flags, CKF_SIGN, "CKM_SHA256_RSA_PKCS é só assinatura");
+        assert_eq!(
+            info_mec(slot, CKM_RSA_X_509, &mut mi),
+            CKR_MECHANISM_INVALID,
+            "mecanismo que o token não anuncia"
+        );
+
+        // A chave pública, pela busca por classe.
+        let classe = CKO_PUBLIC_KEY;
+        let mut gab = [CK_ATTRIBUTE {
+            type_: CKA_CLASS,
+            pValue: &classe as *const _ as *mut c_void,
+            ulValueLen: std::mem::size_of::<CK_OBJECT_CLASS>() as CK_ULONG,
+        }];
+        assert_eq!(
+            lista.C_FindObjectsInit.unwrap()(sessao, gab.as_mut_ptr(), 1),
+            CKR_OK
+        );
+        let mut achados = [0 as CK_OBJECT_HANDLE; 4];
+        let mut quantos: CK_ULONG = 0;
+        assert_eq!(
+            lista.C_FindObjects.unwrap()(sessao, achados.as_mut_ptr(), 4, &mut quantos),
+            CKR_OK
+        );
+        assert_eq!(quantos, 1, "a chave pública tem de aparecer");
+        let publica = achados[0];
+        assert_eq!(lista.C_FindObjectsFinal.unwrap()(sessao), CKR_OK);
+        assert_eq!(
+            ler_atributo(lista, sessao, publica, CKA_ENCRYPT),
+            vec![CK_TRUE],
+            "o atributo acompanha o CKF_ENCRYPT do mecanismo"
+        );
+
+        let cifra_init = lista.C_EncryptInit.unwrap();
+        let cifrar = lista.C_Encrypt.unwrap();
+        assert_eq!(
+            cifra_init(sessao + 99, &mut mec, publica),
+            CKR_SESSION_HANDLE_INVALID
+        );
+        let mut mec_sha = CK_MECHANISM {
+            mechanism: CKM_SHA256_RSA_PKCS,
+            pParameter: ptr::null_mut(),
+            ulParameterLen: 0,
+        };
+        assert_eq!(
+            cifra_init(sessao, &mut mec_sha, publica),
+            CKR_MECHANISM_INVALID,
+            "só o CKM_RSA_PKCS cifra"
+        );
+        assert_eq!(
+            cifra_init(sessao, &mut mec, chave),
+            CKR_KEY_FUNCTION_NOT_PERMITTED,
+            "a chave privada não cifra: é uma chave, mas a operação é proibida"
+        );
+        assert_eq!(
+            cifra_init(sessao, &mut mec, objeto),
+            CKR_KEY_HANDLE_INVALID,
+            "o certificado não é chave"
+        );
+        let mut tam_cifra: CK_ULONG = 0;
+        assert_eq!(
+            cifrar(
+                sessao,
+                digestinfo.as_mut_ptr(),
+                digestinfo.len() as CK_ULONG,
+                ptr::null_mut(),
+                &mut tam_cifra,
+            ),
+            CKR_OPERATION_NOT_INITIALIZED,
+            "sem C_EncryptInit antes"
+        );
+
+        assert_eq!(cifra_init(sessao, &mut mec, publica), CKR_OK);
+        assert_eq!(
+            cifra_init(sessao, &mut mec, publica),
+            CKR_OPERATION_ACTIVE,
+            "duas cifras na mesma sessão não podem se sobrepor"
+        );
+
+        // Consulta de tamanho e buffer pequeno: mesmo protocolo do C_Sign, e
+        // nenhum dos dois consome a operação.
+        assert_eq!(
+            cifrar(
+                sessao,
+                digestinfo.as_mut_ptr(),
+                digestinfo.len() as CK_ULONG,
+                ptr::null_mut(),
+                &mut tam_cifra,
+            ),
+            CKR_OK
+        );
+        assert_eq!(tam_cifra, 256, "o bloco cifrado tem o tamanho do módulo");
+        let mut curto = vec![0u8; 32];
+        let mut tam_curto: CK_ULONG = curto.len() as CK_ULONG;
+        assert_eq!(
+            cifrar(
+                sessao,
+                digestinfo.as_mut_ptr(),
+                digestinfo.len() as CK_ULONG,
+                curto.as_mut_ptr(),
+                &mut tam_curto,
+            ),
+            CKR_BUFFER_TOO_SMALL
+        );
+        assert_eq!(tam_curto, 256);
+
+        // Bloco maior que `k - 11`: recusado, e o erro consome a operação.
+        let mut cifrado = vec![0u8; 256];
+        let mut tam_cifrado: CK_ULONG = 256;
+        let mut grande = vec![0xAAu8; 246];
+        assert_eq!(
+            cifrar(
+                sessao,
+                grande.as_mut_ptr(),
+                grande.len() as CK_ULONG,
+                cifrado.as_mut_ptr(),
+                &mut tam_cifrado,
+            ),
+            CKR_DATA_LEN_RANGE
+        );
+        assert_eq!(
+            cifrar(
+                sessao,
+                digestinfo.as_mut_ptr(),
+                digestinfo.len() as CK_ULONG,
+                cifrado.as_mut_ptr(),
+                &mut tam_cifrado,
+            ),
+            CKR_OPERATION_NOT_INITIALIZED,
+            "o erro de dados terminou a operação"
+        );
+
+        // A cifra de verdade, e a prova: a chave PRIVADA de teste decifra o que
+        // a pública do certificado cifrou.
+        assert_eq!(cifra_init(sessao, &mut mec, publica), CKR_OK);
+        assert_eq!(
+            cifrar(
+                sessao,
+                digestinfo.as_mut_ptr(),
+                digestinfo.len() as CK_ULONG,
+                cifrado.as_mut_ptr(),
+                &mut tam_cifrado,
+            ),
+            CKR_OK
+        );
+        assert_eq!(tam_cifrado, 256);
+        {
+            use rsa::pkcs8::DecodePrivateKey as _;
+            let privada = RsaPrivateKey::from_pkcs8_pem(&chave_pem).unwrap();
+            assert_eq!(
+                privada.decrypt(rsa::Pkcs1v15Encrypt, &cifrado).unwrap(),
+                digestinfo,
+                "a privada do certificado tem de decifrar o C_Encrypt"
+            );
+        }
+        assert_eq!(
+            cifrar(
+                sessao,
+                digestinfo.as_mut_ptr(),
+                digestinfo.len() as CK_ULONG,
+                cifrado.as_mut_ptr(),
+                &mut tam_cifrado,
+            ),
+            CKR_OPERATION_NOT_INITIALIZED,
+            "a cifra foi consumida"
+        );
+
+        // Cifra e assinatura são operações independentes na mesma sessão.
+        assert_eq!(cifra_init(sessao, &mut mec, publica), CKR_OK);
+        assert_eq!(lista.C_SignInit.unwrap()(sessao, &mut mec, chave), CKR_OK);
+        assert_eq!(
+            lista.C_Sign.unwrap()(
+                sessao,
+                digestinfo.as_mut_ptr(),
+                digestinfo.len() as CK_ULONG,
+                assinatura.as_mut_ptr(),
+                &mut tam_ass,
+            ),
+            CKR_OK
+        );
+        assert_eq!(
+            cifrar(
+                sessao,
+                digestinfo.as_mut_ptr(),
+                digestinfo.len() as CK_ULONG,
+                cifrado.as_mut_ptr(),
+                &mut tam_cifrado,
+            ),
+            CKR_OK,
+            "assinar no meio não derruba a cifra ativa"
         );
 
         assert_eq!(lista.C_Logout.unwrap()(sessao), CKR_OK);
