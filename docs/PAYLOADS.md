@@ -100,6 +100,23 @@ Há dois sub-caminhos, ambos no binário:
     "hashArray": [ { "id", "hash" } ] }`
   - RES: `{ "status", "idArray", "signatureBase64" }`  — **`signatureBase64` é a
     assinatura**.
+  - **`algorithm` decide o que o HSM faz com `hash`** (sondagem ao vivo de
+    05/09/2026, cinco casos numa única sessão; ver a issue #10):
+
+    | `algorithm` | `hash` enviado | o HSM devolve |
+    |---|---|---|
+    | `"SHA256"` | o hash cru, 32 bytes | DigestInfo(SHA-256) + padding PKCS#1 v1.5 (o caminho de produção original) |
+    | `"SHA1"` | o hash cru, 20 bytes | DigestInfo(SHA-1) + padding (honrado por nome; este cliente não usa) |
+    | `""` (string vazia, campo PRESENTE) | o bloco pronto, 34 e 51 bytes sondados | **só o padding PKCS#1 v1.5** (modo cru; é o que o módulo oficial manda para `CKM_RSA_PKCS`) |
+    | `"MD5"` | o hash cru, 16 bytes | recusado: `{"certificate": null, "idArray": null, "message": "Erro ao gerar assinatura RSA.", "status": false}`, HTTP 200 |
+
+    PKCS#1 v1.5 é determinístico, e a assinatura de `""` + DigestInfo(SHA-256)
+    saiu byte a byte igual à de `"SHA256"` + hash: são a mesma chave e as duas
+    semânticas acima, sem terceiro comportamento. O modo cru é o que permite
+    `MD5withRSA` (o padrão do PJeOffice ao autenticar). Omitir o campo não foi
+    testado; o teto de 245 bytes (`k - 11`) é o do PKCS#1, não uma medida do
+    servidor. A resposta de sucesso ecoa em `certificate` dados pessoais do
+    titular (CPF, e-mail, data de nascimento) em toda assinatura.
 
 ### Métodos de autorização (2FA / assinatura / PIN)
 
@@ -166,7 +183,8 @@ O app novo registra e assina inteiramente pela API RemoteID, com Bearer:
    - REQ: `{ "desktopCode", "sessionToken": <token do passo 4>, "issue", "serialNumber", "algorithm":"SHA256", "hashArray":[{"id": 0, "hash": "<base64 do digest binário>"}] }`
      O `id` vai como **inteiro** (índice do hash); a resposta devolve `"0"` como
      string. O `algorithm` vem por parâmetro no binário, não é literal:
-     `"SHA256"` foi confirmado ao vivo.
+     `"SHA256"` foi confirmado ao vivo, e `""` (modo cru) também; ver a tabela
+     em 2b.
    - RES: `{ "status", "message", "certificate": {...}, "idArray": [{"id", "status", "message", "signatureBase64"}] }`
    - **`signatureBase64` é assinatura RSA CRUA**, não PKCS#7: 256 bytes
      (RSA-2048, PKCS#1 v1.5 sobre SHA-256), verificada com a chave pública do

@@ -188,7 +188,11 @@ crate por domínio para o isolamento máximo que o usuário pediu:
   `remoteid-pkcs11` (cdylib), `remoteid-protocolo` (socket, folha, livre para
   redesenho), `remoteid-mock` (servidor falso para o `teste-local`).
 - Constraint mantido: `remoteid-pkcs11` é `cdylib` e **não pode linkar GTK**;
-  fala com o app só via `remoteid-protocolo`.
+  fala com o app só via `remoteid-protocolo`. Ele depende do núcleo puro
+  (`remoteid-cripto`, `remoteid-estado`, `remoteid-protocolo-servidor`, este
+  último só pelo `Algoritmo` do `requestHash`), nunca de `remoteid-aplicacao`.
+  O socket carrega o `algorithm` como string opaca, para `remoteid-protocolo`
+  continuar folha; a conversão para o tipo do domínio é na borda do daemon.
 
 ## 6. Refatoração do motor (o passo mais delicado)
 
