@@ -132,6 +132,14 @@ p11 -M >"$TRABALHO/mecanismos.txt" 2>&1 || falhar "C_GetMechanismList"
 grep -q 'SHA256-RSA-PKCS' "$TRABALHO/mecanismos.txt" || falhar "SHA256-RSA-PKCS não é anunciado"
 grep -q 'RSA-PKCS'        "$TRABALHO/mecanismos.txt" || falhar "RSA-PKCS não é anunciado"
 ok "mecanismos anunciados: RSA-PKCS e SHA256-RSA-PKCS"
+# `encrypt` no RSA-PKCS é o CKF_ENCRYPT: o gate do SunPKCS11 para registrar o
+# `Cipher` de RSA (issue #10). Ancorado no início da linha para não casar com o
+# SHA256-RSA-PKCS, que é só assinatura.
+grep -Eq '^[[:space:]]*RSA-PKCS,.*encrypt' "$TRABALHO/mecanismos.txt" \
+    || falhar "RSA-PKCS não anuncia encrypt (CKF_ENCRYPT); o SunPKCS11 não registraria o Cipher"
+grep -Eq '^[[:space:]]*SHA256-RSA-PKCS,.*encrypt' "$TRABALHO/mecanismos.txt" \
+    && falhar "SHA256-RSA-PKCS anuncia encrypt, e é mecanismo só de assinatura"
+ok "RSA-PKCS anuncia encrypt; SHA256-RSA-PKCS não"
 
 p11 -O >"$TRABALHO/objetos.txt" 2>&1 || falhar "C_FindObjects"
 grep -q 'Certificate Object' "$TRABALHO/objetos.txt" || falhar "o token não publicou o certificado"
@@ -149,6 +157,23 @@ p11 --read-object --type cert --id "$ID_CERT" -o "$TRABALHO/cert.der" >/dev/null
 openssl x509 -inform DER -in "$TRABALHO/cert.der" -noout -pubkey >"$TRABALHO/pub.pem" 2>/dev/null \
     || falhar "o CKA_VALUE do certificado não é um X.509 DER válido"
 ok "certificado lido do token e parseado pelo openssl"
+
+# --------------------------------------------------------------- cifra
+# C_EncryptInit/C_Encrypt com a chave PÚBLICA: cifra local, PKCS#1 v1.5, sem
+# socket e sem PIN. A prova é a chave privada FALSA do mock (a que assina o
+# certificado falso) decifrar o que o módulo cifrou.
+passo "cifra com a chave pública (C_Encrypt, local)"
+printf 'bloco curto para a cifra' >"$TRABALHO/claro.bin"
+p11 --encrypt -m RSA-PKCS --id "$ID_CERT" -i "$TRABALHO/claro.bin" -o "$TRABALHO/cifrado.bin" \
+    >"$TRABALHO/encrypt.log" 2>&1 || { cat "$TRABALHO/encrypt.log"; falhar "C_Encrypt falhou"; }
+TAM_CIFRA="$(stat -c%s "$TRABALHO/cifrado.bin")"
+[ "$TAM_CIFRA" -eq 256 ] || falhar "bloco cifrado com $TAM_CIFRA bytes, esperado 256"
+openssl pkeyutl -decrypt -inkey crates/remoteid-mock/fixtures/fake-key.pem \
+    -in "$TRABALHO/cifrado.bin" -out "$TRABALHO/decifrado.bin" 2>/dev/null \
+    || falhar "a chave falsa do mock não decifrou o bloco do C_Encrypt"
+cmp -s "$TRABALHO/claro.bin" "$TRABALHO/decifrado.bin" \
+    || falhar "o decifrado difere do texto claro"
+ok "256 bytes, decifrados pela chave privada do certificado"
 
 # --------------------------------------------------------------- assinatura
 printf 'conteudo de teste do gate de integracao' >"$TRABALHO/dados.txt"

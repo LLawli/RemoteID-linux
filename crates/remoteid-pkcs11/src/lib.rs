@@ -77,6 +77,7 @@ impl Modulo {
                 flags,
                 busca: None,
                 assinatura: None,
+                cifra: None,
             },
         );
         h
@@ -92,6 +93,20 @@ pub(crate) struct Sessao {
     pub busca: Option<Vec<CK_OBJECT_HANDLE>>,
     /// Estado da operação de assinatura desta sessão. Uma sessão só pode ter uma.
     pub assinatura: Option<EstadoAssinatura>,
+    /// Estado da operação de cifra desta sessão (`C_EncryptInit` até o
+    /// `C_Encrypt`). Independente da assinatura: o Cryptoki permite uma
+    /// operação ativa de CADA tipo por sessão.
+    pub cifra: Option<EstadoCifra>,
+}
+
+/// A operação de cifra de uma sessão, do `C_EncryptInit` até o `C_Encrypt`.
+///
+/// Só existe um mecanismo de cifra (`CKM_RSA_PKCS`) e uma chave que pode
+/// cifrar (a pública do certificado), então o que sobra para guardar é o fato
+/// de a operação estar ativa e qual handle a iniciou.
+pub(crate) struct EstadoCifra {
+    #[allow(dead_code)] // registrado para depuração, como o da assinatura.
+    pub chave: CK_OBJECT_HANDLE,
 }
 
 /// A operação de assinatura de uma sessão, do `C_SignInit` até o fim.
@@ -250,8 +265,8 @@ static LISTA: CK_FUNCTION_LIST = CK_FUNCTION_LIST {
     C_DestroyObject: Some(stubs::C_DestroyObject),
     C_GetObjectSize: Some(stubs::C_GetObjectSize),
     C_SetAttributeValue: Some(stubs::C_SetAttributeValue),
-    C_EncryptInit: Some(stubs::C_EncryptInit),
-    C_Encrypt: Some(stubs::C_Encrypt),
+    C_EncryptInit: Some(funcoes::C_EncryptInit),
+    C_Encrypt: Some(funcoes::C_Encrypt),
     C_EncryptUpdate: Some(stubs::C_EncryptUpdate),
     C_EncryptFinal: Some(stubs::C_EncryptFinal),
     C_DecryptInit: Some(stubs::C_DecryptInit),

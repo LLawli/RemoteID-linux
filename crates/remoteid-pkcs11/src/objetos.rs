@@ -150,9 +150,13 @@ impl Objeto {
                     tipo: CKA_VERIFY,
                     valor: booleano(true),
                 },
+                // `CKA_ENCRYPT = true` acompanha o `CKF_ENCRYPT` do mecanismo
+                // (ver `C_GetMechanismInfo`): a pública cifra localmente no
+                // `C_Encrypt`. O módulo oficial diz `false` aqui; a divergência
+                // é deliberada e está explicada lá.
                 Atributo {
                     tipo: CKA_ENCRYPT,
-                    valor: booleano(false),
+                    valor: booleano(true),
                 },
                 Atributo {
                     tipo: CKA_MODULUS,
