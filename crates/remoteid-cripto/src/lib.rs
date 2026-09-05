@@ -12,12 +12,26 @@
 use base64::Engine as _;
 use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey, LineEnding};
-use rsa::{Pkcs1v15Sign, RsaPrivateKey, RsaPublicKey};
+use rsa::{Pkcs1v15Encrypt, Pkcs1v15Sign, RsaPrivateKey, RsaPublicKey};
 use sha2::{Digest, Sha256};
 
 use remoteid_tipos::{Error, Result};
 
 pub const KEY_BITS: usize = 2048;
+
+/// Tamanho do módulo RSA em bytes. É o tamanho de toda assinatura e de todo
+/// bloco cifrado que sai deste crate: o certificado do RemoteID é RSA-2048 e
+/// a chave da instalação também.
+pub const KEY_BYTES: usize = KEY_BITS / 8;
+
+/// O maior bloco que o PKCS#1 v1.5 aceita sem hash embutido: `k - 11`, porque
+/// o padding ocupa no mínimo 11 bytes (`00 02`, oito ou mais bytes de
+/// enchimento e o `00` separador; RFC 8017 §7.2.1 e §9.2).
+///
+/// É o teto do `CKM_RSA_PKCS` do PKCS#11 (assinatura crua e cifra) e do modo
+/// cru do `requestHashSessionSignature`, em que o servidor só aplica o padding
+/// ao bloco recebido. Fonte única: quem precisa do número lê daqui.
+pub const MAX_BLOCO_PKCS1_V15: usize = KEY_BYTES - 11;
 
 /// SHA-256 de um buffer.
 pub fn sha256(dados: &[u8]) -> [u8; 32] {
@@ -122,6 +136,31 @@ impl ChaveInstalacao {
     }
 }
 
+/// Cifra `dados` com a chave PÚBLICA, PKCS#1 v1.5 (RFC 8017 §7.2.1).
+///
+/// É o `C_Encrypt` do módulo PKCS#11 com `CKM_RSA_PKCS`. Ninguém do lado do
+/// RemoteID decifra (a chave privada mora no HSM e o servidor não expõe
+/// decifra), então isto existe pela ESPECIFICAÇÃO, não por um caso de uso:
+/// um token que anuncia `CKF_ENCRYPT` tem de cifrar com a pública. O que o
+/// anúncio destrava é o `Cipher` do SunPKCS11, que assina pela privada por
+/// outro caminho (`C_Sign`); ver a issue #10.
+///
+/// O resultado é aleatório de propósito (o enchimento do PKCS#1 v1.5 é
+/// randômico): cifrar o mesmo bloco duas vezes dá saídas diferentes, e as duas
+/// decifram para o mesmo texto.
+pub fn cifrar_pkcs1_v15(publica: &RsaPublicKey, dados: &[u8]) -> Result<Vec<u8>> {
+    if dados.len() > MAX_BLOCO_PKCS1_V15 {
+        return Err(Error::cripto(format!(
+            "bloco de {} bytes excede o teto de {MAX_BLOCO_PKCS1_V15} do PKCS#1 v1.5",
+            dados.len()
+        )));
+    }
+    let mut rng = rand::thread_rng();
+    publica
+        .encrypt(&mut rng, Pkcs1v15Encrypt, dados)
+        .map_err(|e| Error::cripto(format!("falha ao cifrar: {e}")))
+}
+
 /// Verifica uma assinatura contra a chave pública de um certificado X.509 (DER).
 ///
 /// É esta função que transforma "recebi 256 bytes do servidor" em "o HSM
@@ -178,6 +217,36 @@ mod tests {
         let b = chave.bearer_assinado("mesmo corpo").unwrap();
         assert_eq!(a, b);
         assert_ne!(a, chave.bearer_assinado("outro corpo").unwrap());
+    }
+
+    #[test]
+    fn cifra_com_a_publica_e_a_privada_decifra() {
+        let chave = ChaveInstalacao::gerar().unwrap();
+        let publica = chave.publica();
+
+        // O tamanho de saída é o do módulo, como na assinatura.
+        let texto = b"DigestInfo de mentira, ou qualquer bloco curto";
+        let cifrado = cifrar_pkcs1_v15(&publica, texto).unwrap();
+        assert_eq!(cifrado.len(), KEY_BYTES);
+        let decifrado = chave.inner.decrypt(Pkcs1v15Encrypt, &cifrado).unwrap();
+        assert_eq!(decifrado, texto);
+
+        // Enchimento aleatório: dois cifrados do mesmo texto diferem, e os dois
+        // decifram para ele. É o que distingue cifra de assinatura no v1.5.
+        let outro = cifrar_pkcs1_v15(&publica, texto).unwrap();
+        assert_ne!(outro, cifrado);
+        assert_eq!(chave.inner.decrypt(Pkcs1v15Encrypt, &outro).unwrap(), texto);
+    }
+
+    #[test]
+    fn cifra_respeita_o_teto_do_bloco() {
+        let chave = ChaveInstalacao::gerar().unwrap();
+        let publica = chave.publica();
+        assert_eq!(MAX_BLOCO_PKCS1_V15, 245, "RSA-2048: 256 - 11");
+        assert!(cifrar_pkcs1_v15(&publica, &[7u8; MAX_BLOCO_PKCS1_V15]).is_ok());
+        assert!(cifrar_pkcs1_v15(&publica, &[7u8; MAX_BLOCO_PKCS1_V15 + 1]).is_err());
+        // Bloco vazio é legal no v1.5 (a mensagem cabe, o padding preenche).
+        assert!(cifrar_pkcs1_v15(&publica, &[]).is_ok());
     }
 
     #[test]
