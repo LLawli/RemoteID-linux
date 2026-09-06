@@ -184,6 +184,15 @@ impl Motor {
         self.diag.caminho()
     }
 
+    /// Grava um evento no diag desta execução, já passando pela redação.
+    ///
+    /// Para a borda registrar o que só ela sabe (o daemon sabe quem pediu a
+    /// assinatura; o motor não) no MESMO arquivo em que o motor registra o
+    /// resto, e não num log paralelo. O motor continua dono do `Diagnostico`.
+    pub fn evento(&self, tipo: &str, campos: Value) {
+        self.diag.evento(tipo, campos);
+    }
+
     pub fn salvar_estado(&self) -> Result<()> {
         self.repo.salvar(&self.id, &self.estado)
     }

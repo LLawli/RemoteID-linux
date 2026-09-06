@@ -35,6 +35,11 @@ que ninguém sabe o que mudou.
   `PjeAuthenticatorTask` chegar assinado ao PJeOffice. O mock imita o
   servidor medido, inclusive a forma exata da recusa.
 
+- **O diag registra quem pediu cada assinatura.** Evento `assinatura.pedido`
+  com `hospedeiro` (o `comm` do processo que chamou o `C_Sign`: `papers`,
+  `firefox`, `java`), `algoritmo` e `bloco_bytes`. É a linha que responde,
+  num relatório de bug, qual app disparou a assinatura.
+
 ### Alterado
 
 - **`CKM_RSA_PKCS` deixa de reconhecer DigestInfo.** Antes, em produção, o

@@ -198,6 +198,11 @@ DIAG="$(ls "$DIR_ESTADO"/diag/run-*-"$SRV_PID".jsonl 2>/dev/null | head -1 || tr
 grep -q '"rotulo":"tokensessao (pin+otp)"' "$DIAG" || falhar "a 1ª assinatura não emitiu tokensessao"
 grep -q '"evento":"assinatura.sessao_nova"' "$DIAG" || falhar "a 1ª assinatura não gravou sessão nova"
 ok "emitiu tokensessao e gravou a sessão nova"
+# Quem pediu: o módulo lê o `comm` do processo hospedeiro e o daemon grava.
+# É a linha que diz, num relatório de bug, qual app disparou o C_Sign.
+grep -q '"evento":"assinatura.pedido".*"hospedeiro":"pkcs11-tool"' "$DIAG" \
+    || falhar "o diag não registrou o hospedeiro (pkcs11-tool) do pedido de assinatura"
+ok "o diag registra o hospedeiro do pedido: pkcs11-tool"
 
 passo "segunda assinatura (deve reusar a sessão em cache, sem PIN+OTP)"
 TOKENS_ANTES="$(grep -c '"rotulo":"tokensessao (pin+otp)"' "$DIAG" || true)"
@@ -266,7 +271,9 @@ else
         || { cat "$TRABALHO/java.log"; falhar "a prova JCA não confirmou o Cipher"; }
     grep -q 'verifica como MD5withRSA' "$TRABALHO/java.log" \
         || { cat "$TRABALHO/java.log"; falhar "a prova JCA não fechou o MD5withRSA"; }
-    ok "SunPKCS11 registrou o Cipher; SHA256withRSA e MD5withRSA verificam pela porta do PJeOffice"
+    grep -q '"evento":"assinatura.pedido".*"hospedeiro":"java"' "$DIAG" \
+        || falhar "o diag não registrou a JVM (java) como hospedeiro"
+    ok "SunPKCS11 registrou o Cipher; SHA256withRSA e MD5withRSA verificam pela porta do PJeOffice; hospedeiro java no diag"
 fi
 
 # --------------------------------------------------------------- segredos
