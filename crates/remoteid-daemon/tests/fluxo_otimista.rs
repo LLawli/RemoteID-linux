@@ -293,6 +293,19 @@ impl Ambiente {
     }
 }
 
+impl Ambiente {
+    /// Tudo o que o daemon gravou no diag deste ambiente, concatenado.
+    fn diag_inteiro(&self) -> String {
+        let mut tudo = String::new();
+        if let Ok(entradas) = std::fs::read_dir(self.dir.join("diag")) {
+            for e in entradas.flatten() {
+                tudo.push_str(&std::fs::read_to_string(e.path()).unwrap_or_default());
+            }
+        }
+        tudo
+    }
+}
+
 impl Drop for Ambiente {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.dir);
@@ -341,6 +354,20 @@ fn primeira_assinatura_sem_cache_pede_pin_otp_e_grava_a_sessao() {
         1,
         "chamou tokensessao uma vez"
     );
+
+    // O diag registra quem pediu: é a linha que um relatório de bug precisa
+    // para dizer qual app disparou o C_Sign.
+    let diag = amb.diag_inteiro();
+    assert!(
+        diag.contains(r#""evento":"assinatura.pedido""#),
+        "sem o evento do pedido no diag"
+    );
+    assert!(
+        diag.contains(r#""hospedeiro":"papers""#),
+        "o hospedeiro não foi gravado no diag"
+    );
+    assert!(diag.contains(r#""algoritmo":"SHA256""#));
+    assert!(diag.contains(r#""bloco_bytes":32"#));
 }
 
 #[test]

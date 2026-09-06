@@ -102,10 +102,20 @@ impl Servico {
         // O tamanho do bloco é regra do `Algoritmo`, conferida pelo motor antes
         // de tocar o cache ou pedir PIN: um `Error::Uso` de lá vira
         // `EntradaInvalida` em `erro_para_resposta`.
-        // Se `hospedeiro` não veio na mensagem, a camada de socket já teve a
-        // chance de preencher com `SO_PEERCRED`; se ainda é `None`, deixa
-        // como está (o diag registra "hospedeiro desconhecido"). Ver o TODO
-        // no `crate::socket`.
+        //
+        // Quem pediu, o que pediu e quanto: o motor não sabe o hospedeiro, e é
+        // esta linha que responde "qual app disparou o C_Sign?" num relatório
+        // de bug. Se `hospedeiro` não veio na mensagem, a camada de socket já
+        // teve a chance de preencher com `SO_PEERCRED`; se ainda é `None`,
+        // fica `null` no diag. Ver o TODO no `crate::socket`.
+        self.motor.evento(
+            "assinatura.pedido",
+            serde_json::json!({
+                "hospedeiro": hospedeiro,
+                "algoritmo": algoritmo.nome(),
+                "bloco_bytes": dados.len(),
+            }),
+        );
         // O titular vem do login (`Estado::nome`) — é o que o diálogo GTK
         // mostra em "Assinar como <nome>". Só é útil quando já preparado;
         // se ainda não houver nome, o prompter cai no título genérico.
