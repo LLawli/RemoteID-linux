@@ -25,3 +25,35 @@ openssl x509 -in fake-cert.pem -noout -serial   # atualizar SERIAL no main.rs
 
 Se regerar, atualize a constante `SERIAL` em `../src/main.rs` (o serial do cert
 entra no `keyName` da carteira).
+
+## Rodar contra uma carteira de verdade, sem versionar nada
+
+Uma fixture sintética não tem a forma de um certificado da ICP-Brasil de
+verdade: faltam as extensões `otherName` do titular, os vários OUs, os acentos
+no DN. É exatamente aí que moram os bugs de parsing e os defeitos de tela, e é o
+que este arquivo não pode reproduzir — um certificado real identifica uma pessoa
+e **não entra no repositório**, nem redigido.
+
+Por isso o mock aceita um diretório de fora:
+
+```sh
+REMOTEID_MOCK_FIXTURES=~/.local/share/remoteid-mock-local remoteid-mock
+```
+
+O diretório precisa de três arquivos:
+
+| arquivo | o quê |
+|---|---|
+| `cert.der` | o certificado X.509 em DER, o que a carteira devolve em `base64` |
+| `key.pem` | a chave RSA que **casa com esse certificado**, para o mock assinar o `requestHash` |
+| `keyname.txt` | o `keyName` que o servidor devolveria, na forma `<serial>;<issuer>` |
+
+A chave privada de um certificado em nuvem vive no HSM e não sai de lá, então o
+par local não é o do titular: o caminho é **reemitir** o certificado real
+trocando só a chave pública (`openssl x509 -force_pubkey`, preservando subject,
+serial, validade e extensões). O que se ganha é a forma e o conteúdo reais; o
+que não se ganha, e não faz falta aqui, é a cadeia fechar contra a ICP-Brasil.
+
+Com a variável posta e o diretório imprestável o mock **morre**, em vez de cair
+de volta na fixture embutida: um teste verde exibindo outra identidade não prova
+nada.
