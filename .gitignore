@@ -25,3 +25,8 @@ __pycache__/
 # Notas de sessão: raciocínio de trabalho, fora do repositório
 # (ficam em ../RemoteID-linux-memoria/). Ver CLAUDE.md.
 docs/memoria/
+
+# Estado do agente de código (worktrees e configuração local da ferramenta).
+# É ambiente de quem desenvolve, não do projeto, e as worktrees carregam uma
+# cópia inteira da árvore: um `git add -A` distraído levaria tudo para o commit.
+.claude/
