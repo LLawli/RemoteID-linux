@@ -17,9 +17,15 @@
 //! Credenciais fixas de teste:
 //! - e-mail `teste@remoteid.local`, senha `teste-1234`
 //! - PIN `1234`, OTP `123456`
+//!
+//! `REMOTEID_MOCK_FIXTURES=<dir>` troca o certificado embutido pelo de um
+//! diretório de fora (`cert.der`, `key.pem`, `keyname.txt`), para rodar contra
+//! uma carteira com a forma e o conteúdo de uma real sem que esse material
+//! encoste no repositório. Ver [`Carteira::carregar`].
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use remoteid_cripto::{b64, de_b64, ChaveInstalacao};
@@ -28,6 +34,10 @@ use serde_json::{json, Value};
 // Fixtures embutidas (geradas por openssl; ver crates/remoteid-mock/fixtures).
 const CHAVE_PEM: &str = include_str!("../fixtures/fake-key.pem");
 const CERT_DER: &[u8] = include_bytes!("../fixtures/fake-cert.der");
+
+/// Diretório com `cert.der`, `key.pem` e `keyname.txt` que substituem as
+/// fixtures embutidas. Ver [`Carteira::carregar`].
+const ENV_FIXTURES: &str = "REMOTEID_MOCK_FIXTURES";
 
 // Credenciais fixas que o mock aceita (só teste).
 const EMAIL_OK: &str = "teste@remoteid.local";
@@ -41,25 +51,115 @@ const ISSUER: &str = "CN=AC TESTE DESKTOPID, O=ICP-Brasil TESTE, C=BR";
 const CODIGO_DESKTOP: &str = "4d1f71d2-c20b-44d0-9bb0-5629015f21e8";
 const JWT_FALSO: &str = "jwt.do.login";
 
+/// O que o mock publica na carteira e usa para assinar: o certificado, a chave
+/// que casa com ele, e o `keyName` (`"<serial>;<issuer>"`) que o servidor real
+/// devolveria. O serial também vai no `tokensessao`, por isso sai do MESMO
+/// lugar que o `keyName`: as duas respostas não podem discordar.
+struct Carteira {
+    chave: ChaveInstalacao,
+    cert_b64: String,
+    key_name: String,
+    serial: String,
+}
+
+impl Carteira {
+    /// Sem `REMOTEID_MOCK_FIXTURES`, as fixtures SINTÉTICAS embutidas. Com ela,
+    /// um diretório de fora com `cert.der`, `key.pem` e `keyname.txt`.
+    ///
+    /// Existe porque um certificado de verdade tem forma e conteúdo que a
+    /// fixture sintética não reproduz (as extensões da ICP-Brasil, os OUs, os
+    /// acentos do titular), e é justamente aí que aparecem os bugs de parsing e
+    /// de tela. O material real carrega dado pessoal e **nunca** entra no
+    /// repositório: por isso ele mora fora, e o mock só recebe o caminho.
+    ///
+    /// Com a variável posta e o diretório imprestável, o mock MORRE. Cair de
+    /// volta na fixture embutida deixaria o teste verde exibindo outra
+    /// identidade, que é o pior resultado possível: verde sem provar nada.
+    fn carregar() -> Self {
+        match std::env::var_os(ENV_FIXTURES) {
+            Some(dir) if !dir.is_empty() => Self::de_diretorio(Path::new(&dir)),
+            _ => Self::embutida(),
+        }
+    }
+
+    fn embutida() -> Self {
+        Self {
+            chave: ChaveInstalacao::de_pem(CHAVE_PEM).expect("chave falsa embutida inválida"),
+            cert_b64: b64(CERT_DER),
+            key_name: format!("{SERIAL};{ISSUER}"),
+            serial: SERIAL.to_string(),
+        }
+    }
+
+    fn de_diretorio(dir: &Path) -> Self {
+        let ler = |nome: &str| -> Vec<u8> {
+            let caminho: PathBuf = dir.join(nome);
+            std::fs::read(&caminho).unwrap_or_else(|e| {
+                panic!(
+                    "{ENV_FIXTURES}: não consegui ler {}: {e}",
+                    caminho.display()
+                )
+            })
+        };
+        let chave_pem = String::from_utf8(ler("key.pem"))
+            .unwrap_or_else(|_| panic!("{ENV_FIXTURES}: key.pem não é texto"));
+        let cert_der = ler("cert.der");
+        let key_name = String::from_utf8(ler("keyname.txt"))
+            .unwrap_or_else(|_| panic!("{ENV_FIXTURES}: keyname.txt não é texto"))
+            .trim()
+            .to_string();
+
+        // Conferir o artefato, não só a leitura: um cert.der truncado passaria
+        // no `read` e só explodiria dentro do app, longe daqui.
+        assert!(
+            cert_der.len() > 300,
+            "{ENV_FIXTURES}: cert.der tem {} bytes, tamanho implausível para um X.509",
+            cert_der.len()
+        );
+        let serial = key_name.split(';').next().unwrap_or_default().to_string();
+        assert!(
+            !serial.is_empty() && key_name.contains(';'),
+            "{ENV_FIXTURES}: keyname.txt tem que ser \"<serial>;<issuer>\""
+        );
+
+        Self {
+            chave: ChaveInstalacao::de_pem(&chave_pem)
+                .unwrap_or_else(|e| panic!("{ENV_FIXTURES}: key.pem inválida: {e}")),
+            cert_b64: b64(&cert_der),
+            key_name,
+            serial,
+        }
+    }
+}
+
 fn main() {
     let porta: u16 = std::env::args()
         .nth(1)
         .and_then(|a| a.parse().ok())
         .unwrap_or(8799);
 
-    let chave = ChaveInstalacao::de_pem(CHAVE_PEM).expect("chave falsa embutida inválida");
-    let cert_b64 = b64(CERT_DER);
+    let carteira = Carteira::carregar();
 
     let listener = TcpListener::bind(("127.0.0.1", porta))
         .unwrap_or_else(|e| panic!("não consegui abrir 127.0.0.1:{porta}: {e}"));
     eprintln!("remoteid-mock ouvindo em http://localhost:{porta}");
     eprintln!("  login: {EMAIL_OK} / {SENHA_OK}   PIN: {PIN_OK}   OTP: {OTP_OK}");
+    // O serial identifica a carteira sem dizer de quem ela é: o `keyName`
+    // inteiro traz o emissor, e o certificado, o titular.
+    match std::env::var_os(ENV_FIXTURES) {
+        Some(dir) if !dir.is_empty() => eprintln!(
+            "  carteira de {} (serial {})",
+            Path::new(&dir).display(),
+            carteira.serial
+        ),
+        _ => eprintln!("  carteira: fixtures sintéticas embutidas"),
+    }
     eprintln!("  rode o app com: TEST_URL=http://localhost:{porta} remoteid-app");
 
     for conexao in listener.incoming() {
         match conexao {
             Ok(fluxo) => {
-                if let Err(e) = atender(fluxo, &chave, &cert_b64) {
+                if let Err(e) = atender(fluxo, &carteira) {
                     eprintln!("  [erro ao atender] {e}");
                 }
             }
@@ -68,7 +168,7 @@ fn main() {
     }
 }
 
-fn atender(mut fluxo: TcpStream, chave: &ChaveInstalacao, cert_b64: &str) -> std::io::Result<()> {
+fn atender(mut fluxo: TcpStream, carteira: &Carteira) -> std::io::Result<()> {
     let mut leitor = BufReader::new(fluxo.try_clone()?);
 
     // Linha de request: "POST /caminho HTTP/1.1".
@@ -100,7 +200,7 @@ fn atender(mut fluxo: TcpStream, chave: &ChaveInstalacao, cert_b64: &str) -> std
     }
     let corpo_json: Value = serde_json::from_slice(&corpo).unwrap_or(Value::Null);
 
-    let resposta = rotear(&caminho, &corpo_json, chave, cert_b64);
+    let resposta = rotear(&caminho, &corpo_json, carteira);
     eprintln!("  {caminho} -> {}", resumo(&resposta));
 
     responder(&mut fluxo, &resposta)
@@ -109,7 +209,7 @@ fn atender(mut fluxo: TcpStream, chave: &ChaveInstalacao, cert_b64: &str) -> std
 /// Roteamento por SUFIXO do path (o motor usa paths com placeholders; o mock,
 /// como o servidor enlatado dos testes, casa pelo fim). Sempre HTTP 200: o erro
 /// de negócio vai no corpo (`status:false`), que é como a Certisign responde.
-fn rotear(caminho: &str, corpo: &Value, chave: &ChaveInstalacao, cert_b64: &str) -> Value {
+fn rotear(caminho: &str, corpo: &Value, carteira: &Carteira) -> Value {
     if caminho.ends_with("/usrsenha") {
         // 1. login. Sem campo `status`; o motor exige `token`. Credenciais
         // erradas → sem token → o motor falha com "token ausente".
@@ -128,10 +228,10 @@ fn rotear(caminho: &str, corpo: &Value, chave: &ChaveInstalacao, cert_b64: &str)
         // 2. registrar desktop. Auth = Bearer JWT; o mock não valida a fundo.
         json!({ "codigoDesktop": CODIGO_DESKTOP, "id": 12345 })
     } else if caminho.ends_with("/carteira") {
-        // 3. carteira: devolve o certificado falso. keyName = "<serial>;<issuer>".
+        // 3. carteira: devolve o certificado do mock. keyName = "<serial>;<issuer>".
         json!({ "certificados": [ {
-            "keyName": format!("{SERIAL};{ISSUER}"),
-            "base64": cert_b64
+            "keyName": carteira.key_name,
+            "base64": carteira.cert_b64
         } ] })
     } else if caminho.ends_with("/statusCelular") {
         // 4. statusCelular: informativo; o motor grava mas não decide por ele.
@@ -147,8 +247,9 @@ fn rotear(caminho: &str, corpo: &Value, chave: &ChaveInstalacao, cert_b64: &str)
             json!({ "status": false, "message": "Informe o e-Token(Otp) correto (teste: 123456)", "token": null })
         } else {
             let epoch = agora();
+            let serial = &carteira.serial;
             let token =
-                format!("sessaoAssinatura;327989;CN%3DAC%20TESTE;{SERIAL};0;ZXlK;{epoch};hmac=");
+                format!("sessaoAssinatura;327989;CN%3DAC%20TESTE;{serial};0;ZXlK;{epoch};hmac=");
             json!({ "status": true, "message": "Token gerado com sucesso", "token": token })
         }
     } else if caminho.ends_with("/requestHashSessionSignature") {
@@ -157,7 +258,7 @@ fn rotear(caminho: &str, corpo: &Value, chave: &ChaveInstalacao, cert_b64: &str)
         // como STRING (assimetria do backend real, reproduzida aqui). A recusa
         // tem a forma medida ao vivo em 05/09/2026: `certificate` e `idArray`
         // presentes como null, HTTP 200.
-        match assinar_hash(corpo, chave) {
+        match assinar_hash(corpo, &carteira.chave) {
             Ok(sig_b64) => json!({
                 "status": true,
                 "message": "Requisição de assinatura no Hsm realizada com sucesso.",
