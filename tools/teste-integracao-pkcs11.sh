@@ -162,18 +162,38 @@ ok "certificado lido do token e parseado pelo openssl"
 # C_EncryptInit/C_Encrypt com a chave PÚBLICA: cifra local, PKCS#1 v1.5, sem
 # socket e sem PIN. A prova é a chave privada FALSA do mock (a que assina o
 # certificado falso) decifrar o que o módulo cifrou.
+#
+# `pkcs11-tool --encrypt` só cifra com chave PÚBLICA a partir do OpenSC 0.26;
+# até o 0.25 (o que o ubuntu-24.04 do runner traz) ele procura uma chave
+# SECRETA e morre com "Secret key not found", independente do que o módulo
+# faça. Onde a ferramenta é velha o passo é pulado, e não fica buraco: o `-M`
+# acima prova o anúncio do CKF_ENCRYPT, a prova em Java prova que o SunPKCS11
+# registra o Cipher por causa desse anúncio (que é o critério da issue), e a
+# cifra em si está coberta em crates/remoteid-pkcs11/tests/abi.rs.
 passo "cifra com a chave pública (C_Encrypt, local)"
-printf 'bloco curto para a cifra' >"$TRABALHO/claro.bin"
-p11 --encrypt -m RSA-PKCS --id "$ID_CERT" -i "$TRABALHO/claro.bin" -o "$TRABALHO/cifrado.bin" \
-    >"$TRABALHO/encrypt.log" 2>&1 || { cat "$TRABALHO/encrypt.log"; falhar "C_Encrypt falhou"; }
-TAM_CIFRA="$(stat -c%s "$TRABALHO/cifrado.bin")"
-[ "$TAM_CIFRA" -eq 256 ] || falhar "bloco cifrado com $TAM_CIFRA bytes, esperado 256"
-openssl pkeyutl -decrypt -inkey crates/remoteid-mock/fixtures/fake-key.pem \
-    -in "$TRABALHO/cifrado.bin" -out "$TRABALHO/decifrado.bin" 2>/dev/null \
-    || falhar "a chave falsa do mock não decifrou o bloco do C_Encrypt"
-cmp -s "$TRABALHO/claro.bin" "$TRABALHO/decifrado.bin" \
-    || falhar "o decifrado difere do texto claro"
-ok "256 bytes, decifrados pela chave privada do certificado"
+# Sem `|| true` o `set -e` derrubaria o gate calado: com `pipefail`, o grep sem
+# saída (opensc-tool ausente, ou imprimindo a versão noutro formato) faz a
+# atribuição falhar. Aqui "não sei a versão" é uma resposta válida, não um erro.
+VERSAO_OPENSC=""
+if command -v opensc-tool >/dev/null; then
+    VERSAO_OPENSC="$(opensc-tool --version 2>&1 | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1 || true)"
+fi
+if [ -z "$VERSAO_OPENSC" ] ||
+    [ "$(printf '%s\n0.26\n' "$VERSAO_OPENSC" | sort -V | head -1)" != "0.26" ]; then
+    echo "  (pulado: pkcs11-tool do OpenSC ${VERSAO_OPENSC:-desconhecido} não cifra com a pública; precisa de 0.26+)"
+else
+    printf 'bloco curto para a cifra' >"$TRABALHO/claro.bin"
+    p11 --encrypt -m RSA-PKCS --id "$ID_CERT" -i "$TRABALHO/claro.bin" -o "$TRABALHO/cifrado.bin" \
+        >"$TRABALHO/encrypt.log" 2>&1 || { cat "$TRABALHO/encrypt.log"; falhar "C_Encrypt falhou"; }
+    TAM_CIFRA="$(stat -c%s "$TRABALHO/cifrado.bin")"
+    [ "$TAM_CIFRA" -eq 256 ] || falhar "bloco cifrado com $TAM_CIFRA bytes, esperado 256"
+    openssl pkeyutl -decrypt -inkey crates/remoteid-mock/fixtures/fake-key.pem \
+        -in "$TRABALHO/cifrado.bin" -out "$TRABALHO/decifrado.bin" 2>/dev/null \
+        || falhar "a chave falsa do mock não decifrou o bloco do C_Encrypt"
+    cmp -s "$TRABALHO/claro.bin" "$TRABALHO/decifrado.bin" \
+        || falhar "o decifrado difere do texto claro"
+    ok "256 bytes, decifrados pela chave privada do certificado"
+fi
 
 # --------------------------------------------------------------- assinatura
 printf 'conteudo de teste do gate de integracao' >"$TRABALHO/dados.txt"
