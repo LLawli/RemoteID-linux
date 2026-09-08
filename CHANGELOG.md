@@ -12,6 +12,8 @@ que ninguém sabe o que mudou.
 
 ## [Não publicado]
 
+## [0.2.0] - 2026-09-08
+
 ### Adicionado
 
 - **O módulo PKCS#11 anuncia `CKF_ENCRYPT` em `CKM_RSA_PKCS` e cifra com a
@@ -34,7 +36,6 @@ que ninguém sabe o que mudou.
   regra de tamanho num lugar só. É o que faz o `DigestInfo(MD5)` do
   `PjeAuthenticatorTask` chegar assinado ao PJeOffice. O mock imita o
   servidor medido, inclusive a forma exata da recusa.
-
 - **O diag registra quem pediu cada assinatura.** Evento `assinatura.pedido`
   com `hospedeiro` (o `comm` do processo que chamou o `C_Sign`: `papers`,
   `firefox`, `java`), `algoritmo` e `bloco_bytes`. É a linha que responde,
@@ -55,6 +56,27 @@ que ninguém sabe o que mudou.
 
 - `C_SignInit` com sessão inexistente devolve `CKR_SESSION_HANDLE_INVALID`,
   e não um pânico convertido em `CKR_GENERAL_ERROR`.
+
+### Interno
+
+- **O `remoteid-mock` aceita uma carteira de fora**, por
+  `REMOTEID_MOCK_FIXTURES=<dir>` (`cert.der`, `key.pem`, `keyname.txt`). Serve
+  para rodar contra um certificado com a forma e o conteúdo de um real, que a
+  fixture sintética não reproduz (as extensões `otherName` da ICP-Brasil, os
+  vários OUs, os acentos no DN) e que não pode ser versionado, porque
+  identifica uma pessoa. Sem a variável nada muda; com ela apontando para um
+  diretório imprestável o mock morre, em vez de cair de volta na fixture
+  embutida e exibir outra identidade.
+- **Testes de mutação** (`cargo mutants`, 327 mutantes em 8 crates) fecharam os
+  buracos que importavam: o guarda do retry silencioso com cache válido (um bug
+  ali gastaria um OTP por recusa), o braço `CKM_SHA256_RSA_PKCS` de
+  `preparar_bloco`, os handles de sessão do módulo, e o cliente do socket, que
+  só o gate ponta a ponta exercita.
+- **O passo da cifra no gate de integração exige OpenSC 0.26+** e é pulado onde
+  a ferramenta é mais velha. O `pkcs11-tool` do Ubuntu 24.04 (0.25) procura uma
+  chave secreta e falha antes de chamar o módulo, o que deixava o CI vermelho
+  por causa da ferramenta. A cobertura fica com o `-M`, com a prova em Java e
+  com os testes de ABI.
 
 
 ## [0.1.2] - 2026-09-04
