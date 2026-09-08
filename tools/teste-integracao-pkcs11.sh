@@ -218,6 +218,11 @@ DIAG="$(ls "$DIR_ESTADO"/diag/run-*-"$SRV_PID".jsonl 2>/dev/null | head -1 || tr
 grep -q '"rotulo":"tokensessao (pin+otp)"' "$DIAG" || falhar "a 1ª assinatura não emitiu tokensessao"
 grep -q '"evento":"assinatura.sessao_nova"' "$DIAG" || falhar "a 1ª assinatura não gravou sessão nova"
 ok "emitiu tokensessao e gravou a sessão nova"
+# Quem pediu: o módulo lê o `comm` do processo hospedeiro e o daemon grava.
+# É a linha que diz, num relatório de bug, qual app disparou o C_Sign.
+grep -q '"evento":"assinatura.pedido".*"hospedeiro":"pkcs11-tool"' "$DIAG" \
+    || falhar "o diag não registrou o hospedeiro (pkcs11-tool) do pedido de assinatura"
+ok "o diag registra o hospedeiro do pedido: pkcs11-tool"
 
 passo "segunda assinatura (deve reusar a sessão em cache, sem PIN+OTP)"
 TOKENS_ANTES="$(grep -c '"rotulo":"tokensessao (pin+otp)"' "$DIAG" || true)"
@@ -227,6 +232,19 @@ TOKENS_DEPOIS="$(grep -c '"rotulo":"tokensessao (pin+otp)"' "$DIAG" || true)"
 [ "$TOKENS_ANTES" -eq "$TOKENS_DEPOIS" ] \
     || falhar "a 2ª assinatura reemitiu tokensessao ($TOKENS_ANTES → $TOKENS_DEPOIS); o cache não pegou"
 ok "cache_hit, sem novo tokensessao, e assinatura válida"
+
+# --------------------------------------------------------------- override do socket
+# `REMOTEID_SOCKET` é o override do empacotamento Flatpak, e tem de VENCER o
+# caminho do modo de teste: apontado para um socket inexistente, a assinatura
+# tem de falhar. Se passasse, o módulo estaria ignorando a variável e caindo
+# no caminho padrão, e o Flatpak nunca acharia o app.
+passo "REMOTEID_SOCKET inválido tem de derrubar a assinatura (o override é honrado)"
+if REMOTEID_SOCKET="$TRABALHO/nao-existe.sock" \
+    p11 --sign -m SHA256-RSA-PKCS -i "$TRABALHO/dados.txt" -o "$TRABALHO/sig-nunca.bin" >"$TRABALHO/sign-override.log" 2>&1; then
+    falhar "assinou com REMOTEID_SOCKET apontando para um socket inexistente: o override foi ignorado"
+fi
+[ ! -s "$TRABALHO/sig-nunca.bin" ] || falhar "saiu assinatura mesmo sem socket"
+ok "com REMOTEID_SOCKET inválido o C_Sign falha, como deve"
 
 # --------------------------------------------------------------- modo cru
 # O que o PJeOffice manda para autenticar: um DigestInfo(MD5) de 34 bytes pelo
@@ -273,7 +291,9 @@ else
         || { cat "$TRABALHO/java.log"; falhar "a prova JCA não confirmou o Cipher"; }
     grep -q 'verifica como MD5withRSA' "$TRABALHO/java.log" \
         || { cat "$TRABALHO/java.log"; falhar "a prova JCA não fechou o MD5withRSA"; }
-    ok "SunPKCS11 registrou o Cipher; SHA256withRSA e MD5withRSA verificam pela porta do PJeOffice"
+    grep -q '"evento":"assinatura.pedido".*"hospedeiro":"java"' "$DIAG" \
+        || falhar "o diag não registrou a JVM (java) como hospedeiro"
+    ok "SunPKCS11 registrou o Cipher; SHA256withRSA e MD5withRSA verificam pela porta do PJeOffice; hospedeiro java no diag"
 fi
 
 # --------------------------------------------------------------- segredos
