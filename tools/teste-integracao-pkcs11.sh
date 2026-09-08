@@ -132,6 +132,14 @@ p11 -M >"$TRABALHO/mecanismos.txt" 2>&1 || falhar "C_GetMechanismList"
 grep -q 'SHA256-RSA-PKCS' "$TRABALHO/mecanismos.txt" || falhar "SHA256-RSA-PKCS não é anunciado"
 grep -q 'RSA-PKCS'        "$TRABALHO/mecanismos.txt" || falhar "RSA-PKCS não é anunciado"
 ok "mecanismos anunciados: RSA-PKCS e SHA256-RSA-PKCS"
+# `encrypt` no RSA-PKCS é o CKF_ENCRYPT: o gate do SunPKCS11 para registrar o
+# `Cipher` de RSA (issue #10). Ancorado no início da linha para não casar com o
+# SHA256-RSA-PKCS, que é só assinatura.
+grep -Eq '^[[:space:]]*RSA-PKCS,.*encrypt' "$TRABALHO/mecanismos.txt" \
+    || falhar "RSA-PKCS não anuncia encrypt (CKF_ENCRYPT); o SunPKCS11 não registraria o Cipher"
+grep -Eq '^[[:space:]]*SHA256-RSA-PKCS,.*encrypt' "$TRABALHO/mecanismos.txt" \
+    && falhar "SHA256-RSA-PKCS anuncia encrypt, e é mecanismo só de assinatura"
+ok "RSA-PKCS anuncia encrypt; SHA256-RSA-PKCS não"
 
 p11 -O >"$TRABALHO/objetos.txt" 2>&1 || falhar "C_FindObjects"
 grep -q 'Certificate Object' "$TRABALHO/objetos.txt" || falhar "o token não publicou o certificado"
@@ -149,6 +157,43 @@ p11 --read-object --type cert --id "$ID_CERT" -o "$TRABALHO/cert.der" >/dev/null
 openssl x509 -inform DER -in "$TRABALHO/cert.der" -noout -pubkey >"$TRABALHO/pub.pem" 2>/dev/null \
     || falhar "o CKA_VALUE do certificado não é um X.509 DER válido"
 ok "certificado lido do token e parseado pelo openssl"
+
+# --------------------------------------------------------------- cifra
+# C_EncryptInit/C_Encrypt com a chave PÚBLICA: cifra local, PKCS#1 v1.5, sem
+# socket e sem PIN. A prova é a chave privada FALSA do mock (a que assina o
+# certificado falso) decifrar o que o módulo cifrou.
+#
+# `pkcs11-tool --encrypt` só cifra com chave PÚBLICA a partir do OpenSC 0.26;
+# até o 0.25 (o que o ubuntu-24.04 do runner traz) ele procura uma chave
+# SECRETA e morre com "Secret key not found", independente do que o módulo
+# faça. Onde a ferramenta é velha o passo é pulado, e não fica buraco: o `-M`
+# acima prova o anúncio do CKF_ENCRYPT, a prova em Java prova que o SunPKCS11
+# registra o Cipher por causa desse anúncio (que é o critério da issue), e a
+# cifra em si está coberta em crates/remoteid-pkcs11/tests/abi.rs.
+passo "cifra com a chave pública (C_Encrypt, local)"
+# Sem `|| true` o `set -e` derrubaria o gate calado: com `pipefail`, o grep sem
+# saída (opensc-tool ausente, ou imprimindo a versão noutro formato) faz a
+# atribuição falhar. Aqui "não sei a versão" é uma resposta válida, não um erro.
+VERSAO_OPENSC=""
+if command -v opensc-tool >/dev/null; then
+    VERSAO_OPENSC="$(opensc-tool --version 2>&1 | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1 || true)"
+fi
+if [ -z "$VERSAO_OPENSC" ] ||
+    [ "$(printf '%s\n0.26\n' "$VERSAO_OPENSC" | sort -V | head -1)" != "0.26" ]; then
+    echo "  (pulado: pkcs11-tool do OpenSC ${VERSAO_OPENSC:-desconhecido} não cifra com a pública; precisa de 0.26+)"
+else
+    printf 'bloco curto para a cifra' >"$TRABALHO/claro.bin"
+    p11 --encrypt -m RSA-PKCS --id "$ID_CERT" -i "$TRABALHO/claro.bin" -o "$TRABALHO/cifrado.bin" \
+        >"$TRABALHO/encrypt.log" 2>&1 || { cat "$TRABALHO/encrypt.log"; falhar "C_Encrypt falhou"; }
+    TAM_CIFRA="$(stat -c%s "$TRABALHO/cifrado.bin")"
+    [ "$TAM_CIFRA" -eq 256 ] || falhar "bloco cifrado com $TAM_CIFRA bytes, esperado 256"
+    openssl pkeyutl -decrypt -inkey crates/remoteid-mock/fixtures/fake-key.pem \
+        -in "$TRABALHO/cifrado.bin" -out "$TRABALHO/decifrado.bin" 2>/dev/null \
+        || falhar "a chave falsa do mock não decifrou o bloco do C_Encrypt"
+    cmp -s "$TRABALHO/claro.bin" "$TRABALHO/decifrado.bin" \
+        || falhar "o decifrado difere do texto claro"
+    ok "256 bytes, decifrados pela chave privada do certificado"
+fi
 
 # --------------------------------------------------------------- assinatura
 printf 'conteudo de teste do gate de integracao' >"$TRABALHO/dados.txt"
@@ -182,6 +227,30 @@ TOKENS_DEPOIS="$(grep -c '"rotulo":"tokensessao (pin+otp)"' "$DIAG" || true)"
 [ "$TOKENS_ANTES" -eq "$TOKENS_DEPOIS" ] \
     || falhar "a 2ª assinatura reemitiu tokensessao ($TOKENS_ANTES → $TOKENS_DEPOIS); o cache não pegou"
 ok "cache_hit, sem novo tokensessao, e assinatura válida"
+
+# --------------------------------------------------------------- java
+# O critério de aceitação da issue #10, na mesma cadeia (módulo → socket →
+# servidor-fixo → mock) e pela porta que o PJeOffice usa: o `Cipher` do
+# SunPKCS11. Sem Java na máquina o passo é pulado; no CI ele é obrigatório (o
+# runner ubuntu-24.04 traz o Temurin 11 em JAVA_HOME_11_X64, a mesma versão da
+# JRE que o PJeOffice embarca).
+passo "prova em Java: o Cipher do SunPKCS11 (critério de aceitação da issue #10)"
+JAVA=""
+if [ -n "${JAVA_HOME_11_X64:-}" ] && [ -x "$JAVA_HOME_11_X64/bin/java" ]; then
+    JAVA="$JAVA_HOME_11_X64/bin/java"
+elif command -v java >/dev/null; then
+    JAVA="$(command -v java)"
+fi
+if [ -z "$JAVA" ]; then
+    [ -z "${CI:-}" ] || falhar "sem java no runner: a prova JCA é obrigatória no CI"
+    echo "  (pulado: sem java nesta máquina; o CI roda com o Temurin 11 do runner)"
+else
+    "$JAVA" tools/prova-jca-pkcs11/ProvaCipher.java "$MODULO" >"$TRABALHO/java.log" 2>&1 \
+        || { cat "$TRABALHO/java.log"; falhar "a prova JCA reprovou"; }
+    grep -q 'Cipher.RSA/ECB/PKCS1Padding registrado' "$TRABALHO/java.log" \
+        || { cat "$TRABALHO/java.log"; falhar "a prova JCA não confirmou o Cipher"; }
+    ok "SunPKCS11 registrou o Cipher e a assinatura pelo Cipher verifica como SHA256withRSA"
+fi
 
 # --------------------------------------------------------------- segredos
 # Regra de domínio, não detalhe: PIN e OTP são permanentes/sensíveis e o diag é

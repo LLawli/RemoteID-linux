@@ -28,6 +28,12 @@ pub struct Token {
     /// Número de série do certificado, em hexadecimal (vem do `keyName`).
     pub serie: String,
     pub objetos: Vec<Objeto>,
+    /// A chave PÚBLICA do certificado, já decodificada do SPKI. Guardada aqui
+    /// na construção para o `C_Encrypt` (cifra local, PKCS#1 v1.5) e para a
+    /// conferência da chave de teste não reparsearem o DER a cada chamada.
+    /// `None` só se o SPKI não for RSA, caso em que o token também não publica
+    /// os objetos de chave.
+    pub publica: Option<rsa::RsaPublicKey>,
     /// Chave de assinatura, opcional. Presente apenas em modo de teste — ver
     /// `caminho_chave_teste`. Em produção a chave privada NUNCA está aqui: ela
     /// vive no HSM da Certisign e o `C_Sign` a chamará via daemon.
@@ -92,16 +98,10 @@ impl Token {
     fn instalar_chave_teste(&mut self, chave: ChaveInstalacao) -> Result<(), String> {
         use rsa::traits::PublicKeyParts as _;
 
-        let cert_obj = self
-            .objetos
-            .iter()
-            .find(|o| {
-                o.atributo(CKA_CLASS)
-                    .is_some_and(|a| a.valor == CKO_CERTIFICATE.to_ne_bytes())
-            })
-            .ok_or("certificado ausente ao validar a chave de teste")?;
-        let publica =
-            extrair_rsa_do_certificado(cert_obj).ok_or("SPKI do certificado não é RSA")?;
+        let publica = self
+            .publica
+            .as_ref()
+            .ok_or("SPKI do certificado não é RSA")?;
 
         let pub_da_chave = chave.publica();
         if pub_da_chave.n() != publica.n() || pub_da_chave.e() != publica.e() {
@@ -159,9 +159,8 @@ impl Token {
         // `n`/`e` vêm do SPKI do cert, para baterem byte a byte com o que o
         // hospedeiro já leu; `to_bytes_be()` remove os zeros à esquerda, como o
         // Cryptoki manda.
-        if let Some(publica) =
-            rsa_do_spki_bytes(tbs.subject_public_key_info.subject_public_key.raw_bytes())
-        {
+        let publica = rsa_do_spki_bytes(tbs.subject_public_key_info.subject_public_key.raw_bytes());
+        if let Some(publica) = &publica {
             use rsa::traits::PublicKeyParts as _;
             let modulo = publica.n().to_bytes_be();
             let expoente = publica.e().to_bytes_be();
@@ -179,6 +178,7 @@ impl Token {
             rotulo,
             serie: serie.to_string(),
             objetos,
+            publica,
             chave_teste: None,
         })
     }
@@ -225,20 +225,6 @@ pub fn caminho_chave_teste(dir: &std::path::Path) -> std::path::PathBuf {
 fn rsa_do_spki_bytes(pkcs1_der: &[u8]) -> Option<rsa::RsaPublicKey> {
     use rsa::pkcs1::DecodeRsaPublicKey as _;
     rsa::RsaPublicKey::from_pkcs1_der(pkcs1_der).ok()
-}
-
-/// Extrai a chave pública RSA do `SubjectPublicKeyInfo` do certificado, tal como
-/// está no atributo `CKA_VALUE` do objeto.
-fn extrair_rsa_do_certificado(cert_obj: &Objeto) -> Option<rsa::RsaPublicKey> {
-    use der::Decode as _;
-    use rsa::pkcs1::DecodeRsaPublicKey as _;
-    let der = &cert_obj.atributo(CKA_VALUE)?.valor;
-    let cert = x509_cert::Certificate::from_der(der).ok()?;
-    let spki_bits = cert
-        .tbs_certificate
-        .subject_public_key_info
-        .subject_public_key;
-    rsa::RsaPublicKey::from_pkcs1_der(spki_bits.raw_bytes()).ok()
 }
 
 #[cfg(test)]

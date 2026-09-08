@@ -24,7 +24,8 @@ IMPLEMENTADAS = {
     "C_FindObjectsInit", "C_FindObjects", "C_FindObjectsFinal",
     "C_GetAttributeValue",
     "C_Login", "C_Logout",
-    "C_SignInit", "C_Sign",
+    "C_SignInit", "C_Sign", "C_SignUpdate", "C_SignFinal",
+    "C_EncryptInit", "C_Encrypt",
 }
 
 alvo = sys.argv[1] if len(sys.argv) > 1 else "x86_64-unknown-linux-gnu"
