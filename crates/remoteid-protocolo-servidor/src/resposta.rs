@@ -84,6 +84,26 @@ mod tests {
     }
 
     #[test]
+    fn request_hash_recusado_vem_com_certificate_e_id_array_nulos() {
+        // A forma EXATA da recusa do requestHashSessionSignature, medida em
+        // 05/09/2026 com `algorithm: "MD5"`: HTTP 200, `status: false`, e os
+        // campos de sucesso presentes como null. É erro de domínio; o corpo
+        // nulo não pode virar "requestHash sem idArray" (erro de estado).
+        let erro = ok_json(
+            200,
+            r#"{"certificate":null,"idArray":null,"message":"Erro ao gerar assinatura RSA.","status":false}"#,
+        )
+        .unwrap_err();
+        match erro {
+            Error::Servidor(s) => {
+                assert_eq!(s.http_status, 200);
+                assert_eq!(s.message, "Erro ao gerar assinatura RSA.");
+            }
+            outro => panic!("classificou errado: {outro}"),
+        }
+    }
+
+    #[test]
     fn http_200_com_status_true_passa() {
         let v = ok_json(200, r#"{"status":true,"message":"ok","token":"t"}"#).unwrap();
         assert_eq!(v["token"], "t");

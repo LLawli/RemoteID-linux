@@ -12,6 +12,46 @@ que ninguém sabe o que mudou.
 
 ## [Não publicado]
 
+### Adicionado
+
+- **O módulo PKCS#11 anuncia `CKF_ENCRYPT` em `CKM_RSA_PKCS` e cifra com a
+  chave pública** (issue #10). O PJeOffice não autenticava no Linux: o
+  signer4j precisa de RSA cru pela JCA, e a única porta é o
+  `Cipher.RSA/ECB/PKCS1Padding` do SunPKCS11, que desde o JDK-8176837 só é
+  registrado se o mecanismo anunciar `CKF_ENCRYPT`. Com a chave privada em
+  `ENCRYPT_MODE` o Java faz `C_SignInit` + `C_Sign`, que já existiam; o que
+  faltava era o anúncio. `C_EncryptInit`/`C_Encrypt` passam a existir de
+  verdade, só com a chave pública (a privada recebe
+  `CKR_KEY_FUNCTION_NOT_PERMITTED`), sem socket e sem PIN. É uma divergência
+  deliberada do módulo oficial, que é sign-only. A prova em Java
+  (`tools/prova-jca-pkcs11/ProvaCipher.java`) entra no gate de integração.
+- **Modo cru no caminho de produção** (issue #11). A sondagem ao vivo de
+  05/09/2026 provou que o `requestHashSessionSignature` com `algorithm: ""`
+  só aplica o padding PKCS#1 v1.5 ao bloco enviado. O `CKM_RSA_PKCS` do
+  módulo passa a mandar o bloco inteiro nesse modo, seja qual for o hash
+  dentro dele; o verbo `sign` do socket ganha o campo `algoritmo` (opcional,
+  padrão `SHA256`); o motor e o daemon recebem um `Algoritmo` tipado, com a
+  regra de tamanho num lugar só. É o que faz o `DigestInfo(MD5)` do
+  `PjeAuthenticatorTask` chegar assinado ao PJeOffice. O mock imita o
+  servidor medido, inclusive a forma exata da recusa.
+
+### Alterado
+
+- **`CKM_RSA_PKCS` deixa de reconhecer DigestInfo.** Antes, em produção, o
+  módulo desmontava um DigestInfo(SHA-256) de 51 bytes para mandar só o hash,
+  aceitava 32 bytes crus como se fossem o hash (e o servidor os embrulhava em
+  DigestInfo), e recusava qualquer outro tamanho com `CKR_DATA_LEN_RANGE`.
+  Agora o bloco vai como está, de 1 a 245 bytes, e recebe só o padding, que é
+  o que a especificação define e o módulo oficial faz. Quem quer DigestInfo
+  manda DigestInfo (poppler, NSS, OpenSSL e o SunPKCS11 já mandam); a
+  assinatura desses continua byte a byte a mesma.
+
+### Corrigido
+
+- `C_SignInit` com sessão inexistente devolve `CKR_SESSION_HANDLE_INVALID`,
+  e não um pânico convertido em `CKR_GENERAL_ERROR`.
+
+
 ## [0.1.2] - 2026-09-04
 
 ### Corrigido
