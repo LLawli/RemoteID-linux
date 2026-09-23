@@ -107,16 +107,42 @@ Há dois sub-caminhos, ambos no binário:
     |---|---|---|
     | `"SHA256"` | o hash cru, 32 bytes | DigestInfo(SHA-256) + padding PKCS#1 v1.5 (o caminho de produção original) |
     | `"SHA1"` | o hash cru, 20 bytes | DigestInfo(SHA-1) + padding (honrado por nome; este cliente não usa) |
-    | `""` (string vazia, campo PRESENTE) | o bloco pronto, 34 e 51 bytes sondados | **só o padding PKCS#1 v1.5** (modo cru; é o que o módulo oficial manda para `CKM_RSA_PKCS`) |
+    | `""` (string vazia, campo PRESENTE) | o bloco pronto, de 1 a **245** bytes | **só o padding PKCS#1 v1.5** (modo cru; é o que o módulo oficial manda para `CKM_RSA_PKCS`) |
     | `"MD5"` | o hash cru, 16 bytes | recusado: `{"certificate": null, "idArray": null, "message": "Erro ao gerar assinatura RSA.", "status": false}`, HTTP 200 |
+    | campo **AUSENTE** do JSON | qualquer | recusado ANTES do HSM: `{"message": "Token inválido", "status": false}`, HTTP 200 |
 
     PKCS#1 v1.5 é determinístico, e a assinatura de `""` + DigestInfo(SHA-256)
     saiu byte a byte igual à de `"SHA256"` + hash: são a mesma chave e as duas
     semânticas acima, sem terceiro comportamento. O modo cru é o que permite
-    `MD5withRSA` (o padrão do PJeOffice ao autenticar). Omitir o campo não foi
-    testado; o teto de 245 bytes (`k - 11`) é o do PKCS#1, não uma medida do
-    servidor. A resposta de sucesso ecoa em `certificate` dados pessoais do
-    titular (CPF, e-mail, data de nascimento) em toda assinatura.
+    `MD5withRSA` (o padrão do PJeOffice ao autenticar). A resposta de sucesso
+    ecoa em `certificate` dados pessoais do titular (CPF, e-mail, data de
+    nascimento) em toda assinatura.
+
+    **Uma segunda sondagem, em 22/09/2026** (treze casos numa única sessão, ver
+    a issue #18), fechou duas perguntas que tinham ficado abertas acima:
+
+    - **O campo `algorithm` é OBRIGATÓRIO.** Omitido, o servidor responde
+      `"Token inválido"` e o pedido nem chega ao HSM. Não é sobre o
+      `sessionToken`: era o mesmo das requisições vizinhas, que passaram. Como
+      na canônica a string vazia e a chave ausente dão o mesmo resultado, a
+      assinatura do Bearer não distingue os dois casos, mas o servidor
+      distingue. Por isso o cliente manda o campo SEMPRE, inclusive vazio.
+    - **O teto de 245 bytes (`k - 11`) é do servidor, não só do PKCS#1.** Estava
+      deduzido; agora está medido. 245 assina; 246, 255 e 256 são recusados com
+      uma mensagem própria, que carrega o código do SDK do HSM:
+
+      ```
+      Erro ao gerar assinatura RSA.Invalid input data size.(1011)
+      ```
+
+      Note que é outra mensagem que a do nome desconhecido: nome fora da tabela
+      de mecanismos dá `"Erro ao gerar assinatura RSA."` **sem** o `(1011)`. São
+      dois caminhos de recusa diferentes.
+    - Nenhum nome seleciona RSASSA-PSS (`SHA256withRSAandMGF1`, `RSASSA-PSS`,
+      `SHA256/PSS`, `PSS`, `NONE`, `RAW` foram todos recusados), e não há
+      operação sem padding: como o teto é `k - 11`, um bloco EMSA-PSS de `k`
+      bytes não cabe. É o que torna **TLS 1.3 impossível** com este certificado
+      (issue #18).
 
 ### Métodos de autorização (2FA / assinatura / PIN)
 

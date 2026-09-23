@@ -17,6 +17,15 @@
 //! recusa `"MD5"` por nome ("Erro ao gerar assinatura RSA."); nenhum dos dois
 //! é usado aqui, então não são modelados.
 //!
+//! A segunda sondagem, de 22/09/2026 (treze casos numa sessão, issue #18),
+//! varreu a tabela de mecanismos por nome e não achou mais nada: nem
+//! `SHA256withRSAandMGF1`, nem `RSASSA-PSS`, nem `SHA256/PSS`, nem `PSS`, nem
+//! `NONE`, nem `RAW`. Todos voltaram com a mesma recusa do `MD5`. **Não existe
+//! RSASSA-PSS nem operação sem padding neste servidor**, e é isso que torna
+//! impossível autenticar em TLS 1.3 com este certificado. Enquanto a Certisign
+//! não oferecer uma das duas, este enum de dois valores é o repertório
+//! completo, e crescer a lista aqui seria inventar comportamento.
+//!
 //! Este é o ÚNICO lugar com os literais do campo. O socket interno os carrega
 //! como string opaca e converte na borda do daemon com [`Algoritmo::do_nome`].
 
@@ -60,8 +69,15 @@ impl Algoritmo {
     ///
     /// - `Sha256`: exatamente 32 bytes, o hash.
     /// - `Cru`: de 1 a `k - 11` bytes (245 para RSA-2048), o teto do PKCS#1
-    ///   v1.5. Só blocos de 34 e 51 bytes foram sondados; se o servidor tiver
-    ///   um teto menor, o diag registra a recusa.
+    ///   v1.5.
+    ///
+    /// O teto de 245 era DEDUÇÃO do PKCS#1 e virou MEDIDA em 22/09/2026: 245
+    /// bytes assinam, e 246, 255 e 256 são recusados com
+    /// `"Erro ao gerar assinatura RSA.Invalid input data size.(1011)"` — outra
+    /// mensagem que a do nome desconhecido, e com o código do SDK do HSM. Ou
+    /// seja, validar aqui não é ser conservador: é recusar do lado do cliente
+    /// exatamente o que o servidor recusaria, sem gastar uma requisição nem uma
+    /// sessão para descobrir.
     pub fn validar(self, dados: &[u8]) -> Result<()> {
         match self {
             Algoritmo::Sha256 if dados.len() != BYTES_SHA256 => Err(Error::uso(format!(
@@ -116,6 +132,23 @@ mod tests {
         assert!(Algoritmo::Sha256.validar(&[0u8; 20]).is_err());
         assert!(Algoritmo::Sha256.validar(&[0u8; 51]).is_err());
         assert!(Algoritmo::Sha256.validar(&[]).is_err());
+    }
+
+    #[test]
+    fn o_teto_do_cru_e_o_que_o_servidor_mediu() {
+        // Ouro da sondagem de 22/09/2026: estes quatro tamanhos foram ao
+        // servidor real, na mesma sessão, e ele respondeu assim. Baixar este
+        // teto empurraria para o servidor um bloco que ele assina; subi-lo
+        // gastaria uma requisição (e, no caminho do daemon, a paciência de
+        // quem digitou PIN e OTP) para receber
+        // "Erro ao gerar assinatura RSA.Invalid input data size.(1011)".
+        assert!(Algoritmo::Cru.validar(&[0u8; 245]).is_ok(), "245 assinou");
+        for medido in [246usize, 255, 256] {
+            assert!(
+                Algoritmo::Cru.validar(&vec![0u8; medido]).is_err(),
+                "{medido} bytes: o servidor recusou com Invalid input data size (1011)"
+            );
+        }
     }
 
     #[test]

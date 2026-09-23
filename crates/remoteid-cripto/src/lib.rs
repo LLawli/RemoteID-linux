@@ -31,6 +31,12 @@ pub const KEY_BYTES: usize = KEY_BITS / 8;
 /// É o teto do `CKM_RSA_PKCS` do PKCS#11 (assinatura crua e cifra) e do modo
 /// cru do `requestHashSessionSignature`, em que o servidor só aplica o padding
 /// ao bloco recebido. Fonte única: quem precisa do número lê daqui.
+///
+/// O servidor da Certisign impõe o MESMO teto, medido em 22/09/2026: 245 bytes
+/// assinam e 246 é recusado com `Invalid input data size.(1011)`. Isso também
+/// responde por que o módulo não pode anunciar `CKM_RSA_X_509`: um bloco
+/// EMSA-PSS tem `k` bytes (256), não cabe em `k - 11`, e sem ele não há
+/// autenticação em TLS 1.3 (issue #18).
 pub const MAX_BLOCO_PKCS1_V15: usize = KEY_BYTES - 11;
 
 /// SHA-256 de um buffer.
