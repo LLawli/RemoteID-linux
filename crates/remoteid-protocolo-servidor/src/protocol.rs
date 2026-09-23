@@ -104,9 +104,18 @@ pub fn tokensessao(
 /// do digest binário, não do hexadecimal.
 ///
 /// `algorithm` vai SEMPRE, inclusive como string vazia no modo cru
-/// ([`Algoritmo::Cru`]): foi com o campo presente e vazio que a sondagem provou
-/// o modo, e omitir não foi testado. Na canônica a string vazia não contribui,
-/// então a assinatura do Bearer não muda por isso.
+/// ([`Algoritmo::Cru`]). Na canônica a string vazia não contribui, então a
+/// assinatura do Bearer é idêntica com o campo vazio ou ausente, e por muito
+/// tempo pareceu que tanto fazia.
+///
+/// **Não faz.** A sondagem de 22/09/2026 (issue #18) mandou um corpo sem o
+/// campo e levou `{"message": "Token inválido", "status": false}`: o pedido
+/// morre na borda do servidor, antes do HSM. Não é sobre o `sessionToken` —
+/// era o mesmo das requisições vizinhas, que passaram na mesma sessão. O
+/// Bearer não distingue os dois casos, mas o servidor distingue, e a mensagem
+/// que ele escolhe manda quem for depurar investigar a sessão, que está boa.
+/// Por isso o campo é montado aqui incondicionalmente, e não com um
+/// `if` sobre o modo.
 pub fn request_hash(
     codigo_desktop: &str,
     session_token: &str,
@@ -220,6 +229,33 @@ mod tests {
             "id vai como inteiro, não string"
         );
         assert_eq!(p["algorithm"], "SHA256");
+    }
+
+    #[test]
+    fn o_campo_algorithm_nunca_some_do_corpo() {
+        // Ouro da sondagem de 22/09/2026: o corpo SEM o campo levou
+        // {"message": "Token inválido", "status": false} do servidor real, com
+        // um sessionToken que as requisições vizinhas usaram e que funcionou.
+        //
+        // A armadilha é a canônica: como a string vazia não contribui, o Bearer
+        // de um corpo com `"algorithm": ""` é idêntico ao de um corpo sem o
+        // campo. Nenhum teste de assinatura pegaria a diferença, e uma
+        // "otimização" que omitisse o campo vazio passaria por toda a suíte
+        // antes de quebrar em produção, com uma mensagem que aponta para o
+        // lugar errado.
+        let h = vec!["QQ==".to_string()];
+        for a in [Algoritmo::Sha256, Algoritmo::Cru] {
+            let corpo = request_hash("DC", "ST", &cert(), a, &h);
+            let campo = corpo.get("algorithm");
+            assert!(
+                campo.is_some(),
+                "{a:?}: a chave `algorithm` tem de existir no JSON"
+            );
+            assert!(
+                campo.unwrap().is_string(),
+                "{a:?}: e ser string, nunca null"
+            );
+        }
     }
 
     #[test]
