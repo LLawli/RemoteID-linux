@@ -363,8 +363,20 @@ fn cmd_carteira(args: &Args) -> Saida {
     motor.salvar_estado()?;
     for c in &certs {
         println!("serial {}\nemissor {}", c.serial_number, c.issue);
+        println!("{}", resumo_cadeia(c.cadeia.len()));
     }
     Ok(())
+}
+
+/// Uma linha sobre a cadeia de autoridades de um certificado. A falta dela não é
+/// erro (o token funciona só com o certificado final), mas há assinador que
+/// depende dela (o do Projudi, issue 22), então o usuário precisa ver.
+fn resumo_cadeia(autoridades: usize) -> String {
+    match autoridades {
+        0 => "cadeia: não baixada (o app tenta de novo ao abrir; detalhes no diag)".to_string(),
+        1 => "cadeia: 1 autoridade".to_string(),
+        n => format!("cadeia: {n} autoridades"),
+    }
 }
 
 fn cmd_celular(args: &Args) -> Saida {
@@ -399,6 +411,7 @@ fn cmd_preparar(args: &Args) -> Saida {
     motor.salvar_estado()?;
     for c in &certs {
         println!("certificado: serial {} / {}", c.serial_number, c.issue);
+        println!("  {}", resumo_cadeia(c.cadeia.len()));
     }
     println!("\npronto. agora: remoteid assinar --arquivo <arquivo>");
     Ok(())

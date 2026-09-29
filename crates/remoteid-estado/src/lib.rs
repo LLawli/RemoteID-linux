@@ -30,6 +30,13 @@ pub struct Certificado {
     /// O X.509 em DER, base64.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base64: Option<String>,
+    /// As autoridades acima dele, cada uma em DER base64, do emissor até a
+    /// raiz. Não vem da carteira: o motor baixa do `caIssuers` do próprio
+    /// certificado, e o módulo PKCS#11 as publica ao lado dele, para o
+    /// hospedeiro montar a cadeia sem ir à rede (issue 22). Vazia quando o
+    /// download ainda não aconteceu ou falhou.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cadeia: Vec<String>,
 }
 
 impl Certificado {
@@ -50,6 +57,7 @@ impl Certificado {
             serial_number: serial.to_string(),
             issue: issuer.to_string(),
             base64,
+            cadeia: Vec::new(),
         })
     }
 
@@ -300,6 +308,18 @@ mod tests {
         let c = Certificado::do_key_name("SER;CN=A;OU=B", None).unwrap();
         assert_eq!(c.serial_number, "SER");
         assert_eq!(c.issue, "CN=A;OU=B");
+    }
+
+    #[test]
+    fn state_json_de_antes_da_cadeia_continua_legivel() {
+        // Instalações preparadas antes da issue 22 não têm o campo: ele nasce
+        // vazio, e o motor completa depois. Vazio também não é gravado, para o
+        // state.json de quem não tem cadeia não mudar de forma.
+        let c: Certificado =
+            serde_json::from_str(r#"{"key_name":"S;CN=A","serial_number":"S","issue":"CN=A"}"#)
+                .unwrap();
+        assert!(c.cadeia.is_empty());
+        assert!(!serde_json::to_string(&c).unwrap().contains("cadeia"));
     }
 
     #[test]

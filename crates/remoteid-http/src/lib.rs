@@ -16,7 +16,9 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
-use remoteid_portas::{Diagnostico, RequisicaoHttp, RespostaHttp, TransporteRemoteId};
+use remoteid_portas::{
+    Diagnostico, FonteDeCadeia, RequisicaoHttp, RespostaHttp, TransporteRemoteId,
+};
 use remoteid_protocolo_servidor::{config, resposta};
 use remoteid_tipos::{Error, Result};
 
@@ -160,6 +162,112 @@ impl TransporteRemoteId for Http {
             status: r.status,
             corpo: r.corpo,
         })
+    }
+}
+
+/// Teto do pacote do `caIssuers`. Um `.p7c` da ICP-Brasil com a cadeia
+/// inteira tem uns 5 KB; o teto só existe para um servidor errado (ou uma
+/// página de erro gigante) não encher a memória do daemon.
+const TETO_PACOTE_BYTES: u64 = 1024 * 1024;
+
+/// O download do `caIssuers`: a porta [`FonteDeCadeia`] sobre HTTP.
+///
+/// Agente próprio, e não o do [`Http`], porque nada do protocolo do RemoteID
+/// vale aqui: o servidor é o repositório público da AC, a resposta é binária, e
+/// o `User-Agent` do app oficial não tem por que ir junto.
+pub struct BaixadorAia {
+    agente: ureq::Agent,
+    diag: Arc<dyn Diagnostico>,
+    /// Em modo de teste, a origem (`http://host:porta`) que substitui a da URL
+    /// do certificado. Ver [`BaixadorAia::redirecionar_para`].
+    origem_teste: Option<String>,
+}
+
+impl BaixadorAia {
+    pub fn novo(diag: Arc<dyn Diagnostico>, timeout: Duration) -> BaixadorAia {
+        let cfg = ureq::Agent::config_builder()
+            .http_status_as_error(false)
+            .timeout_global(Some(timeout))
+            .build();
+        BaixadorAia {
+            agente: ureq::Agent::new_with_config(cfg),
+            diag,
+            origem_teste: None,
+        }
+    }
+
+    /// Troca a origem de toda URL baixada por `origem`, mantendo o caminho.
+    ///
+    /// Só para o modo de teste: o certificado sintético do mock declara o AIA
+    /// em `http://localhost:8799`, mas o gate de integração sobe o mock numa
+    /// porta efêmera. Sem isto, a cadeia só funcionaria na porta padrão.
+    pub fn redirecionar_para(mut self, origem: &str) -> BaixadorAia {
+        self.origem_teste = Some(origem.trim_end_matches('/').to_string());
+        self
+    }
+}
+
+/// `url` com a origem (esquema, host e porta) trocada por `origem`.
+fn com_origem(url: &str, origem: &str) -> String {
+    let resto = url.split_once("://").map_or(url, |(_, r)| r);
+    let caminho = resto.find('/').map_or("/", |i| &resto[i..]);
+    format!("{origem}{caminho}")
+}
+
+impl FonteDeCadeia for BaixadorAia {
+    fn baixar(&self, url: &str) -> Result<Vec<u8>> {
+        let url = match &self.origem_teste {
+            Some(origem) => com_origem(url, origem),
+            None => url.to_string(),
+        };
+        let url = url.as_str();
+        self.diag.evento("aia.request", json!({ "url": url }));
+
+        let mut resp = match self.agente.get(url).call() {
+            Ok(r) => r,
+            Err(e) => {
+                self.diag
+                    .evento("aia.erro", json!({"url": url, "erro": e.to_string()}));
+                return Err(Error::Rede(format!("{url}: {e}")));
+            }
+        };
+        let status = resp.status().as_u16();
+        if status != 200 {
+            self.diag
+                .evento("aia.response", json!({"url": url, "status": status}));
+            return Err(Error::Rede(format!("{url}: HTTP {status}")));
+        }
+        let bytes = resp
+            .body_mut()
+            .with_config()
+            .limit(TETO_PACOTE_BYTES)
+            .read_to_vec()
+            .map_err(|e| Error::Rede(format!("{url}: corpo ilegível: {e}")))?;
+        self.diag.evento(
+            "aia.response",
+            json!({"url": url, "status": status, "bytes": bytes.len()}),
+        );
+        Ok(bytes)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_origem_de_teste_troca_host_e_porta_e_mantem_o_caminho() {
+        assert_eq!(
+            com_origem(
+                "http://localhost:8799/repositorio/AC_TESTE_DESKTOPID.p7c",
+                "http://localhost:41234"
+            ),
+            "http://localhost:41234/repositorio/AC_TESTE_DESKTOPID.p7c"
+        );
+        assert_eq!(
+            com_origem("http://icp-brasil.certisign.com.br", "http://x:1"),
+            "http://x:1/"
+        );
     }
 }
 
