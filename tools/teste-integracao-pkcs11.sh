@@ -101,6 +101,10 @@ REMOTEID_EMAIL=teste@remoteid.local REMOTEID_SENHA=teste-1234 \
     || { cat "$TRABALHO/preparar.log"; falhar "o 'remoteid preparar' não completou"; }
 grep -q 'certificado: serial' "$TRABALHO/preparar.log" || falhar "a carteira não trouxe certificado"
 ok "conta preparada em $DIR_ESTADO"
+# A cadeia vem do caIssuers do certificado, que o mock também serve (issue 22).
+grep -q 'cadeia: 2 autoridades' "$TRABALHO/preparar.log" \
+    || { cat "$TRABALHO/preparar.log"; falhar "o preparo não baixou a cadeia (AC TESTE e raiz)"; }
+ok "cadeia baixada do caIssuers: AC e raiz"
 
 # --------------------------------------------------------------- socket
 passo "subindo o servidor do socket (Servico real, PIN/OTP fixos)"
@@ -144,6 +148,12 @@ ok "RSA-PKCS anuncia encrypt; SHA256-RSA-PKCS não"
 p11 -O >"$TRABALHO/objetos.txt" 2>&1 || falhar "C_FindObjects"
 grep -q 'Certificate Object' "$TRABALHO/objetos.txt" || falhar "o token não publicou o certificado"
 grep -q 'Public Key Object'  "$TRABALHO/objetos.txt" || falhar "o token não publicou a chave pública"
+# O titular e as duas ACs da cadeia. Contagem contra um número fixo, não contra
+# outra contagem derivada: zero certificados não pode passar.
+N_CERTS="$(grep -c 'Certificate Object' "$TRABALHO/objetos.txt" || true)"
+[ "$N_CERTS" -eq 3 ] || { cat "$TRABALHO/objetos.txt"; falhar "o token publicou $N_CERTS certificados, esperado 3 (titular + AC + raiz)"; }
+grep -q 'AC TESTE DESKTOPID' "$TRABALHO/objetos.txt" || falhar "a AC da cadeia não aparece entre os objetos"
+ok "cadeia publicada: 3 certificados no token"
 # Sem ancorar o prefixo, o `.*:` guloso comeria o próprio ID (ac:e8:…:0f) e
 # sobraria só o último octeto.
 ID_CERT="$(grep -m1 '^  ID:' "$TRABALHO/objetos.txt" | sed 's/^  ID: *//; s/://g')"
@@ -287,13 +297,15 @@ else
     # pelo Cipher, verificado como MD5withRSA), que depende do modo cru.
     "$JAVA" tools/prova-jca-pkcs11/ProvaCipher.java "$MODULO" --md5 >"$TRABALHO/java.log" 2>&1 \
         || { cat "$TRABALHO/java.log"; falhar "a prova JCA reprovou"; }
+    grep -q 'getCertificateChain com 3 certificados' "$TRABALHO/java.log" \
+        || { cat "$TRABALHO/java.log"; falhar "a prova JCA não montou a cadeia de 3"; }
     grep -q 'Cipher.RSA/ECB/PKCS1Padding registrado' "$TRABALHO/java.log" \
         || { cat "$TRABALHO/java.log"; falhar "a prova JCA não confirmou o Cipher"; }
     grep -q 'verifica como MD5withRSA' "$TRABALHO/java.log" \
         || { cat "$TRABALHO/java.log"; falhar "a prova JCA não fechou o MD5withRSA"; }
     grep -q '"evento":"assinatura.pedido".*"hospedeiro":"java"' "$DIAG" \
         || falhar "o diag não registrou a JVM (java) como hospedeiro"
-    ok "SunPKCS11 registrou o Cipher; SHA256withRSA e MD5withRSA verificam pela porta do PJeOffice; hospedeiro java no diag"
+    ok "SunPKCS11 montou a cadeia de 3 e registrou o Cipher; SHA256withRSA e MD5withRSA verificam pela porta do PJeOffice; hospedeiro java no diag"
 fi
 
 # --------------------------------------------------------------- segredos
