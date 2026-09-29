@@ -12,6 +12,8 @@ que ninguém sabe o que mudou.
 
 ## [Não publicado]
 
+## [0.3.0] - 2026-09-29
+
 ### Corrigido
 
 - **O token passa a publicar a cadeia de autoridades, e o assinador do
@@ -40,6 +42,15 @@ que ninguém sabe o que mudou.
   `CKR_FUNCTION_FAILED`, que o PJeOffice mostrava como stack trace. A
   mensagem "PIN ou e-Token incorreto" ganhou dica própria no diag: antes ela
   caía na do "e-token", que afirmava, errado, que o PIN tinha sido aceito.
+
+### Segurança
+
+- **rustls 0.23.45, que corrige o RUSTSEC-2026-0285** (#20). A versão anterior
+  aceitava mensagens de handshake TLS 1.3 enviadas no nível de criptografia
+  errado, quando vinham no mesmo registro de uma mensagem que troca a chave. O
+  transcript continua autenticado, então não dá para alterar um handshake por
+  aí; o efeito é aceitar em texto claro mensagens que deveriam vir cifradas. O
+  rustls entra pelo ureq, no transporte até o servidor RemoteID.
 
 ## [0.2.0] - 2026-09-08
 
