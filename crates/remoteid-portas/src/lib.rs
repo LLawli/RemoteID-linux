@@ -74,6 +74,19 @@ pub trait TransporteRemoteId: Send + Sync {
     fn requisitar(&self, req: &RequisicaoHttp) -> Result<RespostaHttp>;
 }
 
+/// De onde vêm os certificados das autoridades: o download do `caIssuers` do
+/// AIA do certificado. Adaptador padrão: `remoteid-http`.
+///
+/// Não é o [`TransporteRemoteId`] de propósito. O `caIssuers` é outro servidor
+/// (o repositório público da AC, por HTTP puro), a resposta é binária (um
+/// `.p7c`), e nada do protocolo do RemoteID se aplica: sem Bearer, sem JSON,
+/// sem "HTTP 200 pode ser erro".
+pub trait FonteDeCadeia: Send + Sync {
+    /// Os bytes crus do recurso em `url`. Qualquer resposta que não seja 200 é
+    /// erro; a interpretação do conteúdo é do domínio (`remoteid-cadeia`).
+    fn baixar(&self, url: &str) -> Result<Vec<u8>>;
+}
+
 /// O log de diagnóstico. Adaptador padrão: `remoteid-diag-jsonl`.
 ///
 /// O adaptador é responsável por aplicar a redação de segredos (a LÓGICA de

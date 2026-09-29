@@ -25,12 +25,13 @@ use std::time::Duration;
 use serde_json::Value;
 
 use remoteid_portas::{
-    Ambiente, CofreDeChave, Contexto, Diagnostico, Prompter, Relogio, RepositorioEstado,
-    RequisicaoHttp, TransporteRemoteId,
+    Ambiente, CofreDeChave, Contexto, Diagnostico, FonteDeCadeia, Prompter, Relogio,
+    RepositorioEstado, RequisicaoHttp, TransporteRemoteId,
 };
 use remoteid_tipos::{Error, IdInstalacao, Origem, Result};
 
 use remoteid_autorizacao::{Fatores, Modo};
+use remoteid_cadeia::Cadeia;
 use remoteid_cripto::{b64, de_b64, sha256};
 use remoteid_estado::{Certificado, Estado};
 use remoteid_protocolo_servidor::canonical::canonical;
@@ -48,7 +49,7 @@ use remoteid_ambiente_sistema::AmbienteSistema;
 use remoteid_caminhos as caminhos;
 use remoteid_chave_pem::CofrePem;
 use remoteid_diag_jsonl::Diag;
-use remoteid_http::Http;
+use remoteid_http::{BaixadorAia, Http};
 use remoteid_relogio_sistema::RelogioSistema;
 use remoteid_store_json::RepositorioJson;
 
@@ -59,6 +60,17 @@ use remoteid_store_json::RepositorioJson;
 /// Enter) não queimar tentativas de PIN sem fim, já que o servidor pode
 /// bloquear o certificado depois de N erros.
 pub const MAX_TENTATIVAS_FATORES: u32 = 3;
+
+/// Quantos pacotes do `caIssuers` o motor baixa para UM certificado. Na
+/// ICP-Brasil o primeiro já traz a cadeia inteira; os saltos seguintes só
+/// existem para AC que publica apenas o próprio certificado. O teto impede que
+/// um AIA mal configurado vire um laço de downloads.
+pub const MAX_PACOTES_CADEIA: usize = 4;
+
+/// Timeout do download da cadeia. Menor que o do RemoteID porque o daemon
+/// completa a cadeia ao subir, e o app não abre enquanto isso não volta: uma
+/// rede que não responde não pode segurar a janela por um minuto.
+const TIMEOUT_CADEIA: Duration = Duration::from_secs(15);
 
 /// Onde e como o motor opera.
 pub struct Opcoes {
@@ -109,6 +121,7 @@ pub struct Dependencias {
     pub repo: Box<dyn RepositorioEstado>,
     pub cofre: Box<dyn CofreDeChave>,
     pub transporte: Box<dyn TransporteRemoteId>,
+    pub fonte_cadeia: Box<dyn FonteDeCadeia>,
     pub diag: Arc<dyn Diagnostico>,
     pub relogio: Box<dyn Relogio>,
     pub ambiente: Box<dyn Ambiente>,
@@ -122,6 +135,7 @@ pub struct Motor {
     repo: Box<dyn RepositorioEstado>,
     cofre: Box<dyn CofreDeChave>,
     transporte: Box<dyn TransporteRemoteId>,
+    fonte_cadeia: Box<dyn FonteDeCadeia>,
     diag: Arc<dyn Diagnostico>,
     relogio: Box<dyn Relogio>,
     ambiente: Box<dyn Ambiente>,
@@ -140,10 +154,17 @@ impl Motor {
         let dir = opcoes.dir_dados.clone();
         let diag: Arc<dyn Diagnostico> = Arc::new(Diag::abrir(&opcoes.dir_diag));
         let transporte = Box::new(Http::novo(diag.clone(), opcoes.timeout));
+        let mut fonte_cadeia = BaixadorAia::novo(diag.clone(), TIMEOUT_CADEIA.min(opcoes.timeout));
+        // Em teste, o AIA do certificado sintético aponta para o mock na porta
+        // padrão; o download vai para onde o mock está de fato (o `TEST_URL`).
+        if caminhos::em_teste() {
+            fonte_cadeia = fonte_cadeia.redirecionar_para(&opcoes.remoteid_url);
+        }
         let deps = Dependencias {
             repo: Box::new(RepositorioJson::novo(dir.clone())),
             cofre: Box::new(CofrePem::novo(dir)),
             transporte,
+            fonte_cadeia: Box::new(fonte_cadeia),
             diag,
             relogio: Box::new(RelogioSistema),
             ambiente: Box::new(AmbienteSistema),
@@ -179,6 +200,7 @@ impl Motor {
             repo: deps.repo,
             cofre: deps.cofre,
             transporte: deps.transporte,
+            fonte_cadeia: deps.fonte_cadeia,
             diag: deps.diag,
             relogio: deps.relogio,
             ambiente: deps.ambiente,
@@ -363,7 +385,12 @@ impl Motor {
         Ok(tem_push)
     }
 
-    /// `carteira`: baixa os certificados e guarda serial e emissor.
+    /// `carteira`: baixa os certificados e guarda serial e emissor, e a cadeia
+    /// de autoridades de cada um (ver [`Self::completar_cadeias`]).
+    ///
+    /// A cadeia não é pré-requisito: se o download falhar, o certificado entra
+    /// com a cadeia que já tinha (quando é o mesmo) ou sem nenhuma, e o motivo
+    /// vai ao diag. A carteira em si não falha por causa dela.
     pub fn carteira(&mut self) -> Result<&[Certificado]> {
         let codigo = self.estado.codigo_desktop()?.to_string();
         let corpo = protocol::momento(self.relogio.agora());
@@ -386,8 +413,128 @@ impl Motor {
                 "a carteira veio sem nenhum certificado utilizável (sem `keyName`)",
             ));
         }
+        for cert in &mut certificados {
+            let anterior = self
+                .estado
+                .certificados
+                .iter()
+                .find(|a| a.chave_cache() == cert.chave_cache() && a.base64 == cert.base64);
+            cert.cadeia = match self.cadeia_de(cert) {
+                Some(cadeia) => cadeia,
+                None => anterior.map(|a| a.cadeia.clone()).unwrap_or_default(),
+            };
+        }
         self.estado.certificados = certificados;
         Ok(&self.estado.certificados)
+    }
+
+    /// Baixa a cadeia dos certificados que ainda não a têm, e grava o estado se
+    /// algum mudou. Devolve quantos ganharam cadeia.
+    ///
+    /// Existe para as instalações preparadas antes de a cadeia existir: o daemon
+    /// chama isto ao subir. Não vai ao RemoteID (só ao `caIssuers` público da
+    /// AC), não pede nada ao titular, e um certificado que já tem cadeia não
+    /// gera nenhuma requisição. Falha de download não é erro aqui: fica no diag,
+    /// e a próxima subida tenta de novo.
+    pub fn completar_cadeias(&mut self) -> Result<usize> {
+        let mut completados = 0;
+        for i in 0..self.estado.certificados.len() {
+            let cert = &self.estado.certificados[i];
+            if !cert.cadeia.is_empty() || cert.base64.is_none() {
+                continue;
+            }
+            if let Some(cadeia) = self.cadeia_de(cert) {
+                if !cadeia.is_empty() {
+                    self.estado.certificados[i].cadeia = cadeia;
+                    completados += 1;
+                }
+            }
+        }
+        if completados > 0 {
+            self.salvar_estado()?;
+        }
+        Ok(completados)
+    }
+
+    /// A cadeia de `cert` em base64, pronta para o estado, ou `None` se não deu
+    /// para montá-la. O motivo vai ao diag nos dois casos.
+    fn cadeia_de(&self, cert: &Certificado) -> Option<Vec<String>> {
+        let cert_key = cert.chave_cache();
+        let resultado = cert
+            .base64
+            .as_deref()
+            .ok_or_else(|| Error::estado("a carteira não trouxe o DER do certificado"))
+            .and_then(|b| de_b64(b.trim()))
+            .and_then(|der| self.baixar_cadeia(&der));
+        match resultado {
+            Ok(cadeia) => {
+                self.diag.evento(
+                    "cadeia.montada",
+                    serde_json::json!({
+                        "cert_key": &cert_key,
+                        "autoridades": cadeia.autoridades.len(),
+                        "completa": cadeia.completa,
+                    }),
+                );
+                // Nenhuma autoridade de um final que não é autoassinado quer
+                // dizer que o pacote não trouxe o emissor: não é uma cadeia.
+                if cadeia.autoridades.is_empty() && !cadeia.completa {
+                    return None;
+                }
+                Some(cadeia.autoridades.iter().map(|der| b64(der)).collect())
+            }
+            Err(e) => {
+                self.diag.evento(
+                    "cadeia.falhou",
+                    serde_json::json!({ "cert_key": &cert_key, "motivo": e.to_string() }),
+                );
+                None
+            }
+        }
+    }
+
+    /// O laço de download: segue o `caIssuers` a partir do certificado final
+    /// até a cadeia chegar à raiz, até o próximo elo não declarar de onde vem,
+    /// ou até [`MAX_PACOTES_CADEIA`]. O que decide cada passo é puro
+    /// ([`remoteid_cadeia`]); aqui só fica o I/O.
+    ///
+    /// Uma falha depois do primeiro pacote não joga fora o que já foi montado:
+    /// as intermediárias que vieram já servem ao validador do outro lado.
+    fn baixar_cadeia(&self, final_der: &[u8]) -> Result<Cadeia> {
+        let mut candidatos = Vec::new();
+        let mut visitadas: Vec<String> = Vec::new();
+        let mut cadeia = remoteid_cadeia::montar(final_der, &candidatos)?;
+        while !cadeia.completa && visitadas.len() < MAX_PACOTES_CADEIA {
+            let alvo = remoteid_cadeia::proximo_a_seguir(final_der, &cadeia);
+            let url = match remoteid_cadeia::url_ca_issuers(alvo)? {
+                Some(url) if !visitadas.contains(&url) => url,
+                Some(_) => break,
+                None if visitadas.is_empty() => {
+                    return Err(Error::estado(
+                        "o certificado não declara um caIssuers HTTP no AIA",
+                    ));
+                }
+                None => break,
+            };
+            visitadas.push(url.clone());
+            let pacote = self
+                .fonte_cadeia
+                .baixar(&url)
+                .and_then(|bytes| remoteid_cadeia::certificados_do_pacote(&bytes));
+            match pacote {
+                Ok(certs) => candidatos.extend(certs),
+                Err(e) if cadeia.autoridades.is_empty() => return Err(e),
+                Err(e) => {
+                    self.diag.evento(
+                        "cadeia.pacote_falhou",
+                        serde_json::json!({ "url": &url, "motivo": e.to_string() }),
+                    );
+                    break;
+                }
+            }
+            cadeia = remoteid_cadeia::montar(final_der, &candidatos)?;
+        }
+        Ok(cadeia)
     }
 
     /// `tokensessao`: abre a sessão de assinatura e devolve o `sessionToken`.

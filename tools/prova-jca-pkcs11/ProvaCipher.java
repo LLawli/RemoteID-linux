@@ -20,6 +20,12 @@
 // `--md5` liga o segundo passo, o que o `PjeAuthenticatorTask` faz de fato:
 // `DigestInfo(MD5)` de 34 bytes assinado cru e verificado como `MD5withRSA`.
 // Só passa com o modo cru do caminho de produção (issue #11).
+//
+// Antes da cifra, a cadeia (issue #22): `KeyStore.getCertificateChain` tem de
+// devolver o titular, a AC e a raiz do mock, cada elo verificando contra o
+// seguinte, e as ACs no token não podem virar uma segunda entrada de chave. É o
+// que o assinador do Projudi (TJPR) pede ao SunPKCS11 e hoje recebe com
+// tamanho 1.
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.MessageDigest;
@@ -28,6 +34,8 @@ import java.security.Provider;
 import java.security.PublicKey;
 import java.security.Security;
 import java.security.Signature;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Enumeration;
 import javax.crypto.Cipher;
@@ -53,16 +61,38 @@ public class ProvaCipher {
         KeyStore ks = KeyStore.getInstance("PKCS11", p11);
         ks.load(null, null);
         String alias = null;
+        int entradasDeChave = 0;
         for (Enumeration<String> e = ks.aliases(); e.hasMoreElements(); ) {
             String x = e.nextElement();
             if (ks.isKeyEntry(x)) {
-                alias = x;
-                break;
+                entradasDeChave++;
+                if (alias == null) {
+                    alias = x;
+                }
             }
         }
         if (alias == null) {
             falhar("o KeyStore do SunPKCS11 não enxergou nenhuma chave privada no token");
         }
+        if (entradasDeChave != 1) {
+            falhar("o KeyStore tem " + entradasDeChave + " entradas de chave; as ACs da cadeia"
+                + " não podem parear com a chave do titular");
+        }
+
+        Certificate[] cadeia = ks.getCertificateChain(alias);
+        if (cadeia == null || cadeia.length != 3) {
+            falhar("getCertificateChain devolveu " + (cadeia == null ? 0 : cadeia.length)
+                + " certificados, esperado 3 (titular, AC TESTE e raiz do mock)");
+        }
+        for (int i = 0; i + 1 < cadeia.length; i++) {
+            cadeia[i].verify(cadeia[i + 1].getPublicKey());
+        }
+        X509Certificate raiz = (X509Certificate) cadeia[cadeia.length - 1];
+        if (!raiz.getSubjectX500Principal().equals(raiz.getIssuerX500Principal())) {
+            falhar("o último certificado da cadeia não é autoassinado");
+        }
+        ok("getCertificateChain com " + cadeia.length + " certificados, cada elo verificado,"
+            + " até " + raiz.getSubjectX500Principal().getName());
         PrivateKey privada = (PrivateKey) ks.getKey(alias, null);
         PublicKey publica = ks.getCertificate(alias).getPublicKey();
         ok("KeyStore PKCS11 carregado, entrada de chave '" + alias + "'");

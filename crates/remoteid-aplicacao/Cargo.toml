@@ -13,6 +13,7 @@ remoteid-tipos = { path = "../remoteid-tipos" }
 remoteid-autorizacao = { path = "../remoteid-autorizacao" }
 remoteid-cripto = { path = "../remoteid-cripto" }
 remoteid-estado = { path = "../remoteid-estado" }
+remoteid-cadeia = { path = "../remoteid-cadeia" }
 remoteid-protocolo-servidor = { path = "../remoteid-protocolo-servidor" }
 remoteid-caminhos = { path = "../remoteid-caminhos" }
 remoteid-diag-jsonl = { path = "../remoteid-diag-jsonl" }
@@ -24,6 +25,7 @@ remoteid-ambiente-sistema = { path = "../remoteid-ambiente-sistema" }
 serde_json.workspace = true
 
 [dev-dependencies]
+remoteid-cadeia = { path = "../remoteid-cadeia" }
 remoteid-cripto = { path = "../remoteid-cripto" }
 remoteid-estado = { path = "../remoteid-estado" }
 remoteid-autorizacao = { path = "../remoteid-autorizacao" }

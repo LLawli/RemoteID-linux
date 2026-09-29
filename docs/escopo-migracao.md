@@ -98,6 +98,7 @@ implementada por um ou mais adaptadores na borda.
 | `RepositorioEstado` | carregar/salvar o `Estado` (conta: userId, codigoDesktop, certificados, auth_mode, cache de sessões) | `json` (`state.json`, 0600, escrita atômica) | `xml`, `postgres` (central) |
 | `CofreDeChave` | dar a chave pública em PEM para o registro e **assinar** um digest (a chave crua fica dentro do adaptador) | `pem` (`installation-key.pem`, 0600) | `postgres`, HSM |
 | `TransporteRemoteId` | enviar a requisição já assinada ao servidor e devolver corpo+status | `ureq` | mock (teste), reqwest/async |
+| `FonteDeCadeia` | baixar o pacote do `caIssuers` (AIA) do certificado, binário, sem nada do protocolo do RemoteID (issue 22) | `ureq` (`BaixadorAia`, em `remoteid-http`) | falsa (teste) |
 | `Diagnostico` | receber eventos já redigidos e persistir | `jsonl` (arquivo por execução, poda) | nulo, syslog |
 | `Prompter` | obter PIN+OTP do usuário (já existe) | `gtk` | fixos (teste) |
 | `Relogio` | tempo atual em epoch | relógio do sistema | fixo (teste) |
@@ -156,6 +157,9 @@ crate por domínio para o isolamento máximo que o usuário pediu:
   como funções puras sobre material de chave passado por valor.
 - `remoteid-autorizacao`: `Modo`, `Fatores`, a regra pin+otp vs push.
 - `remoteid-assinatura` (CAdES/PKCS#7): montagem do envelope, pura.
+- `remoteid-cadeia`: a cadeia de autoridades do certificado (issue 22). Lê o
+  `caIssuers` do AIA, abre o `.p7c` e ordena do emissor até a raiz, casando por
+  nome e por SKI/AKI. O download é da porta `FonteDeCadeia`; o laço, do motor.
 - `remoteid-estado`: `Estado`, `Certificado`, `SessaoCache` e a política de
   cache/decisão do fluxo otimista (o que hoje está espalhado no `engine`).
 

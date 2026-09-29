@@ -18,8 +18,8 @@ use remoteid_autorizacao::Modo;
 use remoteid_diag_jsonl::Diag;
 use remoteid_estado::Estado;
 use remoteid_portas::{
-    Ambiente, CofreDeChave, Diagnostico, Relogio, RepositorioEstado, RequisicaoHttp, RespostaHttp,
-    TransporteRemoteId,
+    Ambiente, CofreDeChave, Diagnostico, FonteDeCadeia, Relogio, RepositorioEstado, RequisicaoHttp,
+    RespostaHttp, TransporteRemoteId,
 };
 use remoteid_tipos::{Error, IdInstalacao, Result};
 
@@ -55,6 +55,12 @@ impl RepositorioEstado for RepoMem {
 struct TransporteNulo;
 impl TransporteRemoteId for TransporteNulo {
     fn requisitar(&self, _: &RequisicaoHttp) -> Result<RespostaHttp> {
+        Err(Error::uso("o teste de injeção não vai à rede"))
+    }
+}
+struct FonteNula;
+impl FonteDeCadeia for FonteNula {
+    fn baixar(&self, _: &str) -> Result<Vec<u8>> {
         Err(Error::uso("o teste de injeção não vai à rede"))
     }
 }
@@ -94,6 +100,7 @@ fn deps_com(repo: RepoMem) -> Dependencias {
         repo: Box::new(repo),
         cofre: Box::new(CofreNulo),
         transporte: Box::new(TransporteNulo),
+        fonte_cadeia: Box::new(FonteNula),
         diag: Arc::new(Diag::inerte()) as Arc<dyn Diagnostico>,
         relogio: Box::new(RelogioFixo),
         ambiente: Box::new(AmbienteFalso),

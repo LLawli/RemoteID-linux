@@ -19,9 +19,15 @@
 //! - PIN `1234`, OTP `123456`
 //!
 //! `REMOTEID_MOCK_FIXTURES=<dir>` troca o certificado embutido pelo de um
-//! diretório de fora (`cert.der`, `key.pem`, `keyname.txt`), para rodar contra
-//! uma carteira com a forma e o conteúdo de uma real sem que esse material
-//! encoste no repositório. Ver [`Carteira::carregar`].
+//! diretório de fora (`cert.der`, `key.pem`, `keyname.txt`, e opcionalmente
+//! `cadeia.p7c`), para rodar contra uma carteira com a forma e o conteúdo de
+//! uma real sem que esse material encoste no repositório. Ver
+//! [`Carteira::carregar`].
+//!
+//! Além do RemoteID, o mock faz o papel do repositório da AC: responde ao GET
+//! do `caIssuers` (qualquer caminho terminado em `.p7c`) com a cadeia. O
+//! certificado sintético declara o AIA em `http://localhost:8799`, e o motor,
+//! em modo de teste, troca essa origem pelo `TEST_URL`.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -34,6 +40,7 @@ use serde_json::{json, Value};
 // Fixtures embutidas (geradas por openssl; ver crates/remoteid-mock/fixtures).
 const CHAVE_PEM: &str = include_str!("../fixtures/fake-key.pem");
 const CERT_DER: &[u8] = include_bytes!("../fixtures/fake-cert.der");
+const CADEIA_P7C: &[u8] = include_bytes!("../fixtures/AC_TESTE_DESKTOPID.p7c");
 
 /// Diretório com `cert.der`, `key.pem` e `keyname.txt` que substituem as
 /// fixtures embutidas. Ver [`Carteira::carregar`].
@@ -46,7 +53,7 @@ const PIN_OK: &str = "1234";
 const OTP_OK: &str = "123456";
 
 // Metadados do certificado falso (o serial bate com o `fake-cert.der`).
-const SERIAL: &str = "5555DC3AA6C69D58EDBA3A7F9C682E12719E1804";
+const SERIAL: &str = "16C3F7EFA6CCE55817FA659DC8EAA29B7E512621";
 const ISSUER: &str = "CN=AC TESTE DESKTOPID, O=ICP-Brasil TESTE, C=BR";
 const CODIGO_DESKTOP: &str = "4d1f71d2-c20b-44d0-9bb0-5629015f21e8";
 const JWT_FALSO: &str = "jwt.do.login";
@@ -60,6 +67,9 @@ struct Carteira {
     cert_b64: String,
     key_name: String,
     serial: String,
+    /// O que o GET do `caIssuers` devolve. `None` responde 404, que é o
+    /// caminho do "repositório da AC fora do ar".
+    pacote_cadeia: Option<Vec<u8>>,
 }
 
 impl Carteira {
@@ -88,6 +98,7 @@ impl Carteira {
             cert_b64: b64(CERT_DER),
             key_name: format!("{SERIAL};{ISSUER}"),
             serial: SERIAL.to_string(),
+            pacote_cadeia: Some(CADEIA_P7C.to_vec()),
         }
     }
 
@@ -128,6 +139,9 @@ impl Carteira {
             cert_b64: b64(&cert_der),
             key_name,
             serial,
+            // Opcional: o `.p7c` público da AC do certificado real (é dado
+            // público, mas mora ao lado do resto, fora do repositório).
+            pacote_cadeia: std::fs::read(dir.join("cadeia.p7c")).ok(),
         }
     }
 }
@@ -198,6 +212,20 @@ fn atender(mut fluxo: TcpStream, carteira: &Carteira) -> std::io::Result<()> {
     if content_length > 0 {
         leitor.read_exact(&mut corpo)?;
     }
+    // O repositório da AC: binário, fora do roteamento JSON.
+    if caminho.ends_with(".p7c") {
+        return match &carteira.pacote_cadeia {
+            Some(pacote) => {
+                eprintln!("  {caminho} -> OK (cadeia, {} bytes)", pacote.len());
+                responder_bytes(&mut fluxo, "200 OK", "application/pkcs7-mime", pacote)
+            }
+            None => {
+                eprintln!("  {caminho} -> 404 (sem cadeia.p7c)");
+                responder_bytes(&mut fluxo, "404 Not Found", "text/plain", b"sem cadeia")
+            }
+        };
+    }
+
     let corpo_json: Value = serde_json::from_slice(&corpo).unwrap_or(Value::Null);
 
     let resposta = rotear(&caminho, &corpo_json, carteira);
@@ -348,12 +376,25 @@ fn resumo(v: &Value) -> String {
 }
 
 fn responder(fluxo: &mut TcpStream, corpo: &Value) -> std::io::Result<()> {
-    let texto = corpo.to_string();
+    responder_bytes(
+        fluxo,
+        "200 OK",
+        "application/json",
+        corpo.to_string().as_bytes(),
+    )
+}
+
+fn responder_bytes(
+    fluxo: &mut TcpStream,
+    status: &str,
+    tipo: &str,
+    corpo: &[u8],
+) -> std::io::Result<()> {
     let cabecalho = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-        texto.len()
+        "HTTP/1.1 {status}\r\nContent-Type: {tipo}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        corpo.len()
     );
     fluxo.write_all(cabecalho.as_bytes())?;
-    fluxo.write_all(texto.as_bytes())?;
+    fluxo.write_all(corpo)?;
     fluxo.flush()
 }

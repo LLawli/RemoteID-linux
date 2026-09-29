@@ -12,7 +12,7 @@ use x509_cert::Certificate;
 
 use cryptoki_sys::*;
 
-use crate::objetos::Objeto;
+use crate::objetos::{Objeto, HANDLE_PRIMEIRA_AUTORIDADE};
 
 use remoteid_cripto::ChaveInstalacao;
 
@@ -67,6 +67,18 @@ impl Token {
             .map_err(|e| format!("certificado da carteira não é base64: {e}"))?;
 
         let mut token = Token::do_certificado(&der, &cert.serial_number)?;
+        // A cadeia é um extra: uma AC ilegível no state.json não pode tirar o
+        // certificado do titular do ar. As que não decodificam ficam de fora.
+        let autoridades: Vec<Vec<u8>> = cert
+            .cadeia
+            .iter()
+            .filter_map(|b| {
+                base64::engine::general_purpose::STANDARD
+                    .decode(b.trim())
+                    .ok()
+            })
+            .collect();
+        token.publicar_autoridades(&autoridades);
 
         // Modo de teste: se `chave-assinatura.pem` estiver no diretório de
         // dados, o módulo assina localmente com ela. É o que permite validar a
@@ -115,31 +127,17 @@ impl Token {
     }
 
     pub fn do_certificado(der: &[u8], serie: &str) -> Result<Token, String> {
-        let cert = Certificate::from_der(der).map_err(|e| format!("X.509 inválido: {e}"))?;
+        let CamposX509 {
+            cert,
+            subject,
+            issuer,
+            serial,
+            id,
+        } = CamposX509::de(der)?;
         let tbs = &cert.tbs_certificate;
-
-        let subject = tbs.subject.to_der().map_err(|e| format!("subject: {e}"))?;
-        let issuer = tbs.issuer.to_der().map_err(|e| format!("issuer: {e}"))?;
-        // CKA_SERIAL_NUMBER é o DER do INTEGER, não o número em texto. O NSS
-        // compara byte a byte com o que extrai do certificado; texto aqui faz o
-        // par certificado/chave nunca casar.
-        let serial = tbs
-            .serial_number
-            .to_der()
-            .map_err(|e| format!("serial: {e}"))?;
-        let spki = tbs
-            .subject_public_key_info
-            .to_der()
-            .map_err(|e| format!("SPKI: {e}"))?;
 
         let rotulo =
             nome_comum(&tbs.subject.to_string()).unwrap_or_else(|| format!("RemoteID {serie}"));
-
-        // CKA_ID só precisa ser estável e igual entre o certificado e a chave
-        // que um dia vai ao lado dele: o NSS o usa como par, não o interpreta.
-        // Derivar do SPKI garante isso sem depender de o certificado trazer a
-        // extensão SubjectKeyIdentifier.
-        let id = Sha256::digest(&spki)[..20].to_vec();
 
         let mut objetos = vec![Objeto::certificado(
             der.to_vec(),
@@ -183,6 +181,33 @@ impl Token {
         })
     }
 
+    /// Publica as autoridades da cadeia como `CKO_CERTIFICATE`, ao lado do
+    /// certificado do titular (issue 22). `ders` vem na ordem da cadeia.
+    ///
+    /// Os objetos do titular continuam primeiro: há hospedeiro que pega o
+    /// primeiro certificado de um `C_FindObjects` e assume que é o do titular.
+    /// Uma AC que não decodifica é pulada; as outras entram.
+    pub fn publicar_autoridades(&mut self, ders: &[Vec<u8>]) {
+        let mut handle = HANDLE_PRIMEIRA_AUTORIDADE;
+        for der in ders {
+            let Ok(campos) = CamposX509::de(der) else {
+                continue;
+            };
+            let rotulo = nome_comum(&campos.cert.tbs_certificate.subject.to_string())
+                .unwrap_or_else(|| "Autoridade certificadora".to_string());
+            self.objetos.push(Objeto::autoridade(
+                handle,
+                der.clone(),
+                campos.subject,
+                campos.issuer,
+                campos.serial,
+                campos.id,
+                rotulo,
+            ));
+            handle += 1;
+        }
+    }
+
     pub fn objeto(&self, handle: CK_OBJECT_HANDLE) -> Option<&Objeto> {
         self.objetos.iter().find(|o| o.handle == handle)
     }
@@ -194,6 +219,48 @@ impl Token {
             .filter(|o| o.casa(gabarito))
             .map(|o| o.handle)
             .collect()
+    }
+}
+
+/// Os atributos de um `CKO_CERTIFICATE` que saem do próprio X.509.
+struct CamposX509 {
+    cert: Certificate,
+    subject: Vec<u8>,
+    issuer: Vec<u8>,
+    serial: Vec<u8>,
+    id: Vec<u8>,
+}
+
+impl CamposX509 {
+    fn de(der: &[u8]) -> Result<CamposX509, String> {
+        let cert = Certificate::from_der(der).map_err(|e| format!("X.509 inválido: {e}"))?;
+        let tbs = &cert.tbs_certificate;
+        let subject = tbs.subject.to_der().map_err(|e| format!("subject: {e}"))?;
+        let issuer = tbs.issuer.to_der().map_err(|e| format!("issuer: {e}"))?;
+        // CKA_SERIAL_NUMBER é o DER do INTEGER, não o número em texto. O NSS
+        // compara byte a byte com o que extrai do certificado; texto aqui faz o
+        // par certificado/chave nunca casar.
+        let serial = tbs
+            .serial_number
+            .to_der()
+            .map_err(|e| format!("serial: {e}"))?;
+        let spki = tbs
+            .subject_public_key_info
+            .to_der()
+            .map_err(|e| format!("SPKI: {e}"))?;
+        // CKA_ID só precisa ser estável e igual entre o certificado e a chave
+        // que um dia vai ao lado dele: o NSS o usa como par, não o interpreta.
+        // Derivar do SPKI garante isso sem depender de o certificado trazer a
+        // extensão SubjectKeyIdentifier, e dá a cada AC um id que não é o do
+        // titular (chaves diferentes, SPKIs diferentes).
+        let id = Sha256::digest(&spki)[..20].to_vec();
+        Ok(CamposX509 {
+            cert,
+            subject,
+            issuer,
+            serial,
+            id,
+        })
     }
 }
 
@@ -230,6 +297,7 @@ fn rsa_do_spki_bytes(pkcs1_der: &[u8]) -> Option<rsa::RsaPublicKey> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::objetos::{HANDLE_CERTIFICADO, HANDLE_CHAVE_PRIVADA, HANDLE_CHAVE_PUBLICA};
 
     #[test]
     fn cn_sai_do_dn_em_rfc4514() {
@@ -240,5 +308,105 @@ mod tests {
     #[test]
     fn dn_sem_cn_nao_inventa_rotulo() {
         assert!(nome_comum("OU=AC OAB, O=ICP-Brasil, C=BR").is_none());
+    }
+
+    // A cadeia SINTÉTICA do mock: titular → AC TESTE DESKTOPID → raiz.
+    const TITULAR: &[u8] = include_bytes!("../../remoteid-mock/fixtures/fake-cert.der");
+    const PACOTE: &[u8] = include_bytes!("../../remoteid-mock/fixtures/AC_TESTE_DESKTOPID.p7c");
+
+    fn token_com_cadeia() -> Token {
+        let cadeia = remoteid_cadeia::montar(
+            TITULAR,
+            &remoteid_cadeia::certificados_do_pacote(PACOTE).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(cadeia.autoridades.len(), 2);
+        let mut token = Token::do_certificado(TITULAR, "SERIE").unwrap();
+        token.publicar_autoridades(&cadeia.autoridades);
+        token
+    }
+
+    fn atributo(token: &Token, handle: CK_OBJECT_HANDLE, tipo: CK_ATTRIBUTE_TYPE) -> Vec<u8> {
+        token
+            .objeto(handle)
+            .unwrap()
+            .atributo(tipo)
+            .unwrap()
+            .valor
+            .clone()
+    }
+
+    #[test]
+    fn a_cadeia_se_percorre_pelo_subject_como_o_sunpkcs11_faz() {
+        // O `P11KeyStore.loadChain`: a partir do certificado final, procura
+        // `CKA_CLASS = CKO_CERTIFICATE, CKA_SUBJECT = <issuer do anterior>`
+        // até chegar à autoassinada. Tem de andar dois passos e parar.
+        let token = token_com_cadeia();
+        let classe = (CKA_CLASS, CKO_CERTIFICATE.to_ne_bytes().to_vec());
+        let mut atual = HANDLE_CERTIFICADO;
+        let mut caminho = vec![];
+        loop {
+            let emissor = atributo(&token, atual, CKA_ISSUER);
+            if emissor == atributo(&token, atual, CKA_SUBJECT) {
+                break;
+            }
+            let achados = token.buscar(&[classe.clone(), (CKA_SUBJECT, emissor)]);
+            assert_eq!(achados.len(), 1, "um emissor por passo");
+            atual = achados[0];
+            caminho.push(atual);
+        }
+        assert_eq!(
+            caminho,
+            vec![HANDLE_PRIMEIRA_AUTORIDADE, HANDLE_PRIMEIRA_AUTORIDADE + 1]
+        );
+    }
+
+    #[test]
+    fn as_autoridades_sao_ac_e_nao_pareiam_com_a_chave() {
+        let token = token_com_cadeia();
+        let id_titular = atributo(&token, HANDLE_CERTIFICADO, CKA_ID);
+        for h in [HANDLE_PRIMEIRA_AUTORIDADE, HANDLE_PRIMEIRA_AUTORIDADE + 1] {
+            assert_eq!(
+                atributo(&token, h, CKA_CERTIFICATE_CATEGORY),
+                CK_CERTIFICATE_CATEGORY_AUTHORITY.to_ne_bytes()
+            );
+            assert_eq!(atributo(&token, h, CKA_TRUSTED), vec![CK_FALSE]);
+            assert_ne!(atributo(&token, h, CKA_ID), id_titular);
+        }
+        // Buscar pelo CKA_ID do titular continua achando só o trio dele.
+        let mut do_titular = token.buscar(&[(CKA_ID, id_titular)]);
+        do_titular.sort();
+        assert_eq!(
+            do_titular,
+            vec![
+                HANDLE_CERTIFICADO,
+                HANDLE_CHAVE_PRIVADA,
+                HANDLE_CHAVE_PUBLICA
+            ]
+        );
+        assert_eq!(
+            atributo(&token, HANDLE_PRIMEIRA_AUTORIDADE, CKA_LABEL),
+            b"AC TESTE DESKTOPID"
+        );
+    }
+
+    #[test]
+    fn o_certificado_do_titular_continua_o_primeiro_da_busca() {
+        let token = token_com_cadeia();
+        let certs = token.buscar(&[(CKA_CLASS, CKO_CERTIFICATE.to_ne_bytes().to_vec())]);
+        assert_eq!(certs.len(), 3);
+        assert_eq!(certs[0], HANDLE_CERTIFICADO);
+    }
+
+    #[test]
+    fn autoridade_ilegivel_e_pulada_sem_derrubar_as_outras() {
+        let mut token = Token::do_certificado(TITULAR, "SERIE").unwrap();
+        let certs = remoteid_cadeia::certificados_do_pacote(PACOTE).unwrap();
+        token.publicar_autoridades(&[b"lixo".to_vec(), certs[0].clone()]);
+        let achados = token.buscar(&[(CKA_CLASS, CKO_CERTIFICATE.to_ne_bytes().to_vec())]);
+        assert_eq!(
+            achados,
+            vec![HANDLE_CERTIFICADO, HANDLE_PRIMEIRA_AUTORIDADE]
+        );
     }
 }

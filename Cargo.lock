@@ -1096,6 +1096,7 @@ version = "0.2.0"
 dependencies = [
  "remoteid-ambiente-sistema",
  "remoteid-autorizacao",
+ "remoteid-cadeia",
  "remoteid-caminhos",
  "remoteid-chave-pem",
  "remoteid-cripto",
@@ -1127,6 +1128,16 @@ dependencies = [
 [[package]]
 name = "remoteid-autorizacao"
 version = "0.2.0"
+
+[[package]]
+name = "remoteid-cadeia"
+version = "0.2.0"
+dependencies = [
+ "cms",
+ "der",
+ "remoteid-tipos",
+ "x509-cert",
+]
 
 [[package]]
 name = "remoteid-caminhos"
@@ -1247,6 +1258,7 @@ dependencies = [
  "cryptoki-sys",
  "der",
  "rand",
+ "remoteid-cadeia",
  "remoteid-caminhos",
  "remoteid-chave-pem",
  "remoteid-cripto",

@@ -28,7 +28,7 @@ impl Servico {
     /// [`Requisicao::Reinstalar`] poder reabrir do zero.
     pub fn novo(opcoes: Opcoes, prompter: Box<dyn Prompter>) -> remoteid_tipos::Result<Servico> {
         let opcoes_base = clonar_opcoes(&opcoes);
-        let motor = Motor::abrir(opcoes)?;
+        let motor = abrir_motor(opcoes)?;
         Ok(Servico {
             motor,
             opcoes_base,
@@ -47,7 +47,7 @@ impl Servico {
     /// reabrir, o `Servico` seguiria com o motor vazio de antes do preparo.
     /// Preserva o prompter e o cache — só o motor é trocado.
     pub fn reabrir(&mut self) -> remoteid_tipos::Result<()> {
-        self.motor = Motor::abrir(clonar_opcoes(&self.opcoes_base))?;
+        self.motor = abrir_motor(clonar_opcoes(&self.opcoes_base))?;
         Ok(())
     }
 
@@ -250,6 +250,27 @@ impl Servico {
             Err(e) => erro_para_resposta(e),
         }
     }
+}
+
+/// Abre o motor e completa a cadeia dos certificados que ainda não a têm.
+///
+/// É aqui, e não no módulo PKCS#11, que a cadeia é baixada: o módulo roda
+/// dentro do processo do hospedeiro, na hora de listar slots, e não vai à rede
+/// de propósito (ver `Token::carregar`). Aqui é o app subindo. Uma instalação
+/// preparada antes da issue 22 ganha a cadeia na primeira subida depois da
+/// atualização; uma que já tem não faz requisição nenhuma.
+///
+/// Falhar em completar não impede o app de abrir: o motivo vai ao diag e o
+/// token segue com o certificado do titular sozinho, como antes.
+fn abrir_motor(opcoes: Opcoes) -> remoteid_tipos::Result<Motor> {
+    let mut motor = Motor::abrir(opcoes)?;
+    if let Err(e) = motor.completar_cadeias() {
+        motor.evento(
+            "cadeia.nao_gravada",
+            serde_json::json!({ "motivo": e.to_string() }),
+        );
+    }
+    Ok(motor)
 }
 
 fn erro_para_resposta(erro: Error) -> Resposta {

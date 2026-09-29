@@ -32,7 +32,7 @@ caminho de arquivo — não transforme em link.
   relógio, ambiente, UI, FFI).
 - **Contratos (traits/portas)** entre os dois, para trocar implementação sem
   tocar no núcleo: `RepositorioEstado`, `CofreDeChave`, `TransporteRemoteId`,
-  `Diagnostico`, `Relogio`, `Ambiente`, `Prompter`.
+  `FonteDeCadeia`, `Diagnostico`, `Relogio`, `Ambiente`, `Prompter`.
 - **A chave privada nunca sai do cofre.** `CofreDeChave` expõe `assinar`, nunca
   a chave crua. É o que viabiliza um adaptador Postgres/HSM sem vazar segredo
   para o núcleo.
@@ -109,8 +109,9 @@ de diretório: o núcleo é a fonte, e a borda referencia, nunca hardcoda de nov
 ## Validação: escope pelo cone de dependentes, nunca pelas dependências
 
 A dependência do workspace só aponta para BAIXO: domínio (`tipos`, `cripto`,
-`autorizacao`, `estado`, `assinatura`, `protocolo-servidor`, `redacao`) ← portas
-← adaptadores ← `aplicacao` ← borda (`cli`, `gtk`, `pkcs11`, `daemon`, `mock`).
+`autorizacao`, `estado`, `assinatura`, `cadeia`, `protocolo-servidor`,
+`redacao`) ← portas ← adaptadores ← `aplicacao` ← borda (`cli`, `gtk`,
+`pkcs11`, `daemon`, `mock`).
 **Um componente de baixo nível NUNCA depende de um de alto nível.** Se você se
 pegar querendo importar `remoteid-aplicacao` de dentro de `remoteid-estado`, pare:
 a inversão está errada.

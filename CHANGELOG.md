@@ -14,6 +14,21 @@ que ninguém sabe o que mudou.
 
 ### Corrigido
 
+- **O token passa a publicar a cadeia de autoridades, e o assinador do
+  Projudi (TJPR) deixa de enviar a assinatura sem ela** (issue #22). O token
+  expunha só o certificado final, o SunPKCS11 devolvia uma cadeia de tamanho 1,
+  e o assinador do TJPR caía num caminho de completar a cadeia que está
+  quebrado do lado dele; o servidor recusava com "Trust anchor for
+  certification path not found". Agora o app baixa as ACs do `caIssuers` do
+  próprio certificado (o `.p7c` da Certisign, que traz a cadeia até a raiz),
+  guarda no `state.json` e o módulo as publica como `CKO_CERTIFICATE` de
+  autoridade, ao lado do certificado do titular, sem parear com a chave. O
+  download acontece no preparo e, para instalações que já existiam, na
+  primeira vez que o app abre depois da atualização; o módulo continua sem ir
+  à rede. Se o download falhar, o token segue como antes e o motivo vai ao
+  diag. Com a cadeia no token, o `findCertificate` do assinador do TJPR
+  continua vendo um certificado só e escolhendo sozinho.
+
 - **PIN recusado pelo servidor não volta mais preenchido, e a recusa aparece
   para o titular** (issue #21). O diálogo guardava o PIN no cache antes de o
   `tokensessao` aceitá-lo, então um PIN errado voltava preenchido (com o foco
