@@ -707,9 +707,10 @@ fn recusa_de_fator_pede_de_novo_com_o_motivo_na_mesma_assinatura() {
 }
 
 #[test]
-fn recusas_seguidas_param_no_teto_e_o_erro_sobe() {
+fn recusas_seguidas_param_no_teto_e_sobem_como_fator_recusado() {
     // O teto impede que um prompter que não é humano gaste tentativas de PIN
-    // sem fim. Esgotado, o erro sobe com a mensagem do servidor e a dica.
+    // sem fim. Esgotado, o erro chega ao módulo com código próprio, que vira
+    // CKR_PIN_INCORRECT, e não um "falhou" genérico.
     let amb = Ambiente::novo("recusa_teto");
     let srv = Servidor::subir();
     preparar_motor(&amb, &srv);
@@ -719,7 +720,7 @@ fn recusas_seguidas_param_no_teto_e_o_erro_sobe() {
     let mut s = servico(&amb, &srv, Arc::clone(&prompter));
     match pedir_assinatura(&mut s) {
         Resposta::Falha { codigo, erro, .. } => {
-            assert_eq!(codigo, CodigoErro::EntradaInvalida);
+            assert_eq!(codigo, CodigoErro::FatorRecusado);
             assert!(erro.contains("PIN ou e-Token incorreto"), "{erro}");
             assert!(erro.contains("não diz qual"), "a dica certa: {erro}");
         }

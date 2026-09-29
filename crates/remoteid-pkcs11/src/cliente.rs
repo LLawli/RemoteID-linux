@@ -73,6 +73,10 @@ fn traduzir_erro(codigo: CodigoErro) -> CK_RV {
     match codigo {
         // O usuário fechou o diálogo de PIN/OTP: o poppler mostra "cancelado".
         CodigoErro::Cancelado => CKR_FUNCTION_CANCELED,
+        // O servidor recusou PIN/OTP. Fora da lista formal do `C_Sign`, mas é o
+        // código que NSS e SunPKCS11 sabem mostrar como "PIN incorreto"; um
+        // `CKR_FUNCTION_FAILED` virava stack trace no PJeOffice (issue 21).
+        CodigoErro::FatorRecusado => CKR_PIN_INCORRECT,
         _ => CKR_FUNCTION_FAILED,
     }
 }
@@ -218,6 +222,11 @@ mod tests {
             .to_string();
         assert!(!comm.is_empty());
         assert_eq!(comm_do_processo().as_deref(), Some(comm.as_str()));
+    }
+
+    #[test]
+    fn fator_recusado_vira_pin_incorrect() {
+        assert_eq!(traduzir_erro(CodigoErro::FatorRecusado), CKR_PIN_INCORRECT);
     }
 
     #[test]

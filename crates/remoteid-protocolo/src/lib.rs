@@ -172,6 +172,10 @@ pub enum CodigoErro {
     EntradaInvalida,
     /// Pedimos PIN+OTP e o usuário cancelou o diálogo.
     Cancelado,
+    /// O servidor recusou o PIN ou o OTP em todas as tentativas desta
+    /// assinatura. `erro` traz a mensagem do servidor, que não diz qual dos
+    /// dois estava errado.
+    FatorRecusado,
     /// Servidor RemoteID recusou. `erro` traz a mensagem, com hint quando
     /// existir.
     ErroServidor,
