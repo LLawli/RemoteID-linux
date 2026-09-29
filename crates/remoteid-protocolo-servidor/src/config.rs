@@ -86,6 +86,16 @@ pub const SERVER_HINTS: &[(&str, Origem, &str)] = &[
         Origem::Usuario,
         "Credenciais do RemoteID incorretas.",
     ),
+    // Tem de vir ANTES de "e-token": esta mensagem também contém o fragmento,
+    // e a dica de lá ("o servidor aceitou o PIN") seria falsa aqui. É a recusa
+    // de fator medida em campo em 29/09/2026 (issue 21): o servidor não diz se
+    // o errado é o PIN ou o OTP.
+    (
+        "pin ou e-token incorreto",
+        Origem::Usuario,
+        "PIN do certificado ou código do autenticador recusado; o servidor não \
+      diz qual. Confira o PIN e use um código novo.",
+    ),
     (
         "informe o pin",
         Origem::Usuario,
@@ -232,6 +242,16 @@ mod tests {
         // As duas que o tokensessao devolveu ao vivo em 02/09/2026.
         assert_eq!(classificar("Informe o Pin", "").0, Origem::Usuario);
         assert_eq!(classificar("Informe o e-Token(Otp)", "").0, Origem::Usuario);
+        // A recusa de fator de campo (issue 21). Não pode cair na dica do
+        // "e-token", que afirma que o PIN foi aceito.
+        let (origem, hint) = classificar(
+            "PIN ou e-Token incorreto",
+            r#"{"message":"PIN ou e-Token incorreto","status":false,"token":null}"#,
+        );
+        assert_eq!(origem, Origem::Usuario);
+        let hint = hint.expect("mensagem conhecida tem dica");
+        assert!(hint.contains("não diz qual"), "{hint}");
+        assert!(!hint.contains("aceitou o PIN"), "{hint}");
         // A que apareceu antes de descobrir a auth por assinatura.
         assert_eq!(
             classificar("Illegal base64 character 2e", "").0,
