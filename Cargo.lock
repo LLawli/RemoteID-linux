@@ -1129,6 +1129,16 @@ name = "remoteid-autorizacao"
 version = "0.2.0"
 
 [[package]]
+name = "remoteid-cadeia"
+version = "0.2.0"
+dependencies = [
+ "cms",
+ "der",
+ "remoteid-tipos",
+ "x509-cert",
+]
+
+[[package]]
 name = "remoteid-caminhos"
 version = "0.2.0"
 

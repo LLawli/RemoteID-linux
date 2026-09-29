@@ -1,0 +1,14 @@
+[package]
+name = "remoteid-cadeia"
+description = "Cadeia de autoridades do certificado do RemoteID-linux (núcleo puro): AIA caIssuers, pacote .p7c e a ordem até a raiz"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+remoteid-tipos = { path = "../remoteid-tipos" }
+cms.workspace = true
+der.workspace = true
+x509-cert.workspace = true
