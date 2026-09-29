@@ -12,6 +12,20 @@ que ninguém sabe o que mudou.
 
 ## [Não publicado]
 
+### Corrigido
+
+- **PIN recusado pelo servidor não volta mais preenchido, e a recusa aparece
+  para o titular** (issue #21). O diálogo guardava o PIN no cache antes de o
+  `tokensessao` aceitá-lo, então um PIN errado voltava preenchido (com o foco
+  já no OTP) em cada assinatura dos 5 minutos seguintes, e cada reenvio podia
+  contar para o bloqueio do certificado. Agora o PIN só entra no cache depois
+  de aceito, e uma recusa limpa o cache. Na recusa de PIN ou OTP, o diálogo
+  reabre dentro da mesma assinatura com a mensagem do servidor e o PIN vazio,
+  até 3 tentativas; esgotadas, o módulo responde `CKR_PIN_INCORRECT` em vez de
+  `CKR_FUNCTION_FAILED`, que o PJeOffice mostrava como stack trace. A
+  mensagem "PIN ou e-Token incorreto" ganhou dica própria no diag: antes ela
+  caía na do "e-token", que afirmava, errado, que o PIN tinha sido aceito.
+
 ## [0.2.0] - 2026-09-08
 
 ### Adicionado

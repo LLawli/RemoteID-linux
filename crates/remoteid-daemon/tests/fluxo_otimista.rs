@@ -62,6 +62,9 @@ struct Servidor {
     modos_reqhash: Arc<Mutex<std::collections::VecDeque<ModoReq>>>,
     contador_tokensessao: Arc<Mutex<u32>>,
     contador_reqhash: Arc<Mutex<u32>>,
+    /// Quantos dos próximos `tokensessao` recusam os fatores, com a mensagem
+    /// medida em campo na issue 21.
+    recusas_tokensessao: Arc<Mutex<u32>>,
 }
 
 impl Servidor {
@@ -72,15 +75,17 @@ impl Servidor {
         let modos = Arc::new(Mutex::new(std::collections::VecDeque::new()));
         let contador_ts = Arc::new(Mutex::new(0u32));
         let contador_rh = Arc::new(Mutex::new(0u32));
+        let recusas_ts = Arc::new(Mutex::new(0u32));
 
         let recebidas_c = Arc::clone(&recebidas);
         let modos_c = Arc::clone(&modos);
         let ts_c = Arc::clone(&contador_ts);
         let rh_c = Arc::clone(&contador_rh);
+        let recusas_c = Arc::clone(&recusas_ts);
         std::thread::spawn(move || {
             for fluxo in listener.incoming() {
                 let Ok(fluxo) = fluxo else { continue };
-                let _ = atender(fluxo, &recebidas_c, &modos_c, &ts_c, &rh_c);
+                let _ = atender(fluxo, &recebidas_c, &modos_c, &ts_c, &rh_c, &recusas_c);
             }
         });
         Servidor {
@@ -89,7 +94,13 @@ impl Servidor {
             modos_reqhash: modos,
             contador_tokensessao: contador_ts,
             contador_reqhash: contador_rh,
+            recusas_tokensessao: recusas_ts,
         }
+    }
+
+    /// Faz os próximos `n` `tokensessao` recusarem os fatores.
+    fn recusar_tokensessao(&self, n: u32) {
+        *self.recusas_tokensessao.lock().unwrap() = n;
     }
 
     /// Programa que a PRÓXIMA request_hash devolva `m`. Se chamada várias
@@ -125,6 +136,7 @@ fn atender(
     modos_reqhash: &Arc<Mutex<std::collections::VecDeque<ModoReq>>>,
     contador_ts: &Arc<Mutex<u32>>,
     contador_rh: &Arc<Mutex<u32>>,
+    recusas_ts: &Arc<Mutex<u32>>,
 ) -> std::io::Result<()> {
     let mut leitor = BufReader::new(fluxo.try_clone()?);
     let mut linha = String::new();
@@ -169,6 +181,16 @@ fn atender(
         })
     } else if caminho.ends_with("/statusCelular") {
         json!({"status": true, "usuarioPossuiCodigoPush": false})
+    } else if caminho.ends_with("/tokensessao") && {
+        let mut recusas = recusas_ts.lock().unwrap();
+        let recusa = *recusas > 0;
+        *recusas = recusas.saturating_sub(1);
+        recusa
+    } {
+        *contador_ts.lock().unwrap() += 1;
+        // A recusa de fator exatamente como veio no diag de campo (issue 21):
+        // HTTP 200, sem dizer se o errado é o PIN ou o OTP.
+        json!({"message": "PIN ou e-Token incorreto", "status": false, "token": null})
     } else if caminho.ends_with("/tokensessao") {
         *contador_ts.lock().unwrap() += 1;
         // Epoch bem no presente para o pré-filtro deixar passar. Cada
@@ -235,28 +257,63 @@ struct PrompterEspiao {
     pin: String,
     otp: String,
     chamadas: Mutex<u32>,
+    /// A `recusa_anterior` de cada pedido, em ordem.
+    recusas_vistas: Mutex<Vec<Option<String>>>,
+    /// Cada veredito recebido por `confirmar`, em ordem.
+    vereditos: Mutex<Vec<bool>>,
+    /// A partir de qual chamada (1, 2, ...) o titular fecha o diálogo.
+    cancelar_na: Option<u32>,
 }
 
 impl PrompterEspiao {
     fn novo() -> Arc<Self> {
+        Self::cancelando_na(None)
+    }
+    fn cancelando_na(chamada: Option<u32>) -> Arc<Self> {
         Arc::new(PrompterEspiao {
             pin: "1234".into(),
             otp: "999999".into(),
             chamadas: Mutex::new(0),
+            recusas_vistas: Mutex::new(Vec::new()),
+            vereditos: Mutex::new(Vec::new()),
+            cancelar_na: chamada,
         })
     }
     fn contagem(&self) -> u32 {
         *self.chamadas.lock().unwrap()
     }
+    fn recusas_vistas(&self) -> Vec<Option<String>> {
+        self.recusas_vistas.lock().unwrap().clone()
+    }
+    fn vereditos(&self) -> Vec<bool> {
+        self.vereditos.lock().unwrap().clone()
+    }
 }
 
 impl Prompter for PrompterEspiao {
-    fn pedir_pin_otp(&self, _: &Contexto) -> remoteid_tipos::Result<Fatores> {
-        *self.chamadas.lock().unwrap() += 1;
+    fn pedir_pin_otp(&self, c: &Contexto) -> remoteid_tipos::Result<Fatores> {
+        let chamada = {
+            let mut n = self.chamadas.lock().unwrap();
+            *n += 1;
+            *n
+        };
+        self.recusas_vistas
+            .lock()
+            .unwrap()
+            .push(c.recusa_anterior.clone());
+        if self.cancelar_na.is_some_and(|n| chamada >= n) {
+            return Err(remoteid_tipos::Error::uso(
+                "cancelado pelo usuário no diálogo",
+            ));
+        }
         Ok(Fatores::PinOtp {
             pin: self.pin.clone(),
             otp: self.otp.clone(),
         })
+    }
+
+    fn confirmar(&self, aceitos: bool) {
+        self.vereditos.lock().unwrap().push(aceitos);
     }
 }
 
@@ -265,6 +322,9 @@ struct ProxyPrompter(Arc<PrompterEspiao>);
 impl Prompter for ProxyPrompter {
     fn pedir_pin_otp(&self, c: &Contexto) -> remoteid_tipos::Result<Fatores> {
         self.0.pedir_pin_otp(c)
+    }
+    fn confirmar(&self, aceitos: bool) {
+        self.0.confirmar(aceitos)
     }
 }
 
@@ -594,6 +654,105 @@ fn cancelar_o_dialogo_vira_codigo_cancelado() {
         outro => panic!("cancelar não pode virar sucesso: {outro:?}"),
     }
     assert_eq!(srv.contagem_de_tokensessao(), 0);
+}
+
+fn pedir_assinatura(s: &mut Servico) -> Resposta {
+    s.tratar(Requisicao::Sign {
+        algoritmo: None,
+        digest_b64: b64(&[0u8; 32]),
+        hospedeiro: Some("java".into()),
+    })
+}
+
+#[test]
+fn recusa_de_fator_pede_de_novo_com_o_motivo_na_mesma_assinatura() {
+    // Issue 21: a recusa do tokensessao não pode sair do app como erro
+    // genérico. O titular vê o motivo e tenta de novo dentro do MESMO C_Sign,
+    // e o prompter ouve o veredito de cada tentativa.
+    let amb = Ambiente::novo("recusa_uma");
+    let srv = Servidor::subir();
+    preparar_motor(&amb, &srv);
+    srv.recusar_tokensessao(1);
+
+    let prompter = PrompterEspiao::novo();
+    let mut s = servico(&amb, &srv, Arc::clone(&prompter));
+    match pedir_assinatura(&mut s) {
+        Resposta::Sucesso(SucessoResposta::Sign { cache_hit, .. }) => assert!(!cache_hit),
+        outro => panic!("a segunda tentativa devia assinar: {outro:?}"),
+    }
+
+    assert_eq!(srv.contagem_de_tokensessao(), 2);
+    assert_eq!(
+        srv.contagem_de_reqhash(),
+        1,
+        "o HSM só é chamado com sessão"
+    );
+    assert_eq!(
+        prompter.recusas_vistas(),
+        vec![None, Some("PIN ou e-Token incorreto".to_string())],
+        "o primeiro pedido é limpo; o segundo traz o motivo do servidor"
+    );
+    assert_eq!(prompter.vereditos(), vec![false, true]);
+
+    // A sessão aberta na segunda tentativa vale para a próxima assinatura.
+    match pedir_assinatura(&mut s) {
+        Resposta::Sucesso(SucessoResposta::Sign { cache_hit, .. }) => assert!(cache_hit),
+        outro => panic!("{outro:?}"),
+    }
+    assert_eq!(prompter.contagem(), 2);
+
+    let diag = amb.diag_inteiro();
+    assert!(diag.contains(r#""evento":"tokensessao.recusado""#));
+    assert!(diag.contains(r#""pede_de_novo":true"#));
+}
+
+#[test]
+fn recusas_seguidas_param_no_teto_e_sobem_como_fator_recusado() {
+    // O teto impede que um prompter que não é humano gaste tentativas de PIN
+    // sem fim. Esgotado, o erro chega ao módulo com código próprio, que vira
+    // CKR_PIN_INCORRECT, e não um "falhou" genérico.
+    let amb = Ambiente::novo("recusa_teto");
+    let srv = Servidor::subir();
+    preparar_motor(&amb, &srv);
+    srv.recusar_tokensessao(u32::MAX);
+
+    let prompter = PrompterEspiao::novo();
+    let mut s = servico(&amb, &srv, Arc::clone(&prompter));
+    match pedir_assinatura(&mut s) {
+        Resposta::Falha { codigo, erro, .. } => {
+            assert_eq!(codigo, CodigoErro::FatorRecusado);
+            assert!(erro.contains("PIN ou e-Token incorreto"), "{erro}");
+            assert!(erro.contains("não diz qual"), "a dica certa: {erro}");
+        }
+        outro => panic!("recusa não pode virar sucesso: {outro:?}"),
+    }
+
+    let teto = remoteid_aplicacao::MAX_TENTATIVAS_FATORES;
+    assert!(teto >= 2, "sem nova tentativa, a issue 21 volta");
+    assert_eq!(srv.contagem_de_tokensessao(), teto);
+    assert_eq!(prompter.contagem(), teto);
+    assert_eq!(srv.contagem_de_reqhash(), 0);
+    assert_eq!(prompter.vereditos(), vec![false; teto as usize]);
+    let depois_da_primeira = &prompter.recusas_vistas()[1..];
+    assert!(depois_da_primeira.iter().all(Option::is_some));
+    assert!(amb.diag_inteiro().contains(r#""pede_de_novo":false"#));
+}
+
+#[test]
+fn cancelar_depois_de_uma_recusa_vira_cancelado_sem_novo_tokensessao() {
+    let amb = Ambiente::novo("recusa_cancela");
+    let srv = Servidor::subir();
+    preparar_motor(&amb, &srv);
+    srv.recusar_tokensessao(1);
+
+    let prompter = PrompterEspiao::cancelando_na(Some(2));
+    let mut s = servico(&amb, &srv, Arc::clone(&prompter));
+    match pedir_assinatura(&mut s) {
+        Resposta::Falha { codigo, .. } => assert_eq!(codigo, CodigoErro::Cancelado),
+        outro => panic!("{outro:?}"),
+    }
+    assert_eq!(srv.contagem_de_tokensessao(), 1);
+    assert_eq!(prompter.vereditos(), vec![false]);
 }
 
 #[test]

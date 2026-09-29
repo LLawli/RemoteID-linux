@@ -28,10 +28,15 @@ pub struct WidgetsPinOtp {
 }
 
 /// Monta a interface de PIN e OTP com as restrições dimensionais e regras de validação.
+///
+/// `recusa` é a mensagem com que o servidor recusou a tentativa anterior desta
+/// mesma assinatura. Sem ela o titular só via o diálogo reaparecer, sem saber
+/// que o PIN ou o código tinham sido recusados.
 pub fn montar(
     titular: Option<&str>,
     hospedeiro: Option<&str>,
     pin_inicial: Option<&str>,
+    recusa: Option<&str>,
 ) -> WidgetsPinOtp {
     let clamp = adw::Clamp::builder()
         .maximum_size(380)
@@ -94,6 +99,21 @@ pub fn montar(
         cabecalho.append(&rotulo_sub);
     }
     caixa_vertical.append(&cabecalho);
+
+    if let Some(motivo) = recusa.filter(|m| !m.is_empty()) {
+        // O servidor não diz se errou o PIN ou o OTP, então o texto pede os
+        // dois. O OTP também tem de ser novo: o recusado pode ter expirado.
+        let rotulo_recusa = gtk::Label::builder()
+            .label(format!(
+                "Recusado pelo servidor: {motivo}. Digite o PIN de novo e use um código novo."
+            ))
+            .halign(gtk::Align::Center)
+            .justify(gtk::Justification::Center)
+            .css_classes(["error"])
+            .wrap(true)
+            .build();
+        caixa_vertical.append(&rotulo_recusa);
+    }
 
     let grupo_campos = adw::PreferencesGroup::builder()
         .margin_top(4)
@@ -245,6 +265,7 @@ pub fn rodar_modal(
     titular: Option<&str>,
     hospedeiro: Option<&str>,
     pin_inicial: Option<&str>,
+    recusa: Option<&str>,
 ) -> Result<Fatores> {
     if let Err(e) = gtk::init() {
         return Err(Error::uso(format!(
@@ -252,7 +273,7 @@ pub fn rodar_modal(
         )));
     }
 
-    let widgets = montar(titular, hospedeiro, pin_inicial);
+    let widgets = montar(titular, hospedeiro, pin_inicial, recusa);
     let janela = criar_janela_dialogo(janela_pai, &widgets);
 
     let resultado: Rc<RefCell<Option<Result<Fatores>>>> = Rc::new(RefCell::new(None));
@@ -322,7 +343,7 @@ pub fn rodar_modal(
 
 /// Cria uma janela de preview para inspeção estática no modo `--preview`.
 pub fn criar_janela_preview(titular: &str, hospedeiro: &str) -> gtk::Window {
-    let widgets = montar(Some(titular), Some(hospedeiro), Some("1234"));
+    let widgets = montar(Some(titular), Some(hospedeiro), Some("1234"), None);
     widgets.botao_assinar.connect_clicked(|_| {
         println!("[PREVIEW] Diálogo PIN/OTP: botão 'Assinar' clicado");
     });

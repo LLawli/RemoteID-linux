@@ -107,15 +107,33 @@ pub struct Contexto {
     pub hospedeiro: Option<String>,
     /// Common Name do certificado ativo, a UI mostra "Assinar como <CN>".
     pub titular: Option<String>,
+    /// A mensagem com que o servidor recusou os fatores do pedido anterior,
+    /// DENTRO desta mesma assinatura. `Some` quer dizer "é uma nova tentativa":
+    /// a UI mostra o motivo e não preenche nada com o que foi recusado.
+    pub recusa_anterior: Option<String>,
 }
 
 /// Como o serviço obtém PIN e OTP quando o cache de sessão não basta.
 ///
-/// Um método só porque o `tokensessao` exige os DOIS fatores no mesmo request.
+/// Um pedido só porque o `tokensessao` exige os DOIS fatores no mesmo request.
 /// Adaptadores: o diálogo GTK4 (produção) e fatores fixos (teste). Nenhum lê
 /// PIN/OTP de ambiente ou arquivo: só interação humana ou injeção em teste.
 pub trait Prompter: Send + Sync {
     /// Devolve [`Fatores::PinOtp`] se aprovado, ou `Err(Error::Uso("cancelado ..."))`
     /// se o usuário fechou o diálogo.
     fn pedir_pin_otp(&self, contexto: &Contexto) -> Result<Fatores>;
+
+    /// O veredito do servidor sobre os fatores que o último
+    /// [`Self::pedir_pin_otp`] devolveu: `true` quando o `tokensessao` os
+    /// aceitou, `false` quando os recusou por erro do usuário.
+    ///
+    /// Existe porque só o servidor sabe se o PIN está certo, e um prompter que
+    /// lembra o PIN só pode lembrar o que foi aceito. Um PIN guardado antes do
+    /// veredito é reenviado a cada tentativa, e cada uma pode contar para o
+    /// bloqueio do certificado (issue 21). Sem veredito (rede caiu, erro do
+    /// servidor), este método não é chamado.
+    ///
+    /// Sem implementação padrão de propósito: um adaptador que embrulha outro
+    /// tem de repassar o veredito, e o compilador é quem lembra disso.
+    fn confirmar(&self, aceitos: bool);
 }

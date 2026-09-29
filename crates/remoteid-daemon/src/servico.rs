@@ -122,6 +122,7 @@ impl Servico {
         let contexto = Contexto {
             hospedeiro: hospedeiro.clone(),
             titular: self.motor.estado.nome.clone(),
+            recusa_anterior: None,
         };
 
         // Discriminador do `cache_hit`: comparamos o TOKEN cached antes e
@@ -141,10 +142,9 @@ impl Servico {
             .get(&cert_key)
             .map(|s| s.token.clone());
 
-        let prompter = &*self.prompter;
         let resultado = self
             .motor
-            .assinar_com_cache(algoritmo, &dados, || prompter.pedir_pin_otp(&contexto));
+            .assinar_com_cache(algoritmo, &dados, &*self.prompter, &contexto);
 
         match resultado {
             Ok(bytes) => {
@@ -263,8 +263,12 @@ fn erro_para_resposta(erro: Error) -> Resposta {
                 Some(h) => format!("{} — {h}", se.message),
                 None => se.message.clone(),
             };
+            // Recusa de origem no usuário, aqui, é o `tokensessao` recusando
+            // PIN/OTP depois de o motor já ter pedido de novo o quanto podia.
+            // Código próprio para o módulo responder `CKR_PIN_INCORRECT`, que
+            // os hospedeiros sabem mostrar, e não um "falhou" genérico.
             let codigo = match se.origem {
-                Origem::Usuario => CodigoErro::EntradaInvalida,
+                Origem::Usuario => CodigoErro::FatorRecusado,
                 _ => CodigoErro::ErroServidor,
             };
             Resposta::falha(codigo, com_hint)
@@ -368,8 +372,8 @@ mod tests {
     #[test]
     fn origem_do_erro_do_servidor_decide_o_codigo() {
         // Erro de servidor com origem no USUÁRIO (PIN/OTP errados) vira
-        // EntradaInvalida, para a janela pedir de novo; as outras origens
-        // viram ErroServidor. O hint entra na mensagem quando existe.
+        // FatorRecusado, que o módulo traduz para CKR_PIN_INCORRECT; as outras
+        // origens viram ErroServidor. O hint entra na mensagem quando existe.
         use remoteid_tipos::ServerError;
         let de = |origem, hint: Option<&'static str>| {
             erro_para_resposta(Error::Servidor(ServerError {
@@ -381,7 +385,7 @@ mod tests {
         };
         match de(Origem::Usuario, Some("confira o PIN")) {
             Resposta::Falha { codigo, erro, .. } => {
-                assert_eq!(codigo, CodigoErro::EntradaInvalida);
+                assert_eq!(codigo, CodigoErro::FatorRecusado);
                 assert!(erro.contains("confira o PIN"));
             }
             outro => panic!("{outro:?}"),
