@@ -51,4 +51,7 @@ impl Prompter for FatoresFixos {
             otp: self.otp.clone(),
         })
     }
+
+    /// Fatores fixos não aprendem nada com o veredito.
+    fn confirmar(&self, _: bool) {}
 }

@@ -25,10 +25,10 @@ use std::time::Duration;
 use serde_json::Value;
 
 use remoteid_portas::{
-    Ambiente, CofreDeChave, Diagnostico, Relogio, RepositorioEstado, RequisicaoHttp,
-    TransporteRemoteId,
+    Ambiente, CofreDeChave, Contexto, Diagnostico, Prompter, Relogio, RepositorioEstado,
+    RequisicaoHttp, TransporteRemoteId,
 };
-use remoteid_tipos::{Error, IdInstalacao, Result};
+use remoteid_tipos::{Error, IdInstalacao, Origem, Result};
 
 use remoteid_autorizacao::{Fatores, Modo};
 use remoteid_cripto::{b64, de_b64, sha256};
@@ -51,6 +51,14 @@ use remoteid_diag_jsonl::Diag;
 use remoteid_http::Http;
 use remoteid_relogio_sistema::RelogioSistema;
 use remoteid_store_json::RepositorioJson;
+
+/// Quantas vezes uma MESMA assinatura pede PIN e OTP quando o servidor recusa
+/// os fatores. Cada pedido depois de uma recusa mostra o motivo e exige que o
+/// titular digite de novo, então quem decide gastar a tentativa é ele; o teto
+/// existe para um prompter que não é humano (ou um titular que só aperta
+/// Enter) não queimar tentativas de PIN sem fim, já que o servidor pode
+/// bloquear o certificado depois de N erros.
+pub const MAX_TENTATIVAS_FATORES: u32 = 3;
 
 /// Onde e como o motor opera.
 pub struct Opcoes {
@@ -484,25 +492,30 @@ impl Motor {
     ///    é chamado para pedir PIN+OTP ao usuário, uma nova sessão é aberta e a
     ///    assinatura é refeita. Nada disso vira erro visível: para o hospedeiro
     ///    a única diferença entre os dois caminhos é o tempo.
-    /// 3. Se o servidor rejeitar por outro motivo (rede, HSM recusou o hash,
-    ///    OTP inválido no reemit), o erro sobe. A UI decide o que dizer.
+    /// 3. Se o `tokensessao` recusar os fatores por erro do usuário (PIN ou
+    ///    OTP errado), o prompter ouve o veredito e é chamado DE NOVO, com a
+    ///    mensagem do servidor em [`Contexto::recusa_anterior`], até
+    ///    [`MAX_TENTATIVAS_FATORES`]. A nova tentativa fica dentro do mesmo
+    ///    `C_Sign`: o hospedeiro não precisa sobreviver a um erro para o
+    ///    titular corrigir o PIN, e o titular vê por que falhou.
+    /// 4. Se o servidor rejeitar por outro motivo (rede, HSM recusou o hash),
+    ///    ou as tentativas se esgotarem, o erro sobe. A UI decide o que dizer.
     ///
-    /// `obter_fatores` é fechado à parte porque um daemon com UI pode demorar
-    /// segundos (o humano digita), e mantê-lo fora deste método permite testar
-    /// o fluxo com um closure sem depender de GTK.
+    /// O `prompter` é uma porta, e não o GTK, porque um daemon com UI pode
+    /// demorar segundos (o humano digita), e o fluxo tem de ser testável com
+    /// fatores enlatados. `contexto` é o que o diálogo mostra; o motor só
+    /// acrescenta a recusa anterior.
     ///
     /// `algoritmo` e `dados` são os de [`Self::assinar_com_sessao`]. A
     /// validação vem ANTES de qualquer coisa: um bloco inválido não pode gastar
     /// a tentativa do cache nem, pior, pedir PIN e OTP ao usuário para nada.
-    pub fn assinar_com_cache<F>(
+    pub fn assinar_com_cache(
         &mut self,
         algoritmo: Algoritmo,
         dados: &[u8],
-        obter_fatores: F,
-    ) -> Result<Vec<u8>>
-    where
-        F: FnOnce() -> Result<Fatores>,
-    {
+        prompter: &dyn Prompter,
+        contexto: &Contexto,
+    ) -> Result<Vec<u8>> {
         algoritmo.validar(dados)?;
         let cert_key = self.estado.certificado()?.chave_cache();
         let agora_s = self.relogio.agora();
@@ -540,8 +553,7 @@ impl Motor {
         }
 
         // Caminho pessimista: pede fatores, abre sessão nova, assina.
-        let fatores = obter_fatores()?;
-        let novo_token = self.abrir_sessao(&fatores)?;
+        let novo_token = self.abrir_sessao_pedindo_fatores(prompter, contexto)?;
         let bytes = self.assinar_com_sessao(&novo_token, algoritmo, dados)?;
 
         let visto = self.relogio.agora();
@@ -553,6 +565,48 @@ impl Motor {
             serde_json::json!({ "cert_key": &cert_key }),
         );
         Ok(bytes)
+    }
+
+    /// Pede os fatores e abre a sessão, pedindo de novo a cada recusa de fator.
+    ///
+    /// Só a recusa de origem [`Origem::Usuario`] volta ao prompter: é a única
+    /// que o titular corrige digitando outra coisa. Rede, servidor e payload
+    /// sobem na hora, sem veredito, porque o servidor não julgou os fatores.
+    fn abrir_sessao_pedindo_fatores(
+        &self,
+        prompter: &dyn Prompter,
+        contexto: &Contexto,
+    ) -> Result<String> {
+        let mut pedido = contexto.clone();
+        pedido.recusa_anterior = None;
+        let mut tentativa = 1;
+        loop {
+            let fatores = prompter.pedir_pin_otp(&pedido)?;
+            match self.abrir_sessao(&fatores) {
+                Ok(token) => {
+                    prompter.confirmar(true);
+                    return Ok(token);
+                }
+                Err(Error::Servidor(se)) if se.origem == Origem::Usuario => {
+                    prompter.confirmar(false);
+                    let desiste = tentativa >= MAX_TENTATIVAS_FATORES;
+                    self.diag.evento(
+                        "tokensessao.recusado",
+                        serde_json::json!({
+                            "tentativa": tentativa,
+                            "mensagem": &se.message,
+                            "pede_de_novo": !desiste,
+                        }),
+                    );
+                    if desiste {
+                        return Err(Error::Servidor(se));
+                    }
+                    pedido.recusa_anterior = Some(se.message);
+                    tentativa += 1;
+                }
+                Err(outro) => return Err(outro),
+            }
+        }
     }
 
     /// Invalida o cache do `sessionToken` para o certificado ativo (o "reset

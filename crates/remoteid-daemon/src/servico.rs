@@ -122,6 +122,7 @@ impl Servico {
         let contexto = Contexto {
             hospedeiro: hospedeiro.clone(),
             titular: self.motor.estado.nome.clone(),
+            recusa_anterior: None,
         };
 
         // Discriminador do `cache_hit`: comparamos o TOKEN cached antes e
@@ -141,10 +142,9 @@ impl Servico {
             .get(&cert_key)
             .map(|s| s.token.clone());
 
-        let prompter = &*self.prompter;
         let resultado = self
             .motor
-            .assinar_com_cache(algoritmo, &dados, || prompter.pedir_pin_otp(&contexto));
+            .assinar_com_cache(algoritmo, &dados, &*self.prompter, &contexto);
 
         match resultado {
             Ok(bytes) => {
