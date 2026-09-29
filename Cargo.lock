@@ -1258,6 +1258,7 @@ dependencies = [
  "cryptoki-sys",
  "der",
  "rand",
+ "remoteid-cadeia",
  "remoteid-caminhos",
  "remoteid-chave-pem",
  "remoteid-cripto",

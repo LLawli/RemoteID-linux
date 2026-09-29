@@ -35,6 +35,9 @@ sha2.workspace = true
 x509-cert.workspace = true
 
 [dev-dependencies]
+# Só para montar a cadeia sintética nos testes do token: o módulo em si lê a
+# cadeia pronta do state.json e não baixa nem ordena nada.
+remoteid-cadeia = { path = "../remoteid-cadeia" }
 der.workspace = true
 rand.workspace = true
 rsa.workspace = true

@@ -103,6 +103,43 @@ impl Objeto {
         }
     }
 
+    /// O `CKO_CERTIFICATE` de uma autoridade da cadeia (issue 22).
+    ///
+    /// Existe para o hospedeiro montar a cadeia sem ir à rede: o SunPKCS11
+    /// procura no token o certificado cujo `CKA_SUBJECT` é o emissor do
+    /// anterior, até a autoassinada. Por isso o `CKA_SUBJECT` tem de ser o DER
+    /// do nome, byte a byte o mesmo que o `issuer` do filho.
+    ///
+    /// Diferenças deliberadas em relação ao do titular:
+    ///
+    /// - `CKA_CERTIFICATE_CATEGORY = 2` (autoridade), que o NSS usa para
+    ///   classificá-lo como AC e não como certificado de usuário.
+    /// - `CKA_ID` próprio, derivado do SPKI da AC. Nunca o do par de chaves:
+    ///   é pelo `CKA_ID` que o NSS e o SunPKCS11 pareiam certificado e chave, e
+    ///   uma AC pareada com a chave do titular viraria um segundo "certificado
+    ///   com chave" no seletor. Vazio também não serve: há hospedeiro que lê o
+    ///   atributo de todo certificado e trata a ausência como erro.
+    /// - `CKA_TRUSTED` falso. Confiar numa raiz é decisão do hospedeiro (o
+    ///   repositório de confiança dele), não de um token que a baixou por HTTP.
+    pub fn autoridade(
+        handle: CK_OBJECT_HANDLE,
+        der: Vec<u8>,
+        subject: Vec<u8>,
+        issuer: Vec<u8>,
+        serial: Vec<u8>,
+        id: Vec<u8>,
+        rotulo: String,
+    ) -> Objeto {
+        let mut objeto = Objeto::certificado(der, subject, issuer, serial, id, rotulo);
+        objeto.handle = handle;
+        for atributo in &mut objeto.atributos {
+            if atributo.tipo == CKA_CERTIFICATE_CATEGORY {
+                atributo.valor = ulong(CK_CERTIFICATE_CATEGORY_AUTHORITY);
+            }
+        }
+        objeto
+    }
+
     /// O objeto `CKO_PUBLIC_KEY` correspondente ao certificado.
     ///
     /// Redundante em relação ao certificado (o SPKI está lá), mas ferramenta
@@ -301,6 +338,9 @@ impl Objeto {
 pub const HANDLE_CERTIFICADO: CK_OBJECT_HANDLE = 1;
 pub const HANDLE_CHAVE_PRIVADA: CK_OBJECT_HANDLE = 2;
 pub const HANDLE_CHAVE_PUBLICA: CK_OBJECT_HANDLE = 3;
+/// As autoridades da cadeia ocupam os handles a partir daqui, na ordem da
+/// cadeia (o emissor do titular primeiro).
+pub const HANDLE_PRIMEIRA_AUTORIDADE: CK_OBJECT_HANDLE = 4;
 
 #[cfg(test)]
 mod tests {
