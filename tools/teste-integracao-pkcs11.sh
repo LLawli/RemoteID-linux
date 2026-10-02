@@ -256,6 +256,17 @@ fi
 [ ! -s "$TRABALHO/sig-nunca.bin" ] || falhar "saiu assinatura mesmo sem socket"
 ok "com REMOTEID_SOCKET inválido o C_Sign falha, como deve"
 
+# Sem app no ar o pedido nunca chega ao diag do app, então é o módulo quem
+# deixa o rastro (issue 26). Sem esta linha a falha não aparecia em lugar
+# nenhum, e parecia problema de protocolo.
+DIAG_MODULO="$DIR_ESTADO/diag/modulo-pkcs11.jsonl"   # espelha caminho_diag_modulo
+[ -s "$DIAG_MODULO" ] || falhar "o módulo não gravou $DIAG_MODULO ao não achar o app"
+grep -q '"evento":"assinatura.sem_app".*"hospedeiro":"pkcs11-tool"' "$DIAG_MODULO" \
+    || { cat "$DIAG_MODULO"; falhar "o diag do módulo não registrou o pedido sem app no ar"; }
+grep -qF "\"socket\":\"$TRABALHO/nao-existe.sock\"" "$DIAG_MODULO" \
+    || { cat "$DIAG_MODULO"; falhar "o diag do módulo não diz qual socket procurou"; }
+ok "o módulo deixou assinatura.sem_app em modulo-pkcs11.jsonl"
+
 # --------------------------------------------------------------- modo cru
 # O que o PJeOffice manda para autenticar: um DigestInfo(MD5) de 34 bytes pelo
 # CKM_RSA_PKCS. O módulo repassa o bloco inteiro com `algorithm: ""` (issue

@@ -27,6 +27,9 @@ remoteid-protocolo = { path = "../remoteid-protocolo" }
 # O `Algoritmo` (os literais do campo `algorithm` do servidor): o socket carrega
 # a string opaca, e é daqui que o módulo tira o valor certo. Domínio puro.
 remoteid-protocolo-servidor = { path = "../remoteid-protocolo-servidor" }
+# Só para deixar rastro quando o app não responde (issue 26): o módulo não tem
+# motor, então grava direto no arquivo fixo do diag, com a mesma redação.
+remoteid-diag-jsonl = { path = "../remoteid-diag-jsonl" }
 serde_json.workspace = true
 base64.workspace = true
 der.workspace = true

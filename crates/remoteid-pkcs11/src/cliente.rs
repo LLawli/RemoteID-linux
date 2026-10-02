@@ -10,15 +10,23 @@
 //! `$XDG_RUNTIME_DIR/remoteid.sock`. Não escrevemos em stdout/stderr (o
 //! hospedeiro é dono deles) e não estouramos panic pela fronteira C (o
 //! chamador está dentro de um `entrada!`).
+//!
+//! Quando o app não responde (não está aberto, ou morreu no meio), o módulo
+//! deixa uma linha em `modulo-pkcs11.jsonl`, no diretório do diag. Sem isso a
+//! falha não aparecia em lugar nenhum: o app é quem grava o diag, e um pedido
+//! que nunca chega a ele não deixa rastro. Foi o que fez a issue 26 parecer um
+//! problema de protocolo quando era só o app fechado.
 
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use cryptoki_sys::*;
+use serde_json::json;
 
 use remoteid_cripto::{b64, de_b64};
+use remoteid_diag_jsonl::Diag;
 use remoteid_protocolo::{CodigoErro, Requisicao, Resposta, SucessoResposta};
 use remoteid_protocolo_servidor::algoritmo::Algoritmo;
 
@@ -27,35 +35,36 @@ use remoteid_protocolo_servidor::algoritmo::Algoritmo;
 /// (`Algoritmo::Cru`, em que o HSM só aplica o padding). Devolve os 256 bytes
 /// crus, ou um `CK_RV` traduzido do erro do app.
 pub fn assinar_pelo_app(algoritmo: Algoritmo, dados: &[u8]) -> Result<Vec<u8>, CK_RV> {
-    let caminho = caminho_socket();
-    let stream = UnixStream::connect(&caminho).map_err(|_| CKR_DEVICE_ERROR)?;
-    // A assinatura pode demorar: o app faz rede E mostra o diálogo de PIN/OTP,
-    // que o usuário leva segundos para preencher. Um teto generoso evita
-    // travar para sempre se o app morrer no meio.
-    let _ = stream.set_read_timeout(Some(Duration::from_secs(300)));
+    let diag = remoteid_caminhos::caminho_diag_modulo(&remoteid_caminhos::dir_diag());
+    assinar_por(&caminho_socket(), &diag, algoritmo, dados)
+}
 
+/// [`assinar_pelo_app`] com o socket e o arquivo de diag explícitos, para os
+/// testes não dependerem do ambiente nem escreverem no diag de verdade.
+fn assinar_por(
+    socket: &Path,
+    diag: &Path,
+    algoritmo: Algoritmo,
+    dados: &[u8],
+) -> Result<Vec<u8>, CK_RV> {
     // O literal vai sempre, mesmo sendo o padrão: o socket carrega a string
     // opaca e o daemon converte; a fonte dos valores é o `Algoritmo`.
+    let hospedeiro = comm_do_processo();
     let req = Requisicao::Sign {
         algoritmo: Some(algoritmo.nome().to_string()),
         digest_b64: b64(dados),
-        hospedeiro: comm_do_processo(),
+        hospedeiro: hospedeiro.clone(),
     };
     let mut linha = serde_json::to_string(&req).map_err(|_| CKR_FUNCTION_FAILED)?;
     linha.push('\n');
 
-    let mut escritor = stream.try_clone().map_err(|_| CKR_DEVICE_ERROR)?;
-    escritor
-        .write_all(linha.as_bytes())
-        .map_err(|_| CKR_DEVICE_ERROR)?;
-    escritor.flush().map_err(|_| CKR_DEVICE_ERROR)?;
-
-    let mut leitor = BufReader::new(stream);
-    let mut resp = String::new();
-    leitor.read_line(&mut resp).map_err(|_| CKR_DEVICE_ERROR)?;
-    if resp.trim().is_empty() {
-        return Err(CKR_DEVICE_ERROR);
-    }
+    let resp = match conversar(socket, &linha) {
+        Ok(resp) => resp,
+        Err(falha) => {
+            registrar_falha(diag, socket, hospedeiro.as_deref(), algoritmo, &falha);
+            return Err(CKR_DEVICE_ERROR);
+        }
+    };
 
     let resposta: Resposta =
         serde_json::from_str(resp.trim_end()).map_err(|_| CKR_FUNCTION_FAILED)?;
@@ -66,6 +75,88 @@ pub fn assinar_pelo_app(algoritmo: Algoritmo, dados: &[u8]) -> Result<Vec<u8>, C
         Resposta::Sucesso(_) => Err(CKR_FUNCTION_FAILED),
         Resposta::Falha { codigo, .. } => Err(traduzir_erro(codigo)),
     }
+}
+
+/// Onde a conversa com o app parou, para o diag dizer se ele nem estava no ar
+/// ou se sumiu no meio.
+struct FalhaDeConversa {
+    etapa: &'static str,
+    erro: Option<std::io::Error>,
+}
+
+impl FalhaDeConversa {
+    fn em(etapa: &'static str) -> impl FnOnce(std::io::Error) -> FalhaDeConversa {
+        move |erro| FalhaDeConversa {
+            etapa,
+            erro: Some(erro),
+        }
+    }
+}
+
+/// Manda uma linha e lê uma linha. Toda falha aqui é do app (ausente, morto
+/// ou calado), e vira `CKR_DEVICE_ERROR` em quem chama.
+fn conversar(socket: &Path, linha: &str) -> Result<String, FalhaDeConversa> {
+    let stream = UnixStream::connect(socket).map_err(FalhaDeConversa::em("conectar"))?;
+    // A assinatura pode demorar: o app faz rede E mostra o diálogo de PIN/OTP,
+    // que o usuário leva segundos para preencher. Um teto generoso evita
+    // travar para sempre se o app morrer no meio.
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(300)));
+
+    let mut escritor = stream.try_clone().map_err(FalhaDeConversa::em("enviar"))?;
+    escritor
+        .write_all(linha.as_bytes())
+        .and_then(|()| escritor.flush())
+        .map_err(FalhaDeConversa::em("enviar"))?;
+
+    let mut leitor = BufReader::new(stream);
+    let mut resp = String::new();
+    leitor
+        .read_line(&mut resp)
+        .map_err(FalhaDeConversa::em("receber"))?;
+    if resp.trim().is_empty() {
+        // O app fechou a conexão sem responder: morreu, ou foi fechado, com o
+        // pedido na mão.
+        return Err(FalhaDeConversa {
+            etapa: "receber",
+            erro: None,
+        });
+    }
+    Ok(resp)
+}
+
+/// Uma linha no diag do módulo. `assinatura.sem_app` quando nem deu para
+/// conectar (o caso da issue 26: o app fechado, e o certificado ainda listado
+/// porque quem lista é o módulo); `assinatura.sem_resposta` quando o app
+/// aceitou e não devolveu nada.
+fn registrar_falha(
+    diag: &Path,
+    socket: &Path,
+    hospedeiro: Option<&str>,
+    algoritmo: Algoritmo,
+    falha: &FalhaDeConversa,
+) {
+    let (evento, dica) = if falha.etapa == "conectar" {
+        (
+            "assinatura.sem_app",
+            "o remoteid-app não está no ar: abra o app e tente de novo",
+        )
+    } else {
+        (
+            "assinatura.sem_resposta",
+            "o remoteid-app aceitou o pedido e não respondeu",
+        )
+    };
+    Diag::anexar(diag).evento(
+        evento,
+        json!({
+            "socket": socket.display().to_string(),
+            "etapa": falha.etapa,
+            "erro": falha.erro.as_ref().map(|e| format!("{:?}", e.kind())),
+            "hospedeiro": hospedeiro,
+            "algoritmo": algoritmo.nome(),
+            "dica": dica,
+        }),
+    );
 }
 
 /// Traduz o erro do app para um código Cryptoki que o hospedeiro entenda.
@@ -222,6 +313,85 @@ mod tests {
             .to_string();
         assert!(!comm.is_empty());
         assert_eq!(comm_do_processo().as_deref(), Some(comm.as_str()));
+    }
+
+    /// Um diretório só deste teste, para o diag e o socket.
+    fn dir_do_teste(nome: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("rid-cliente-{nome}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn linhas_do_diag(caminho: &Path) -> Vec<serde_json::Value> {
+        std::fs::read_to_string(caminho)
+            .unwrap_or_default()
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn sem_app_no_ar_falha_com_device_error_e_deixa_rastro() {
+        // O caso da issue 26: a janela foi fechada, o socket sumiu, e o
+        // hospedeiro só via CKR_DEVICE_ERROR, sem linha em diag nenhum.
+        let dir = dir_do_teste("sem-app");
+        let socket = dir.join("nao-existe.sock");
+        let diag = dir.join("diag").join("modulo-pkcs11.jsonl");
+
+        let r = assinar_por(&socket, &diag, Algoritmo::Sha256, &[7u8; 32]);
+        assert_eq!(r, Err(CKR_DEVICE_ERROR));
+
+        let linhas = linhas_do_diag(&diag);
+        assert_eq!(linhas.len(), 1, "{linhas:?}");
+        let l = &linhas[0];
+        assert_eq!(l["evento"], "assinatura.sem_app");
+        assert_eq!(l["etapa"], "conectar");
+        assert_eq!(l["erro"], "NotFound");
+        assert_eq!(l["socket"], socket.display().to_string());
+        assert_eq!(l["algoritmo"], Algoritmo::Sha256.nome());
+        assert_eq!(l["hospedeiro"], comm_do_processo().unwrap());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn app_que_fecha_sem_responder_vira_sem_resposta() {
+        // O app aceitou e foi embora com o pedido na mão: outro diagnóstico,
+        // e por isso outro evento.
+        let dir = dir_do_teste("sem-resposta");
+        let socket = dir.join("app.sock");
+        let diag = dir.join("modulo-pkcs11.jsonl");
+        let listener = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+        let app = std::thread::spawn(move || {
+            let (fluxo, _) = listener.accept().unwrap();
+            let mut linha = String::new();
+            BufReader::new(&fluxo).read_line(&mut linha).unwrap();
+            // Recebeu o pedido inteiro e fecha sem responder.
+            assert!(linha.contains("digest_b64"), "{linha}");
+        });
+
+        let r = assinar_por(&socket, &diag, Algoritmo::Cru, &[1u8; 34]);
+        app.join().unwrap();
+        assert_eq!(r, Err(CKR_DEVICE_ERROR));
+
+        let linhas = linhas_do_diag(&diag);
+        assert_eq!(linhas.len(), 1, "{linhas:?}");
+        assert_eq!(linhas[0]["evento"], "assinatura.sem_resposta");
+        assert_eq!(linhas[0]["etapa"], "receber");
+        assert!(linhas[0]["erro"].is_null());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn falhas_seguidas_vao_para_o_mesmo_arquivo() {
+        let dir = dir_do_teste("seguidas");
+        let socket = dir.join("nao-existe.sock");
+        let diag = dir.join("modulo-pkcs11.jsonl");
+        for _ in 0..3 {
+            let _ = assinar_por(&socket, &diag, Algoritmo::Sha256, &[0u8; 32]);
+        }
+        assert_eq!(linhas_do_diag(&diag).len(), 3);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

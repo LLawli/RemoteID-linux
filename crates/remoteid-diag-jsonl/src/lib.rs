@@ -48,6 +48,11 @@ use remoteid_tipos::Result;
 /// Quantos arquivos de execução manter antes de apagar os mais antigos.
 const MANTER_EXECUCOES: usize = 20;
 
+/// Tamanho a partir do qual um arquivo fixo de [`Diag::anexar`] é girado para
+/// `<nome>.1`. Uma linha do módulo tem uns 200 bytes: 256 KiB são mais de mil
+/// falhas, e o diretório nunca passa de duas vezes isso por arquivo fixo.
+const GIRAR_FIXO_EM: u64 = 256 * 1024;
+
 pub struct Diag {
     arquivo: Option<Mutex<fs::File>>,
     caminho: Option<PathBuf>,
@@ -77,18 +82,34 @@ impl Diag {
     }
 
     fn tentar_abrir(dir: &Path) -> Result<Diag> {
-        fs::create_dir_all(dir)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            // O diretório guarda material sensível redigido, mas ainda assim
-            // identificável (certificado, CPF): não é de leitura pública.
-            let _ = fs::set_permissions(dir, fs::Permissions::from_mode(0o700));
-        }
+        criar_dir(dir)?;
         let agora = epoch_segundos();
         let nome = format!("run-{agora}-{}.jsonl", std::process::id());
-        let caminho = dir.join(nome);
+        let diag = Self::abrir_arquivo(dir.join(nome))?;
+        podar(dir, MANTER_EXECUCOES);
+        Ok(diag)
+    }
 
+    /// Continua um arquivo FIXO, em vez de abrir um por execução. É para quem
+    /// não é uma execução do motor (o módulo PKCS#11, que vive dentro de cada
+    /// hospedeiro e só escreve quando algo dá errado). As linhas têm o mesmo
+    /// formato e a mesma redação das de [`Diag::abrir`]; o arquivo é girado
+    /// para `<nome>.1` quando passa de [`GIRAR_FIXO_EM`], e a poda dos `run-*`
+    /// não o alcança.
+    ///
+    /// Como em [`Diag::abrir`], falhar aqui devolve um log inerte.
+    pub fn anexar(caminho: &Path) -> Diag {
+        let tentar = || -> Result<Diag> {
+            if let Some(dir) = caminho.parent() {
+                criar_dir(dir)?;
+            }
+            girar_se_grande(caminho, GIRAR_FIXO_EM);
+            Self::abrir_arquivo(caminho.to_path_buf())
+        };
+        tentar().unwrap_or_else(|_| Diag::inerte())
+    }
+
+    fn abrir_arquivo(caminho: PathBuf) -> Result<Diag> {
         let mut opts = fs::OpenOptions::new();
         opts.create(true).append(true);
         #[cfg(unix)]
@@ -97,14 +118,11 @@ impl Diag {
             opts.mode(0o600);
         }
         let arquivo = opts.open(&caminho)?;
-
-        let diag = Diag {
+        Ok(Diag {
             arquivo: Some(Mutex::new(arquivo)),
             caminho: Some(caminho),
             cru: std::env::var("REMOTEID_DIAG_RAW").as_deref() == Ok("1"),
-        };
-        podar(dir, MANTER_EXECUCOES);
-        Ok(diag)
+        })
     }
 
     /// Caminho do arquivo desta execução, para o CLI dizer onde ele está.
@@ -179,6 +197,30 @@ fn epoch_segundos() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0)
+}
+
+fn criar_dir(dir: &Path) -> Result<()> {
+    fs::create_dir_all(dir)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        // O diretório guarda material sensível redigido, mas ainda assim
+        // identificável (certificado, CPF): não é de leitura pública.
+        let _ = fs::set_permissions(dir, fs::Permissions::from_mode(0o700));
+    }
+    Ok(())
+}
+
+/// Move `caminho` para `<caminho>.1` (sobrescrevendo o anterior) quando ele
+/// passa de `limite` bytes. Dois hospedeiros girando ao mesmo tempo perdem no
+/// máximo as linhas de um deles: é log de diagnóstico, não livro-razão.
+fn girar_se_grande(caminho: &Path, limite: u64) {
+    let grande = fs::metadata(caminho).is_ok_and(|m| m.len() > limite);
+    if grande {
+        let mut velho = caminho.as_os_str().to_owned();
+        velho.push(".1");
+        let _ = fs::rename(caminho, PathBuf::from(velho));
+    }
 }
 
 /// Apaga os arquivos de execução mais antigos, mantendo os `manter` últimos.
@@ -269,6 +311,52 @@ mod tests {
         assert!(restantes.contains(&"run-1000000004-1.jsonl".to_string()));
         // Arquivo que não é de execução não é tocado.
         assert!(restantes.contains(&"outro.txt".to_string()));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn anexar_continua_o_mesmo_arquivo_e_redige() {
+        let dir = std::env::temp_dir().join(format!("dtid-anexar-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let caminho = dir.join("sub").join("fixo.jsonl");
+
+        // Sintético, e por variável para a auditoria de segredos não confundir
+        // o teste com um PIN de verdade versionado.
+        let pin_falso = "1234";
+        Diag::anexar(&caminho).evento("um", json!({ "pin": pin_falso }));
+        Diag::anexar(&caminho).evento("dois", json!({ "x": 1 }));
+
+        let txt = fs::read_to_string(&caminho).unwrap();
+        let linhas: Vec<&str> = txt.lines().collect();
+        assert_eq!(linhas.len(), 2, "duas aberturas, um arquivo só: {txt}");
+        assert!(linhas[0].contains(r#""evento":"um""#));
+        assert!(linhas[1].contains(r#""evento":"dois""#));
+        // A redação vale aqui como em qualquer outro diag.
+        assert!(!txt.contains(pin_falso), "PIN em claro: {txt}");
+        // Nenhum `run-*` nasce de um arquivo fixo.
+        let nomes: Vec<String> = fs::read_dir(caminho.parent().unwrap())
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(nomes, vec!["fixo.jsonl".to_string()]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn arquivo_fixo_grande_gira_para_ponto_um() {
+        let dir = std::env::temp_dir().join(format!("dtid-girar-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let caminho = dir.join("fixo.jsonl");
+        fs::write(&caminho, vec![b'x'; 11]).unwrap();
+
+        girar_se_grande(&caminho, 20);
+        assert!(caminho.exists(), "abaixo do limite não gira");
+
+        girar_se_grande(&caminho, 10);
+        assert!(!caminho.exists());
+        assert_eq!(fs::read(dir.join("fixo.jsonl.1")).unwrap().len(), 11);
         let _ = fs::remove_dir_all(&dir);
     }
 }
