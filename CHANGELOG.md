@@ -12,6 +12,8 @@ que ninguém sabe o que mudou.
 
 ## [Não publicado]
 
+## [0.3.1] - 2026-10-02
+
 ### Corrigido
 
 - **Fechar a janela não desliga mais o assinador** (issue #26). Fechada a
