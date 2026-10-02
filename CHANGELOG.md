@@ -12,6 +12,31 @@ que ninguém sabe o que mudou.
 
 ## [Não publicado]
 
+### Corrigido
+
+- **Fechar a janela não desliga mais o assinador** (issue #26). Fechada a
+  última janela, o app terminava e apagava o socket; o certificado continuava
+  aparecendo no PJeOffice e no navegador (quem o lista é o módulo), mas toda
+  assinatura falhava com `CKR_DEVICE_ERROR`, sem nada no diag, e o
+  "Reautorizar" não adiantava porque o problema era o app fechado. Agora fechar
+  a janela só a esconde: o app segue no ar atendendo o socket e avisa isso
+  numa notificação na primeira vez. Para encerrar, **Sair** no menu da janela
+  (Ctrl+Q).
+
+- **Abrir o app de novo não cria mais um segundo serviço** (issue #26). Com o
+  app já aberto, uma nova abertura (pelo menu ou pela janela do Adv BR) montava
+  outra janela com outro motor e refazia o socket para ele; as janelas antigas
+  ficavam ligadas a um serviço que não atendia mais ninguém, e um "Reautorizar"
+  numa delas não valia para a próxima assinatura. Agora a segunda abertura só
+  traz de volta a janela que já existe.
+
+- **Pedido de assinatura sem o app no ar deixa rastro** (issue #26). O módulo
+  passa a registrar em `modulo-pkcs11.jsonl`, no diretório do diag, quando não
+  acha o app (`assinatura.sem_app`) ou quando o app aceita o pedido e não
+  responde (`assinatura.sem_resposta`), com o socket procurado e o programa que
+  pediu. Antes essa falha não aparecia em lugar nenhum e parecia problema de
+  protocolo.
+
 ## [0.3.0] - 2026-09-29
 
 ### Corrigido

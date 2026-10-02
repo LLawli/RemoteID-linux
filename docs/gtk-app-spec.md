@@ -17,7 +17,10 @@ usar o **certificado em nuvem RemoteID (Certisign)** no Linux. Ele:
 3. **Pede PIN e OTP** numa janela quando uma assinatura precisa de autorização.
 
 Consequência de projeto (unificação): é **um binário só**, janela + servidor do
-socket no mesmo processo. **Assinar só funciona com a janela aberta.**
+socket no mesmo processo. **Assinar só funciona com o app no ar.** Fechar a
+janela só a esconde, e o processo segue atendendo o socket; para encerrar há o
+"Sair" do menu principal (Ctrl+Q). Abrir o app de novo traz a mesma janela de
+volta, sem montar outro serviço (issue 26).
 
 ## Tecnologia (obrigatória)
 
