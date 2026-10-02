@@ -1,6 +1,6 @@
 [package]
 name = "remoteid-gtk"
-description = "O app RemoteID-linux: janela GTK4 + servidor do socket in-process (assina enquanto a janela está aberta)"
+description = "O app RemoteID-linux: janela GTK4 + servidor do socket in-process (assina enquanto o app está no ar, com ou sem janela)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

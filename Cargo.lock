@@ -1262,6 +1262,7 @@ dependencies = [
  "remoteid-caminhos",
  "remoteid-chave-pem",
  "remoteid-cripto",
+ "remoteid-diag-jsonl",
  "remoteid-estado",
  "remoteid-protocolo",
  "remoteid-protocolo-servidor",

@@ -151,6 +151,11 @@ remoteid-app
 Sem ele no ar o certificado até aparece na lista do programa (essa parte é lida
 do estado local), mas a assinatura falha — não há quem autorize.
 
+Fechar a janela não desliga o assinador: o app continua no ar em segundo plano,
+atendendo os pedidos de assinatura, e avisa isso por uma notificação na primeira
+vez. Abrir o app de novo traz a janela de volta. Para encerrar de verdade, use
+**Sair** no menu da janela (ou Ctrl+Q).
+
 ## Onde ficam as suas coisas
 
 Em `~/.local/state/remoteid` (ou `$REMOTEID_HOME`), tudo com permissão 0600:
@@ -160,7 +165,8 @@ Em `~/.local/state/remoteid` (ou `$REMOTEID_HOME`), tudo com permissão 0600:
 - `state.json` — registro do desktop, certificado do titular, preferências
 
 O diagnóstico fica em `~/.local/state/remoteid/diag/`: um arquivo JSONL por
-execução, os 20 últimos. **Senha, PIN e OTP nunca são gravados**; tokens
+execução, os 20 últimos, mais o `modulo-pkcs11.jsonl`, onde o módulo registra os
+pedidos de assinatura que chegaram sem o app no ar. **Senha, PIN e OTP nunca são gravados**; tokens
 aparecem só como impressão digital SHA-256. É o material para anexar a um
 relatório de bug:
 

@@ -68,6 +68,16 @@ pub fn caminho_estado(dir: &Path) -> PathBuf {
     dir.join("state.json")
 }
 
+/// O diag do módulo PKCS#11, dentro de [`dir_diag`]. É um arquivo FIXO, e não
+/// um `run-*.jsonl` por execução, porque o módulo não é uma execução: ele vive
+/// dentro de cada hospedeiro que o carrega (PJeOffice, Papers, navegador) e só
+/// escreve quando o app não responde. Um arquivo por `C_Sign` falho encheria o
+/// diretório e, pela poda dos `run-*`, empurraria para fora justamente as
+/// execuções do app que se quer comparar com ele.
+pub fn caminho_diag_modulo(dir: &Path) -> PathBuf {
+    dir.join("modulo-pkcs11.jsonl")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

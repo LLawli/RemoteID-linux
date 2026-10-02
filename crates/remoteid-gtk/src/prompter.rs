@@ -130,7 +130,12 @@ impl Prompter for GtkPrompter {
         // Localiza a janela ativa da aplicação para ancorar o diálogo modal flutuante
         let janela_pai = gtk::gio::Application::default()
             .and_downcast::<gtk::Application>()
-            .and_then(|app| app.active_window());
+            .and_then(|app| app.active_window())
+            // Com a janela fechada ela só está escondida (o app se mantém no
+            // ar, issue 26), e o `active_window()` continua devolvendo ela.
+            // Ancorar o diálogo numa janela invisível arrisca escondê-lo
+            // junto; sem pai ele aparece sozinho, como quando o app está atrás.
+            .filter(|janela| janela.is_visible());
 
         let resultado = crate::telas::pin_otp::rodar_modal(
             janela_pai.as_ref(),
