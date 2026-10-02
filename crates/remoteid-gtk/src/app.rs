@@ -11,8 +11,13 @@
 //! aberto: a segunda requisição não era aceita, o cliente ficava pendurado até o
 //! timeout dele, e o `try_borrow_mut` abaixo nunca era alcançado. Ver
 //! `iniciar_socket` e `registrar_conexao`.
+//!
+//! O processo, e não a janela, é quem mantém o assinador no ar: fechar a janela
+//! só a esconde, e o app segue atendendo o socket até o "Sair" do menu (ver
+//! `manter_no_ar`). Uma segunda abertura do app só traz a janela de volta; ela
+//! nunca monta outro `Servico` nem refaz o socket (ver `construir_app`).
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::io::{BufRead, BufReader, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::net::UnixStream;
@@ -21,7 +26,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use adw::prelude::*;
-use gtk::glib;
+use gtk::{gio, glib};
 
 use remoteid_aplicacao::Opcoes;
 use remoteid_daemon::protocolo::{CodigoErro, Requisicao, Resposta};
@@ -36,7 +41,20 @@ use crate::telas::{configuracoes, login, painel, selecao};
 pub type ServicoCompartilhado = Rc<RefCell<Servico>>;
 
 /// Inicializa a aplicação no modo normal (janela + socket in-process).
+///
+/// Roda a cada ativação, e só a primeira monta alguma coisa. Abrir o app de
+/// novo com ele já no ar (pelo menu, ou pela janela do Adv BR) chega aqui pelo
+/// D-Bus, no processo primário. Montar de novo criaria um segundo `Servico`,
+/// com outro `Motor` e outro `Estado` em memória, e refaria o bind do socket
+/// para ele: o serviço antigo ficava órfão, mas as janelas antigas continuavam
+/// ligadas a ele, e um "Reautorizar" numa delas invalidava a sessão de quem
+/// não atendia mais ninguém (issue 26).
 pub fn construir_app(app: &adw::Application) {
+    if let Some(janela) = app.windows().first() {
+        janela.present();
+        return;
+    }
+
     let teste = remoteid_caminhos::em_teste();
     let titulo = if teste {
         "RemoteID — MODO DE TESTE"
@@ -68,6 +86,8 @@ pub fn construir_app(app: &adw::Application) {
         }
     };
 
+    registrar_sair(app);
+
     // Inicializa o servidor do socket UNIX vigiado pelo GLib
     let caminho_socket = socket::caminho_padrao();
     match iniciar_socket(servico.clone(), caminho_socket.clone()) {
@@ -76,6 +96,7 @@ pub fn construir_app(app: &adw::Application) {
             app.connect_shutdown(move |_| {
                 limpar_socket(&c_limpar);
             });
+            manter_no_ar(app, &janela);
         }
         Err(e) => {
             eprintln!(
@@ -88,6 +109,64 @@ pub fn construir_app(app: &adw::Application) {
     // Inicializa a navegação da interface
     navegar_para_estado_atual(&janela, &servico, teste);
     janela.present();
+}
+
+/// A ação `app.sair` (e o Ctrl+Q), o único jeito de encerrar o app quando ele
+/// se mantém no ar. `quit` termina o processo mesmo com o `hold` de
+/// `manter_no_ar` ativo, e o `connect_shutdown` apaga o socket.
+fn registrar_sair(app: &adw::Application) {
+    let sair = gio::ActionEntry::builder("sair")
+        .activate(|app: &adw::Application, _, _| app.quit())
+        .build();
+    app.add_action_entries([sair]);
+    app.set_accels_for_action("app.sair", &["<Primary>q"]);
+}
+
+/// Mantém o processo, e com ele o socket, vivo com a janela fechada.
+///
+/// Sem isto o `GApplication` terminava junto com a última janela, o socket era
+/// apagado, e o módulo PKCS#11 passava a devolver `CKR_DEVICE_ERROR` na hora,
+/// sem nada no diag. O certificado continuava aparecendo no PJeOffice e no
+/// navegador, porque quem o lista é o módulo, que não depende do app: quem
+/// fechava a janela não tinha como saber que tinha desligado o assinador
+/// (issue 26). Fechar a janela agora só a esconde; para encerrar, "Sair".
+///
+/// Só vale com o socket no ar. Sem socket não há o que manter, e fechar a
+/// janela encerra o app como antes.
+fn manter_no_ar(app: &adw::Application, janela: &adw::ApplicationWindow) {
+    // O guarda solta o `hold` quando cai, e ele tem de durar o processo
+    // inteiro: quem encerra é o `quit` do "Sair", que ignora a contagem.
+    std::mem::forget(app.hold());
+    janela.set_hide_on_close(true);
+
+    // Avisa uma vez por processo, na primeira vez que a janela some, que o
+    // assinador continua ligado e onde fica o "Sair". Fechar e não ver mais
+    // nada é o que faz a pessoa achar que o app acabou.
+    let avisado = Cell::new(false);
+    let app = app.clone();
+    janela.connect_close_request(move |_| {
+        if !avisado.replace(true) {
+            let aviso = gio::Notification::new("O RemoteID continua no ar");
+            aviso.set_body(Some(
+                "Ele segue atendendo os pedidos de assinatura com a janela fechada. \
+                 Para encerrar, abra o app e use Sair no menu.",
+            ));
+            app.send_notification(Some("segundo-plano"), &aviso);
+        }
+        glib::Propagation::Proceed
+    });
+}
+
+/// O menu principal da barra de título, com o "Sair". Vai em toda tela: com o
+/// app se mantendo no ar, é o único jeito de encerrá-lo pela interface.
+fn botao_menu() -> gtk::MenuButton {
+    let menu = gio::Menu::new();
+    menu.append(Some("Sair"), Some("app.sair"));
+    gtk::MenuButton::builder()
+        .icon_name("open-menu-symbolic")
+        .tooltip_text("Menu principal")
+        .menu_model(&menu)
+        .build()
 }
 
 /// Sobe o socket UNIX não-bloqueante e integra ao loop de eventos do GLib.
@@ -259,6 +338,7 @@ fn mostrar_tela_login(
     let cabecalho = adw::HeaderBar::new();
     let subtitulo = if teste { "Modo de Teste" } else { "" };
     cabecalho.set_title_widget(Some(&adw::WindowTitle::new("RemoteID", subtitulo)));
+    cabecalho.pack_end(&botao_menu());
 
     let j_clone = janela.clone();
     let s_clone = servico.clone();
@@ -326,6 +406,7 @@ fn mostrar_tela_painel(
     let cabecalho = adw::HeaderBar::new();
     let subtitulo = if teste { "Modo de Teste" } else { "" };
     cabecalho.set_title_widget(Some(&adw::WindowTitle::new("RemoteID", subtitulo)));
+    cabecalho.pack_end(&botao_menu());
 
     let botao_cfg = gtk::Button::builder()
         .icon_name("preferences-system-symbolic")
@@ -392,6 +473,7 @@ fn mostrar_tela_selecao(
 
     let cabecalho = adw::HeaderBar::new();
     cabecalho.set_title_widget(Some(&adw::WindowTitle::new("Selecionar Certificado", "")));
+    cabecalho.pack_end(&botao_menu());
 
     let botao_voltar = gtk::Button::builder()
         .icon_name("go-previous-symbolic")
@@ -454,6 +536,7 @@ fn mostrar_tela_configuracoes(
 
     let cabecalho = adw::HeaderBar::new();
     cabecalho.set_title_widget(Some(&adw::WindowTitle::new("Configurações", "")));
+    cabecalho.pack_end(&botao_menu());
 
     let botao_voltar = gtk::Button::builder()
         .icon_name("go-previous-symbolic")
