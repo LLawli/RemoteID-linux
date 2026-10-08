@@ -166,9 +166,11 @@ Em `~/.local/state/remoteid` (ou `$REMOTEID_HOME`), tudo com permissão 0600:
 
 O diagnóstico fica em `~/.local/state/remoteid/diag/`: um arquivo JSONL por
 execução, os 20 últimos, mais o `modulo-pkcs11.jsonl`, onde o módulo registra os
-pedidos de assinatura que chegaram sem o app no ar. **Senha, PIN e OTP nunca são gravados**; tokens
-aparecem só como impressão digital SHA-256. É o material para anexar a um
-relatório de bug:
+pedidos de assinatura que chegaram sem o app no ar. **Senha, PIN e OTP nunca são gravados**,
+nem os dados pessoais que o servidor devolve junto com o certificado (nome, CPF,
+RG, e-mail, data de nascimento e afins). Tokens, o serial do certificado e a
+assinatura aparecem só como impressão digital SHA-256. É o material para anexar
+a um relatório de bug:
 
 ```sh
 remoteid diagnostico
