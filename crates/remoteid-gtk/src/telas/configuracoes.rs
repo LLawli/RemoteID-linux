@@ -36,8 +36,12 @@ pub fn montar(
     let pagina = adw::PreferencesPage::new();
 
     // 1. Grupo Segurança & Sessão
+    //
+    // O título de `AdwPreferencesGroup` é sempre lido como markup Pango, e o
+    // grupo não tem `use_markup` para desligar isso: o `&` cru faz o GTK
+    // recusar o texto (issue #29), então vai escapado.
     let grupo_sessao = adw::PreferencesGroup::builder()
-        .title("Segurança & Sessão")
+        .title("Segurança &amp; Sessão")
         .build();
 
     let linha_pin = adw::SpinRow::builder()
@@ -86,9 +90,12 @@ pub fn montar(
             None => "Nenhum selecionado".to_string(),
         };
 
+        // Nome do titular e caminho do log vão como texto puro, não como
+        // markup: um `&` neles deixaria a linha em branco (issue #29).
         let linha_trocar = adw::ActionRow::builder()
             .title("Certificado padrão")
             .subtitle(&sub)
+            .use_markup(false)
             .activatable(true)
             .build();
         linha_trocar.add_suffix(&gtk::Image::from_icon_name("go-next-symbolic"));
@@ -110,6 +117,7 @@ pub fn montar(
     let linha_diag = adw::ActionRow::builder()
         .title("Pasta de registros (logs)")
         .subtitle(&config.caminho_log)
+        .use_markup(false)
         .build();
 
     let botao_abrir_pasta = gtk::Button::builder()
