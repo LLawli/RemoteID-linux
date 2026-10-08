@@ -12,6 +12,8 @@ que ninguém sabe o que mudou.
 
 ## [Não publicado]
 
+## [0.3.2] - 2026-10-08
+
 ### Corrigido
 
 - **O diagnóstico não grava mais os dados pessoais do certificado** (issue
