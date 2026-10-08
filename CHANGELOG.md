@@ -12,6 +12,21 @@ que ninguém sabe o que mudou.
 
 ## [Não publicado]
 
+### Corrigido
+
+- **O diagnóstico não grava mais os dados pessoais do certificado** (issue
+  #30). A cada assinatura o servidor devolve o certificado do titular já
+  parseado, e o JSONL em `diag/` guardava nome, CPF, RG, e-mail, data de
+  nascimento, título de eleitor e o resto em claro, inclusive no relato que
+  vai para terceiros. Esses campos agora saem como `<redigido>`, mesmo com
+  `REMOTEID_DIAG_RAW=1`. O serial do certificado (em qualquer das grafias do
+  protocolo), a `cert_key` e a `signatureBase64` saem como impressão digital,
+  o que ainda permite saber se duas linhas falam do mesmo certificado. Emissor
+  e validade continuam legíveis, porque é com eles que se diagnostica
+  certificado vencido ou de outra AC. Os arquivos de diagnóstico gravados
+  antes desta versão continuam com os dados: apague-os de `diag/` se for
+  enviá-los.
+
 ## [0.3.1] - 2026-10-02
 
 ### Corrigido
