@@ -34,15 +34,21 @@ pub fn montar(estado: &EstadoApp, acoes: AcoesPainel) -> gtk::Widget {
     // 1. Grupo Identidade
     let grupo_identidade = adw::PreferencesGroup::builder().title("Identidade").build();
 
+    // Título e subtítulo de linha do libadwaita são markup Pango por padrão.
+    // Tudo o que vem do certificado (nome, emissor, OU) vai como texto puro:
+    // um e-CNPJ "FULANO & CIA LTDA" faria o GTK recusar o texto e deixar a
+    // linha em branco (issue #29).
     let (nome_titular, doc_titular) = estado.nome_e_documento_titular();
     let linha_titular = match doc_titular {
         Some(doc) => adw::ActionRow::builder()
             .title(&nome_titular)
             .subtitle(&doc)
+            .use_markup(false)
             .build(),
         None => adw::ActionRow::builder()
             .title("Titular")
             .subtitle(&nome_titular)
+            .use_markup(false)
             .build(),
     };
     linha_titular.add_prefix(&gtk::Image::from_icon_name("avatar-default-symbolic"));
@@ -95,6 +101,7 @@ pub fn montar(estado: &EstadoApp, acoes: AcoesPainel) -> gtk::Widget {
         let linha_cert = adw::ExpanderRow::builder()
             .title(&nome_cert)
             .subtitle(&sub)
+            .use_markup(false)
             .expanded(false)
             .build();
 
@@ -126,6 +133,7 @@ pub fn montar(estado: &EstadoApp, acoes: AcoesPainel) -> gtk::Widget {
             let linha_ou = adw::ActionRow::builder()
                 .title("Unidades Organizacionais")
                 .subtitle(&ous_texto)
+                .use_markup(false)
                 .build();
             linha_ou.add_prefix(&gtk::Image::from_icon_name("system-users-symbolic"));
             linha_cert.add_row(&linha_ou);

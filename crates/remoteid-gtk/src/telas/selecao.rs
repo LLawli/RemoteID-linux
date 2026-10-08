@@ -52,9 +52,12 @@ pub fn montar(estado: &EstadoApp, acoes: AcoesSelecao) -> gtk::Widget {
             Some(cpf) => format!("{cpf} • {} • Série {}", cert.emissor, cert.serial),
             None => format!("{} • Série {}", cert.emissor, cert.serial),
         };
+        // Texto do certificado vai como texto puro, não como markup: um `&`
+        // no nome ou no emissor deixaria a linha em branco (issue #29).
         let linha = adw::ActionRow::builder()
             .title(&nome)
             .subtitle(&sub)
+            .use_markup(false)
             .activatable(true)
             .build();
 

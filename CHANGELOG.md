@@ -27,6 +27,13 @@ que ninguém sabe o que mudou.
   antes desta versão continuam com os dados: apague-os de `diag/` se for
   enviá-los.
 
+- **O título "Segurança & Sessão" das configurações volta a aparecer**
+  (issue #29). O GTK lê esse título como markup, e o `&` sem escape fazia ele
+  recusar o texto, com um aviso no log a cada abertura da tela. Pelo mesmo
+  motivo, nome do titular, emissor, unidades organizacionais e o caminho do
+  log passam a ser mostrados como texto puro: um certificado de empresa como
+  "FULANO & CIA LTDA" deixaria a linha em branco.
+
 ## [0.3.1] - 2026-10-02
 
 ### Corrigido
