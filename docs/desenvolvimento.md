@@ -40,6 +40,27 @@ O script cobre só crates do crates.io; uma dependência git é recusada.
 RemoteID-linux v0.3.2, e roda no `scripts/ci.sh` como qualquer teste. Para
 regenerar as fixtures, veja [paridade/README.md](../paridade/README.md).
 
+## Servidor falso
+
+O `remoteid-mock` faz o papel da Certisign, para testar tudo sem a conta real.
+Os testes do motor o sobem sozinhos; para usar à mão:
+
+```bash
+cargo run --bin remoteid-mock          # imprime o endereço; 0 como argumento escolhe a porta
+REMOTEID_SERVIDOR=http://127.0.0.1:8799 REMOTEID_HOME=/mnt/dados/caches/remoteid-teste remoteid ...
+```
+
+Credenciais: `teste@remoteid.local` / `teste-1234`, PIN `1234`, OTP `123456`.
+`POST /_mock/expirar` esquece as sessões abertas, como quando elas vencem.
+`REMOTEID_HOME` separa o estado e a chave de teste dos da conta real.
+
+## Diagnóstico
+
+Cada execução grava um JSONL em `<estado>/diagnostico/`, os 20 últimos, com
+senha, PIN, OTP e dados do titular fora e tokens como impressão digital.
+`REMOTEID_DIAG_CRU=1` mostra os tokens, para investigar o protocolo na própria
+máquina.
+
 ## Construir a extensão
 
 ```bash

@@ -41,7 +41,24 @@ em 2026-10-30: o `.so` sai ligado apenas a `libc`, `libgcc_s` e `ld-linux`.
 O RemoteID-linux tinha 23 crates, com uma porta (trait) para cada efeito,
 pensadas para uma versão central multi-conta que nunca existiu. Aqui os
 domínios são módulos, e uma trait só existe quando há duas implementações de
-verdade hoje (a real e a de teste).
+verdade hoje (a real e a de teste): o `Transporte` (HTTP ou falso) e o
+`Autorizador` (o diálogo de PIN e OTP, ou fatores fixos num teste).
+
+| módulo | o que faz |
+|---|---|
+| `protocolo/` | monta as requisições e lê as respostas; puro, provado contra o antigo |
+| `cripto` | a chave da instalação, que assina o `Bearer` |
+| `transporte` | leva a requisição pela rede (ureq) |
+| `estado` | conta, registro, carteira e sessões em cache, num JSON 0600 |
+| `caminhos` | onde fica cada arquivo, e o servidor (`REMOTEID_SERVIDOR` troca pelo falso) |
+| `motor` | o fluxo: preparar a conta e assinar, com a sessão em cache |
+| `diagnostico` | um JSONL por execução, com segredos e dados do titular redigidos |
+| `bin/remoteid-mock` | o servidor falso dos testes |
+
+O motor roda em dois processos que dividem o mesmo estado em disco: o módulo,
+no serviço do Âncora, e a janela. Cada um relê o estado antes de agir
+(`Motor::recarregar`); a escrita é por troca atômica, então ninguém lê um
+arquivo pela metade.
 
 ## O protocolo com a Certisign não muda
 
@@ -82,9 +99,11 @@ documentação, e o diagnóstico só grava o que já passou pela redação.
 2. **Protocolo** (feito): requisições, canonicalização, `Bearer` e leitura das
    respostas (`src/protocolo/`), com os testes de paridade contra o
    RemoteID-linux.
-3. **Motor e servidor falso**: preparar (login, registro do desktop e
+3. **Motor e servidor falso** (feito): preparar (login, registro do desktop e
    carteira), estado, sessão em cache, assinar, diagnóstico redigido, e o
-   servidor RemoteID falso que os testes usam.
+   servidor RemoteID falso que os testes usam. O servidor falso confere o
+   `Bearer` com a chave do registro e lembra as sessões, e o transporte novo
+   manda os mesmos bytes e cabeçalhos que o antigo.
 4. **Módulo PKCS#11 com o motor dentro e o diálogo de PIN e OTP sob demanda**,
    testados com só o `ancora servir` no ar (nenhuma janela aberta), por
    `pkcs11-tool` contra o servidor falso.
@@ -105,6 +124,12 @@ RemoteID-linux e nunca passou por uma conta real.
   Conferir na etapa 4 que a supervisão do Âncora (sonda a cada 10 s, com limite
   de 10 s) não toma isso por driver travado, e se o contrato de extensão
   precisa de um campo novo para isso.
+- **Duas escritas ao mesmo tempo.** O módulo grava a sessão nova enquanto a
+  janela grava uma escolha de certificado: a última troca vence e a outra
+  mudança se perde. Decidir na etapa 4 se vale uma trava de arquivo.
+- **A cadeia de autoridades.** O antigo baixava pelo `caIssuers` a cadeia de
+  cada certificado da carteira, para o validador do outro lado fechar a
+  confiança. Entra na etapa 4, onde o módulo a publica.
 - **O serviço do Âncora com a sessão.** Hoje o `ancora servir` não sobe sozinho
   no login (pendência do Âncora); até lá, o RemoteID só assina com ele no ar.
 

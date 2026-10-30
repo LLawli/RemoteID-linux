@@ -46,7 +46,7 @@ impl Servidor {
 
 /// Um certificado da carteira. O `keyName` é `<serial>;<emissor>`, e o
 /// emissor pode ter `;` dentro: só o primeiro separa.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Certificado {
     pub key_name: String,
     pub serial_number: String,
@@ -64,5 +64,12 @@ impl Certificado {
             issue: emissor.into(),
             base64,
         })
+    }
+
+    /// O que identifica o certificado no estado. É o `keyName` refeito dos
+    /// dois campos, para que um espaço a mais vindo do servidor não descarte
+    /// a sessão em cache.
+    pub fn chave(&self) -> String {
+        format!("{};{}", self.serial_number, self.issue)
     }
 }

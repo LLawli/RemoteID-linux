@@ -45,14 +45,13 @@ fn conferir(diferencas: Vec<String>) {
 
 // --- requisições ------------------------------------------------------------
 
-fn montar(endpoint: &str, e: &Value, chave: &ChaveInstalacao) -> Requisicao {
-    let srv = Servidor::producao();
+fn montar(srv: &Servidor, endpoint: &str, e: &Value, chave: &ChaveInstalacao) -> Requisicao {
     let cert = || Certificado::do_key_name(&s(e, "key_name"), None).unwrap();
     match endpoint {
-        "hierarquias" => requisicao::hierarquias(&srv),
-        "login" => requisicao::login(&srv, &s(e, "email"), &s(e, "senha")),
+        "hierarquias" => requisicao::hierarquias(srv),
+        "login" => requisicao::login(srv, &s(e, "email"), &s(e, "senha")),
         "registrar" => requisicao::registrar(
-            &srv,
+            srv,
             &s(e, "jwt"),
             e["user_id"].as_i64().unwrap(),
             e["org_id"].as_i64().unwrap(),
@@ -64,19 +63,19 @@ fn montar(endpoint: &str, e: &Value, chave: &ChaveInstalacao) -> Requisicao {
             chave,
         ),
         "status_celular" => requisicao::status_celular(
-            &srv,
+            srv,
             &s(e, "codigo_desktop"),
             e["agora"].as_u64().unwrap(),
             chave,
         ),
         "carteira" => requisicao::carteira(
-            &srv,
+            srv,
             &s(e, "codigo_desktop"),
             e["agora"].as_u64().unwrap(),
             chave,
         ),
         "tokensessao" => requisicao::tokensessao(
-            &srv,
+            srv,
             &s(e, "codigo_desktop"),
             &cert(),
             &s(e, "pin"),
@@ -84,7 +83,7 @@ fn montar(endpoint: &str, e: &Value, chave: &ChaveInstalacao) -> Requisicao {
             chave,
         ),
         "request_hash" => requisicao::request_hash(
-            &srv,
+            srv,
             &s(e, "codigo_desktop"),
             &s(e, "session_token"),
             &cert(),
@@ -104,7 +103,12 @@ fn as_requisicoes_saem_iguais_byte_a_byte() {
     let chave = chave();
     let mut diferencas = Vec::new();
     for caso in fixture("requisicoes.json", 24) {
-        let nova = montar(&s(&caso, "endpoint"), &caso["entrada"], &chave);
+        let nova = montar(
+            &Servidor::producao(),
+            &s(&caso, "endpoint"),
+            &caso["entrada"],
+            &chave,
+        );
         let antiga = &caso["enviado"];
         let base = if caso["endpoint"] == "hierarquias" {
             p::CERTINEXT_URL
@@ -146,6 +150,75 @@ fn as_requisicoes_saem_iguais_byte_a_byte() {
                     s(&caso, "caso")
                 ));
             }
+        }
+    }
+    conferir(diferencas);
+}
+
+/// Um servidor local que grava a requisição crua, como o do gerador, e
+/// responde `{}`.
+fn gravador() -> (String, std::sync::mpsc::Receiver<Value>) {
+    use std::io::{BufRead, BufReader, Read, Write};
+    let ouvinte = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://{}", ouvinte.local_addr().unwrap());
+    let (envia, recebe) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        for conexao in ouvinte.incoming() {
+            let mut conexao = conexao.unwrap();
+            let mut leitor = BufReader::new(&conexao);
+            let mut linha = String::new();
+            leitor.read_line(&mut linha).unwrap();
+            let mut partes = linha.split_whitespace();
+            let (metodo, caminho) = (partes.next().unwrap(), partes.next().unwrap());
+            let mut cabecalhos = serde_json::Map::new();
+            loop {
+                let mut l = String::new();
+                leitor.read_line(&mut l).unwrap();
+                let Some((nome, valor)) = l.trim_end().split_once(':') else {
+                    break;
+                };
+                cabecalhos.insert(nome.trim().to_lowercase(), json!(valor.trim()));
+            }
+            let tamanho = cabecalhos
+                .get("content-length")
+                .map_or(0, |v| v.as_str().unwrap().parse().unwrap());
+            let mut corpo = vec![0; tamanho];
+            leitor.read_exact(&mut corpo).unwrap();
+            cabecalhos.remove("host");
+            let capturada = json!({"metodo": metodo, "caminho": caminho,
+                "cabecalhos": cabecalhos,
+                "corpo": (tamanho > 0).then(|| String::from_utf8(corpo).unwrap())});
+            conexao
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}")
+                .unwrap();
+            envia.send(capturada).unwrap();
+        }
+    });
+    (base, recebe)
+}
+
+#[test]
+fn o_transporte_manda_os_mesmos_bytes_e_cabecalhos() {
+    use remoteid::transporte::{Http, TEMPO_LIMITE, Transporte};
+    let chave = chave();
+    let (base, capturadas) = gravador();
+    let servidor = Servidor {
+        remoteid: base.clone(),
+        certinext: base,
+    };
+    let http = Http::novo(TEMPO_LIMITE);
+    let mut diferencas = Vec::new();
+    for caso in fixture("requisicoes.json", 24) {
+        let requisicao = montar(&servidor, &s(&caso, "endpoint"), &caso["entrada"], &chave);
+        let resposta = http.enviar(&requisicao).unwrap();
+        assert_eq!((resposta.http, resposta.corpo.as_str()), (200, "{}"));
+        let enviada = capturadas.recv().unwrap();
+        if enviada != caso["enviado"] {
+            diferencas.push(format!(
+                "{}\n  novo:   {enviada}\n  antigo: {}",
+                s(&caso, "caso"),
+                caso["enviado"]
+            ));
         }
     }
     conferir(diferencas);
