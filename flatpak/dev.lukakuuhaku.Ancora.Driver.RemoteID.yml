@@ -1,0 +1,41 @@
+# A extensão RemoteID do Âncora: o módulo PKCS#11 e o aplicativo que entra na
+# conta e pede PIN e OTP. Montada em /app/extensoes/driver/RemoteID.
+id: dev.lukakuuhaku.Ancora.Driver.RemoteID
+branch: master
+runtime: dev.lukakuuhaku.Ancora
+runtime-version: master
+sdk: org.gnome.Sdk//51
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+build-extension: true
+separate-locales: false
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+
+modules:
+  - name: remoteid
+    buildsystem: simple
+    build-options:
+      env:
+        # O cargo-sources.json descompacta os crates aqui, junto com um
+        # config.toml que manda o cargo usá-los em vez do crates.io.
+        CARGO_HOME: /run/build/remoteid/cargo
+    build-commands:
+      - cargo --offline build --release --locked
+      - install -Dm644 data/ancora.toml -t ${FLATPAK_DEST}
+      - install -Dm755 target/release/libremoteid.so -t ${FLATPAK_DEST}/lib
+      - install -Dm755 target/release/remoteid -t ${FLATPAK_DEST}/bin
+      - install -Dm644 data/dev.lukakuuhaku.Ancora.Driver.RemoteID.metainfo.xml
+        -t ${FLATPAK_DEST}/share/metainfo
+    sources:
+      - type: dir
+        path: ..
+        skip:
+          - target
+          - .flatpak-builder
+          - build-dir
+          - repo
+          - .jj
+          - .git
+      - cargo-sources.json

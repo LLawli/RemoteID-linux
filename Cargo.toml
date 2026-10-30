@@ -1,0 +1,28 @@
+[package]
+name = "remoteid"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+description = "Certificado em nuvem RemoteID (Certisign) no Linux, como extensão do Âncora"
+license = "GPL-3.0-only"
+publish = false
+
+# A biblioteca é o módulo PKCS#11 (cdylib), carregado pelo p11-kit dentro do
+# sandbox do Âncora, e também o núcleo que o binário usa (rlib). O GTK é
+# dependência só do binário: medido em 2026-10-30, o .so sai ligado apenas a
+# libc, libgcc_s e ld-linux.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "remoteid"
+path = "src/main.rs"
+
+[dependencies]
+gtk = { package = "gtk4", version = "0.11", features = ["v4_18"] }
+adw = { package = "libadwaita", version = "0.9", features = ["v1_7"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
