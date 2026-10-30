@@ -28,7 +28,9 @@ a etapa onde ela pega e o caminho da página de origem.
 - **O protocolo com a Certisign não muda.** Payloads, endpoints,
   canonicalização, `Bearer` sobre os bytes exatos do corpo, `USER_AGENT`.
   Todo código de protocolo entra com teste de paridade 1:1 contra o
-  RemoteID-linux, para requisições e para a leitura das respostas.
+  RemoteID-linux, para requisições e para a leitura das respostas
+  (`tests/paridade.rs`). As fixtures em `tests/paridade/` só mudam
+  regeneradas pelo `paridade/`, nunca à mão.
 - **PIN, OTP e senha nunca** vão para log, teste, fixture ou documentação.
   Fixtures são sintéticas; nada de `.logs/` do antigo entra no repositório.
 - Gates: `scripts/ci.sh`, rodado com teto de CPU e memória nesta máquina.

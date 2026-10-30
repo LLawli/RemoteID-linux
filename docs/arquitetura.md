@@ -48,19 +48,29 @@ verdade hoje (a real e a de teste).
 O que o servidor RemoteID aceita não está sob nosso controle. Tem de sair igual
 ao do RemoteID-linux, byte a byte:
 
-- os corpos das requisições e os endpoints;
-- a canonicalização e a assinatura do `Bearer`, que cobre os bytes exatos do
-  corpo serializado (reserializar quebra a assinatura);
+- os corpos das requisições, byte a byte, e os endpoints;
+- o `Bearer`: a assinatura, com a chave da instalação, da forma canônica do
+  corpo (regra decompilada do app oficial: chaves em ordem alfabética, e um
+  `true` escreve o nome da chave);
 - o `USER_AGENT` `desktopID/2.2.0.1`, que imita o aplicativo oficial;
 - o `sessionToken` opaco, e a regra de que HTTP 200 pode ser erro.
 
-O código pode ser reescrito. Os testes de paridade é que não podem ceder: para
-cada requisição, o payload gerado aqui é comparado 1:1 com o do RemoteID-linux,
-e para cada resposta, a leitura daqui é comparada 1:1 com a de lá. Há dois
-jeitos de fazer essa comparação, e a escolha sai de medição na etapa 2:
-fixtures gravadas a partir do antigo, ou o antigo como dependência de teste
-numa comparação diferencial. O RemoteID-linux ficou privado enquanto este
-projeto não fica pronto, então a segunda exige um token de leitura na CI.
+O código pode ser reescrito; a prova de que nada mudou é
+`tests/paridade.rs`. Ele compara o código novo, 1:1, com fixtures gravadas
+rodando o próprio RemoteID-linux v0.3.2: cada requisição (método, URL,
+cabeçalhos e corpo em bytes, com o `Bearer` assinado pela mesma chave de
+teste), o que foi lido de cada resposta, a classificação de cada mensagem de
+erro e a canônica. As fixtures saem de `paridade/`, um projeto à parte que
+depende do antigo; o porquê e como regenerar estão em
+[paridade/README.md](../paridade/README.md).
+
+Por que fixtures, e não o antigo como dependência de teste do pacote: medido em
+2026-10-30, isso levaria o `Cargo.lock` de 68 para 205 pacotes, todos no build
+offline do Flatpak, e o builder e a CI precisariam de credencial para o
+repositório privado. Os testes conseguem falhar: sete de oito defeitos
+plausíveis injetados no código novo foram pegos, e o oitavo (um `true`
+escrevendo "true" na canônica) virou a fixture `canonica.json`, porque nenhum
+corpo do caminho PIN+OTP tem `true`.
 
 Também vem do antigo, como regra: PIN, OTP e senha nunca vão para log, teste ou
 documentação, e o diagnóstico só grava o que já passou pela redação.
@@ -69,8 +79,9 @@ documentação, e o diagnóstico só grava o que já passou pela redação.
 
 1. **Fundação** (feito): este esqueleto, os gates, a CI e o manifesto da
    extensão.
-2. **Protocolo**: requisições, canonicalização, `Bearer` e leitura das
-   respostas, com os testes de paridade contra o RemoteID-linux.
+2. **Protocolo** (feito): requisições, canonicalização, `Bearer` e leitura das
+   respostas (`src/protocolo/`), com os testes de paridade contra o
+   RemoteID-linux.
 3. **Motor e servidor falso**: preparar (login, registro do desktop e
    carteira), estado, sessão em cache, assinar, diagnóstico redigido, e o
    servidor RemoteID falso que os testes usam.

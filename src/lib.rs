@@ -3,6 +3,9 @@
 //! Não depende de GTK: o mesmo código vira o `libremoteid.so`, que roda dentro
 //! do `p11-kit server` do Âncora, e o binário `remoteid`, que tem a janela.
 
+pub mod cripto;
+pub mod protocolo;
+
 /// O ref da extensão. É também o id do aplicativo GTK: o Flatpak deixa o
 /// sandbox do Âncora ser dono de nomes D-Bus abaixo de `dev.lukakuuhaku.Ancora`.
 pub const APP_ID: &str = "dev.lukakuuhaku.Ancora.Driver.RemoteID";

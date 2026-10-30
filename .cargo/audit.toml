@@ -1,0 +1,23 @@
+# Exceções do `cargo audit`, uma a uma, com o motivo e quando revisar.
+
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071, o "Marvin Attack" na crate `rsa` (CVE-2023-49092):
+    # recuperação da chave privada por canal lateral de tempo.
+    #
+    # Não há versão corrigida (conferido em 2026-10-30: "No fixed upgrade is
+    # available", e a 0.10 ainda é release candidate).
+    #
+    # O risco aqui é baixo. A chave `rsa` é a da instalação, não a do
+    # certificado (essa nunca sai do HSM da Certisign), e só assina o Bearer de
+    # corpos que o próprio cliente monta. O módulo PKCS#11 assina um Bearer a
+    # cada `C_Sign` de um aplicativo local, então um processo local influencia
+    # parte do corpo e pode medir o tempo; mas esse processo roda como o mesmo
+    # usuário, que já lê o arquivo da chave, e o tempo da operação RSA some
+    # dentro da ida e volta à Certisign.
+    #
+    # Revisar quando a `rsa` publicar a correção de tempo constante (remover
+    # esta linha e atualizar), ou antes, se a chave passar a assinar pedidos de
+    # quem não é o próprio usuário.
+    "RUSTSEC-2023-0071",
+]

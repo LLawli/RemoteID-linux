@@ -34,6 +34,12 @@ scripts/cargo-sources.py
 O teste `tests/flatpak.rs` falha enquanto os dois estiverem fora de sincronia.
 O script cobre só crates do crates.io; uma dependência git é recusada.
 
+## Paridade com o RemoteID-linux
+
+`tests/paridade.rs` compara o protocolo com fixtures gravadas rodando o
+RemoteID-linux v0.3.2, e roda no `scripts/ci.sh` como qualquer teste. Para
+regenerar as fixtures, veja [paridade/README.md](../paridade/README.md).
+
 ## Construir a extensão
 
 ```bash

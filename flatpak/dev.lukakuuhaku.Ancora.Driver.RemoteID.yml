@@ -38,4 +38,6 @@ modules:
           - repo
           - .jj
           - .git
+          # O gerador das fixtures de paridade, que não entra na extensão.
+          - paridade
       - cargo-sources.json

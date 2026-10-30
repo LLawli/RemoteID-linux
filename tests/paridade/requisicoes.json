@@ -1,0 +1,534 @@
+[
+  {
+    "caso": "hierarquias",
+    "endpoint": "hierarquias",
+    "entrada": {},
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/CertisignerServices/desktop/listHierarchies",
+      "corpo": null,
+      "metodo": "GET"
+    }
+  },
+  {
+    "caso": "login: ascii",
+    "endpoint": "login",
+    "entrada": {
+      "email": "titular@exemplo.br",
+      "senha": "s3nh4"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "content-length": "46",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/manager/usuarios/login/usrsenha",
+      "corpo": "{\"email\":\"titular@exemplo.br\",\"senha\":\"s3nh4\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "login: acentos e aspas",
+    "endpoint": "login",
+    "entrada": {
+      "email": "joão.ção@exemplo.br",
+      "senha": "sé\"nh'a\\ç"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "content-length": "58",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/manager/usuarios/login/usrsenha",
+      "corpo": "{\"email\":\"joão.ção@exemplo.br\",\"senha\":\"sé\\\"nh'a\\\\ç\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "login: controle e unicode",
+    "endpoint": "login",
+    "entrada": {
+      "email": "a@b.c",
+      "senha": "lin\nha\ttab\u0001🔐</script>"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "content-length": "59",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/manager/usuarios/login/usrsenha",
+      "corpo": "{\"email\":\"a@b.c\",\"senha\":\"lin\\nha\\ttab\\u0001🔐</script>\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "login: senha vazia",
+    "endpoint": "login",
+    "entrada": {
+      "email": "titular@exemplo.br",
+      "senha": ""
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "content-length": "41",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/manager/usuarios/login/usrsenha",
+      "corpo": "{\"email\":\"titular@exemplo.br\",\"senha\":\"\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "registrar: com organização",
+    "endpoint": "registrar",
+    "entrada": {
+      "dominio_rede": "host-teste",
+      "jwt": "eyJhbGciOiJIUzI1NiJ9.e30.assinatura",
+      "nome_desktop": "meu-pc",
+      "org_id": 42,
+      "user_id": 327989,
+      "usuario_local": "usuario-teste"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.e30.assinatura",
+        "content-length": "593",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/manager/desktopid/usuario/327989/organizacao/42",
+      "corpo": "{\"chavePublica\":\"-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApiu0nRmPdMU+/G9Z5iUx\\nmFL28gGbrINqHDVMje3aIS/IQB7ONnqIB/tbapargcGCs5g0f9jmWv6CnrGbFFly\\nI0E/UzmlS6BS1a9WZJkx2MRGQvxFFygFDLT0T8UoT8xaxBrCl0v9vFCOd73gCUs1\\n48YUxtsCOuf4o3ltb7l5QEYFfdyFDKMSrES0N+AvMhmsM8lgZXF8M0hEAwEcsePv\\ny3DNgC92EGMT//yb9pi7sWsFnyzcJ38Wg4U05ZOo/qE9lGw5hq5KTNOc8Z08BFPN\\ndDYigPlz2lgPC+rxq+HrgNxhjZryw08TsAX7YlajXnXUwwV4Ig9/g6sSIafnZ4jr\\nFwIDAQAB\\n-----END PUBLIC KEY-----\\n\",\"dominioRede\":\"host-teste\",\"nomeDesktop\":\"meu-pc\",\"nomeUsuarioLocal\":\"usuario-teste\",\"sistemaOperacional\":\"Linux\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "registrar: sem organização vira 0",
+    "endpoint": "registrar",
+    "entrada": {
+      "dominio_rede": "host-teste",
+      "jwt": "eyJhbGciOiJIUzI1NiJ9.e30.assinatura",
+      "nome_desktop": "meu-pc",
+      "org_id": 0,
+      "user_id": 1,
+      "usuario_local": "usuario-teste"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.e30.assinatura",
+        "content-length": "593",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/manager/desktopid/usuario/1/organizacao/0",
+      "corpo": "{\"chavePublica\":\"-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApiu0nRmPdMU+/G9Z5iUx\\nmFL28gGbrINqHDVMje3aIS/IQB7ONnqIB/tbapargcGCs5g0f9jmWv6CnrGbFFly\\nI0E/UzmlS6BS1a9WZJkx2MRGQvxFFygFDLT0T8UoT8xaxBrCl0v9vFCOd73gCUs1\\n48YUxtsCOuf4o3ltb7l5QEYFfdyFDKMSrES0N+AvMhmsM8lgZXF8M0hEAwEcsePv\\ny3DNgC92EGMT//yb9pi7sWsFnyzcJ38Wg4U05ZOo/qE9lGw5hq5KTNOc8Z08BFPN\\ndDYigPlz2lgPC+rxq+HrgNxhjZryw08TsAX7YlajXnXUwwV4Ig9/g6sSIafnZ4jr\\nFwIDAQAB\\n-----END PUBLIC KEY-----\\n\",\"dominioRede\":\"host-teste\",\"nomeDesktop\":\"meu-pc\",\"nomeUsuarioLocal\":\"usuario-teste\",\"sistemaOperacional\":\"Linux\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "registrar: unicode no nome e no ambiente",
+    "endpoint": "registrar",
+    "entrada": {
+      "dominio_rede": "estação-ç",
+      "jwt": "eyJhbGciOiJIUzI1NiJ9.e30.assinatura",
+      "nome_desktop": "Máquina \"da\" Ana",
+      "org_id": 0,
+      "user_id": 9223372036854775807,
+      "usuario_local": "ana.ção"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.e30.assinatura",
+        "content-length": "604",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/manager/desktopid/usuario/9223372036854775807/organizacao/0",
+      "corpo": "{\"chavePublica\":\"-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApiu0nRmPdMU+/G9Z5iUx\\nmFL28gGbrINqHDVMje3aIS/IQB7ONnqIB/tbapargcGCs5g0f9jmWv6CnrGbFFly\\nI0E/UzmlS6BS1a9WZJkx2MRGQvxFFygFDLT0T8UoT8xaxBrCl0v9vFCOd73gCUs1\\n48YUxtsCOuf4o3ltb7l5QEYFfdyFDKMSrES0N+AvMhmsM8lgZXF8M0hEAwEcsePv\\ny3DNgC92EGMT//yb9pi7sWsFnyzcJ38Wg4U05ZOo/qE9lGw5hq5KTNOc8Z08BFPN\\ndDYigPlz2lgPC+rxq+HrgNxhjZryw08TsAX7YlajXnXUwwV4Ig9/g6sSIafnZ4jr\\nFwIDAQAB\\n-----END PUBLIC KEY-----\\n\",\"dominioRede\":\"estação-ç\",\"nomeDesktop\":\"Máquina \\\"da\\\" Ana\",\"nomeUsuarioLocal\":\"ana.ção\",\"sistemaOperacional\":\"Linux\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "statusCelular: 0",
+    "endpoint": "status_celular",
+    "entrada": {
+      "agora": 0,
+      "codigo_desktop": "4d1f71d2-c20b-44d0-9bb0-5629015f21e8"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer LeOG+vkR1Tz2IxRzQSBy7EWkNbP5RR9Dgh2vdyQFA/g4GhC8LbjT/lqy+LzriZhDqDXUbI2WpCBvczObKRnJjS5ROVS0luxVNQ76wVThD7JyGSBhFocHTTooRdLMLPN+LmguLPe0ih8n2VyDa8pMgkmVJN1qKyVTGbNddZ5omWZnziiPbwBrLjgRViD36/xnIbwibDmb86cf4X//DJAM0h4jHh9bF73xIBMImwO92YhGAldfe3lVI7GVlb6jG+BIQQaWX/E2JlsA1PvK/1swz5aOInQTquFIpcmng6Qh5Y2e/makeb+//nYTX1rfOHu7tbc4cLAejylbhD1uEuxQXQ==",
+        "content-length": "15",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/manager/desktopid/4d1f71d2-c20b-44d0-9bb0-5629015f21e8/statusCelular",
+      "corpo": "{\"momento\":\"0\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "carteira: 0",
+    "endpoint": "carteira",
+    "entrada": {
+      "agora": 0,
+      "codigo_desktop": "4d1f71d2-c20b-44d0-9bb0-5629015f21e8"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer LeOG+vkR1Tz2IxRzQSBy7EWkNbP5RR9Dgh2vdyQFA/g4GhC8LbjT/lqy+LzriZhDqDXUbI2WpCBvczObKRnJjS5ROVS0luxVNQ76wVThD7JyGSBhFocHTTooRdLMLPN+LmguLPe0ih8n2VyDa8pMgkmVJN1qKyVTGbNddZ5omWZnziiPbwBrLjgRViD36/xnIbwibDmb86cf4X//DJAM0h4jHh9bF73xIBMImwO92YhGAldfe3lVI7GVlb6jG+BIQQaWX/E2JlsA1PvK/1swz5aOInQTquFIpcmng6Qh5Y2e/makeb+//nYTX1rfOHu7tbc4cLAejylbhD1uEuxQXQ==",
+        "content-length": "15",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/manager/desktopid/4d1f71d2-c20b-44d0-9bb0-5629015f21e8/carteira",
+      "corpo": "{\"momento\":\"0\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "statusCelular: 1788393921",
+    "endpoint": "status_celular",
+    "entrada": {
+      "agora": 1788393921,
+      "codigo_desktop": "4d1f71d2-c20b-44d0-9bb0-5629015f21e8"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer J4Bricfoh4DRpWaUN1h56NKWCCeunCFbodKNNJZr2HbAiqnDXx5PdwNpXOaohhjfxF+XhGTSsy6eC/Tva5CJJ3eWDByG6mg6eVRelKdrPRPQXakN0gB8o7EwsTYKxPAsxlnF/k4wjIJ6mkrULB2m9etIOFMzrJE0glWlBmyzx4LiID8F3H6TY+v7hzQM7bJFFwTC89KqYAzeN0H8fMLSyGydL1b1QFm0HR0FyJQgfFfcOEMDHdkZeE2bQ+xYbkSObWd23Hj5P0bRpxCDCsFtozesuB3EFO18Gh8rru+0Jj9I5a/XCdCUlNheVH4lSxOZ9AwjIhfMVNeqVJBD3qFOiA==",
+        "content-length": "24",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/manager/desktopid/4d1f71d2-c20b-44d0-9bb0-5629015f21e8/statusCelular",
+      "corpo": "{\"momento\":\"1788393921\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "carteira: 1788393921",
+    "endpoint": "carteira",
+    "entrada": {
+      "agora": 1788393921,
+      "codigo_desktop": "4d1f71d2-c20b-44d0-9bb0-5629015f21e8"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer J4Bricfoh4DRpWaUN1h56NKWCCeunCFbodKNNJZr2HbAiqnDXx5PdwNpXOaohhjfxF+XhGTSsy6eC/Tva5CJJ3eWDByG6mg6eVRelKdrPRPQXakN0gB8o7EwsTYKxPAsxlnF/k4wjIJ6mkrULB2m9etIOFMzrJE0glWlBmyzx4LiID8F3H6TY+v7hzQM7bJFFwTC89KqYAzeN0H8fMLSyGydL1b1QFm0HR0FyJQgfFfcOEMDHdkZeE2bQ+xYbkSObWd23Hj5P0bRpxCDCsFtozesuB3EFO18Gh8rru+0Jj9I5a/XCdCUlNheVH4lSxOZ9AwjIhfMVNeqVJBD3qFOiA==",
+        "content-length": "24",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/manager/desktopid/4d1f71d2-c20b-44d0-9bb0-5629015f21e8/carteira",
+      "corpo": "{\"momento\":\"1788393921\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "statusCelular: 18446744073709551615",
+    "endpoint": "status_celular",
+    "entrada": {
+      "agora": 18446744073709551615,
+      "codigo_desktop": "4d1f71d2-c20b-44d0-9bb0-5629015f21e8"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer B3R8BIoE/6l1FZMfLIFXu5Bm8C/dboLTnN4JQBsEKc9IolWm6RaRHrCHr0cwrtGmd8kN4l60oJGnuT9qnkcw14UItP3e8AKonlPq6RsQrp6hRM+lCsT3TNV2Y3EIG1N12Bzj73Fg44+5Xhk0j5lFrKLAnS43MhTxFvsAvFwTAdi0JvhmYdqkfvL97DsffSor6sl/I3Wf43rFgLWbu++EJg0fYEj6mnqI0FKhmX2/yhxlEhEaeL5QTHIPvsYhchG5MDKWEm/fJG7aPMFYXzb7a1BP5DrP4oMeEYlDp6/CWHdhBB+3UIErvSaVk0b1AV/PzxdzI8bCeVPkhd5PgOhHEg==",
+        "content-length": "34",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/manager/desktopid/4d1f71d2-c20b-44d0-9bb0-5629015f21e8/statusCelular",
+      "corpo": "{\"momento\":\"18446744073709551615\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "carteira: 18446744073709551615",
+    "endpoint": "carteira",
+    "entrada": {
+      "agora": 18446744073709551615,
+      "codigo_desktop": "4d1f71d2-c20b-44d0-9bb0-5629015f21e8"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer B3R8BIoE/6l1FZMfLIFXu5Bm8C/dboLTnN4JQBsEKc9IolWm6RaRHrCHr0cwrtGmd8kN4l60oJGnuT9qnkcw14UItP3e8AKonlPq6RsQrp6hRM+lCsT3TNV2Y3EIG1N12Bzj73Fg44+5Xhk0j5lFrKLAnS43MhTxFvsAvFwTAdi0JvhmYdqkfvL97DsffSor6sl/I3Wf43rFgLWbu++EJg0fYEj6mnqI0FKhmX2/yhxlEhEaeL5QTHIPvsYhchG5MDKWEm/fJG7aPMFYXzb7a1BP5DrP4oMeEYlDp6/CWHdhBB+3UIErvSaVk0b1AV/PzxdzI8bCeVPkhd5PgOhHEg==",
+        "content-length": "34",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/manager/desktopid/4d1f71d2-c20b-44d0-9bb0-5629015f21e8/carteira",
+      "corpo": "{\"momento\":\"18446744073709551615\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "tokensessao: pin e otp numéricos",
+    "endpoint": "tokensessao",
+    "entrada": {
+      "codigo_desktop": "4d1f71d2-c20b-44d0-9bb0-5629015f21e8",
+      "key_name": "1A2B3C4D5E6F;CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR",
+      "otp": "999999",
+      "pin": "1234"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer AwA6hI+8PudCHZfvTcwbZQr8wwnQmtnyvzde2J2hjzCYuu2PLGd9PfzvBAcrF+KZVDra2D8300HnqRjEhiMv6UY7LuyU6iPKIKXOxQTpfXkueVGdNmXgjcBAlEXHd6mfUgKs1clPFzU4PnknRSDbZ32CxdROXlEntGSHsEQYL/MqNCctpGBjpyEqSS18TdaTCC9cMVnPmvv+AZIAFuEBCPEGsfB0bgTSoc934Rgaq0gyUek+lNyuHvpB9tsTZ+1DHRhSG2LhMv6UUN3I/TfaCulw55hBpeIxiNxDeQ9GVt78IufVBnhEFu0zyiqcTzA7W2cePwkOQjPL5Eo6BppyjA==",
+        "content-length": "233",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/signature/tokensessao",
+      "corpo": "{\"desktopCode\":\"4d1f71d2-c20b-44d0-9bb0-5629015f21e8\",\"issue\":\"CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR\",\"nomeAplicacaoDesktop\":\"RemoteID-linux\",\"otp\":\"999999\",\"pin\":\"1234\",\"push\":false,\"serialNumber\":\"1A2B3C4D5E6F\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "tokensessao: pin com símbolos",
+    "endpoint": "tokensessao",
+    "entrada": {
+      "codigo_desktop": "4d1f71d2-c20b-44d0-9bb0-5629015f21e8",
+      "key_name": "1A2B3C4D5E6F;CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR",
+      "otp": "000000",
+      "pin": "p\"i\\n ç"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer E4FGor4+EXT8yxw+vZ/MnH0szIhV3AJnB0v7jOO8dyJvvLUdhYMas5rrhqMs/d2GOqrLKghn3bg8Up2lUSnD19GEx9st0r6jgXcsHuLAVSMyqqkg8NYgEWTLtauB1rIJXWFvJnAddi2psCBlWnVgeX8M69JepXomeXuWSuqn9J8tlNGBwvnO+qo5Q92tggkF9CR6Dszzt9MWxqk92DYQH2HI4D3v4/9RNQVYnUTpEbYMYOMUGfBHQ6xUKxr7JlHSJimYRcm3xlQqjE5BPTL7xLxQjfaJKE5mm9n3gJaw0dLoLsVKlperzs7sKGowIkhHU/Pf8OiBQt9cZDWIVQIL2A==",
+        "content-length": "239",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/signature/tokensessao",
+      "corpo": "{\"desktopCode\":\"4d1f71d2-c20b-44d0-9bb0-5629015f21e8\",\"issue\":\"CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR\",\"nomeAplicacaoDesktop\":\"RemoteID-linux\",\"otp\":\"000000\",\"pin\":\"p\\\"i\\\\n ç\",\"push\":false,\"serialNumber\":\"1A2B3C4D5E6F\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "tokensessao: keyName com vários ;",
+    "endpoint": "tokensessao",
+    "entrada": {
+      "codigo_desktop": "4d1f71d2-c20b-44d0-9bb0-5629015f21e8",
+      "key_name": "SN;CN=AC;OU=a;b",
+      "otp": "123456",
+      "pin": "1234"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer BEKc6qABHPtJJEPxX1IXwLwIgpuTG37Vmo411+yO5wATzdt9DTUBjb3jLD8fufbE3LyzLXC8cqhlRrGxQtFREhOT3K9RcR3lMuGuJC7idCxBR69evuyecs4lbYkY1CtZBFrIimQKY5Qegm4RgGQy6TTcc8POsaNditXpY1OeahmopxAdGrQYlZQIiBucNft5dDChgiC2YyMqSXxbjfflvn/JXlV3IsHd5WXrvYsEnXM78aKH1AtETbTb90W+eNe9iD67MgEpTGORRywVI6HME+StvTpkSUVELHrqifkvEq77bItd9S2ydqGoq1jhYIzb4liTn/85xLa0BQQurdUA5w==",
+        "content-length": "178",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/signature/tokensessao",
+      "corpo": "{\"desktopCode\":\"4d1f71d2-c20b-44d0-9bb0-5629015f21e8\",\"issue\":\"CN=AC;OU=a;b\",\"nomeAplicacaoDesktop\":\"RemoteID-linux\",\"otp\":\"123456\",\"pin\":\"1234\",\"push\":false,\"serialNumber\":\"SN\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "tokensessao: pin vazio",
+    "endpoint": "tokensessao",
+    "entrada": {
+      "codigo_desktop": "4d1f71d2-c20b-44d0-9bb0-5629015f21e8",
+      "key_name": "1A2B3C4D5E6F;CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR",
+      "otp": "123456",
+      "pin": ""
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer mWS9jP0arW3t+st00dj/NdFFHWtxkj1jaZtq2b3OQ4MrPBbU4A92mxhLDbEGqFS8I6vxp55AdKWTuKLo3U+Db8Wjj3jW5VaaPtRh6kHHE5AD2Abj2bOurP6XVA0y+bAfggad6tLav+uTOSwCEZ9+vOoMrSPtqHo7AJ+hc4fO6x5N2ObDpiXJkO1shbOllpf203/PhSQ3cqhszlSiZGMZiE9ArFlPtf0kmcMwqeALSzG5Uu4RysAb+yGDpgPosxOPwsqgdAN6JxXh0IO/kUTj8VYAtlfeJeRGqg01u3qgoP3HlEfgenAN0wE2+v/TyLRxHwjYeAoUtgfUapwuTrY6HA==",
+        "content-length": "229",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/signature/tokensessao",
+      "corpo": "{\"desktopCode\":\"4d1f71d2-c20b-44d0-9bb0-5629015f21e8\",\"issue\":\"CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR\",\"nomeAplicacaoDesktop\":\"RemoteID-linux\",\"otp\":\"123456\",\"pin\":\"\",\"push\":false,\"serialNumber\":\"1A2B3C4D5E6F\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "requestHash: SHA256",
+    "endpoint": "request_hash",
+    "entrada": {
+      "algoritmo": "SHA256",
+      "codigo_desktop": "4d1f71d2-c20b-44d0-9bb0-5629015f21e8",
+      "dados_b64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+      "key_name": "1A2B3C4D5E6F;CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR",
+      "session_token": "sessaoAssinatura;327989;CN=AC;SN;0;ZXlKMGVYQWlPaUpLVjFRaWZRPT0=;1788393921;a1b2c3"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer kXnNNI0tUMQ6GvYoRU2pN/uLwHS8yIx/Rp3tZDibkfz6ABURB+bhV5U/0VqI8+tuj8rfDdJRKQ3MX8LmPLjY1/OMWb956TrKdqsbs3Rca4BLR8qKrriBJQyCxBV8L/cCYR8IifLlXJCNbexP1Emfd6+ybLMmEVjC4W8z1LDmq2Z9hZoQzGD5l2I0MPLGsWOPFUT2pSx+tG2bWrbe4uu9i84bFru/o9hVU/s0ZSEGXA3BHHPAjg+c52JcQICsEzYSwyeNuTJ3mBA+SF9iqAO1NSDSbteZVMSQYgNnQRz4p/Kx7dcGjO43Q1gch1e+tIXJHcfI9ss6ROkd/BKKfLv7Ug==",
+        "content-length": "349",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/signature/requestHashSessionSignature",
+      "corpo": "{\"algorithm\":\"SHA256\",\"desktopCode\":\"4d1f71d2-c20b-44d0-9bb0-5629015f21e8\",\"hashArray\":[{\"hash\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"id\":0}],\"issue\":\"CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR\",\"serialNumber\":\"1A2B3C4D5E6F\",\"sessionToken\":\"sessaoAssinatura;327989;CN=AC;SN;0;ZXlKMGVYQWlPaUpLVjFRaWZRPT0=;1788393921;a1b2c3\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "requestHash: cru com 1 byte",
+    "endpoint": "request_hash",
+    "entrada": {
+      "algoritmo": "",
+      "codigo_desktop": "4d1f71d2-c20b-44d0-9bb0-5629015f21e8",
+      "dados_b64": "/w==",
+      "key_name": "1A2B3C4D5E6F;CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR",
+      "session_token": "sessaoAssinatura;327989;CN=AC;SN;0;ZXlKMGVYQWlPaUpLVjFRaWZRPT0=;1788393921;a1b2c3"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer aiiYJTdcO/vmmfpnqRPbk/sm3IZqjQ5KEwoDR4AHtcIGKdW48yU4Qsnl8hK6qFfAxLIal57Th1YbvwcpxZnf9/6G32/jJobynYUb79q5YTZcYpNx1ZEuOk5EQIaVz7kfUwgx4DlIoboTBIsvyJT66oAVeUxbFDAl4QY1UrFFK0PPKLhiwJMu7CjL+GH64W6wbqppYKt5IFmCIfTYsiHmvg4BLhzz0AejJub7rI7lXMu3kOKTLkd8mUBb3UREaZqEE6aJmYQr5NZw9y4t9GikrSLlEEJ3yMBfvjG7xry94dlGEYhI7cgogyj5ffO1tnejYYnK/QYNDmTRNhxiFOuNLQ==",
+        "content-length": "303",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/signature/requestHashSessionSignature",
+      "corpo": "{\"algorithm\":\"\",\"desktopCode\":\"4d1f71d2-c20b-44d0-9bb0-5629015f21e8\",\"hashArray\":[{\"hash\":\"/w==\",\"id\":0}],\"issue\":\"CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR\",\"serialNumber\":\"1A2B3C4D5E6F\",\"sessionToken\":\"sessaoAssinatura;327989;CN=AC;SN;0;ZXlKMGVYQWlPaUpLVjFRaWZRPT0=;1788393921;a1b2c3\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "requestHash: cru com DigestInfo(MD5)",
+    "endpoint": "request_hash",
+    "entrada": {
+      "algoritmo": "",
+      "codigo_desktop": "4d1f71d2-c20b-44d0-9bb0-5629015f21e8",
+      "dados_b64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gIQ==",
+      "key_name": "1A2B3C4D5E6F;CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR",
+      "session_token": "sessaoAssinatura;327989;CN=AC;SN;0;ZXlKMGVYQWlPaUpLVjFRaWZRPT0=;1788393921;a1b2c3"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer mb4Kw8CpoWU+WGWnELfEuuNNilxYGOFvk9Dmhau+ZaC7ljxP63zOqDgGSbiyenyritIy406s2ochoO6IMg5T2tLZTJse2sKTGl36PiOrdpWevv13qEv7aAcVyXb21IW7D1Ua4iiAMahJ2bUzHyC2WMANoCrAwcMQrBCeWNTaklxMm7MikypLg3fUygdyf4WwRXgCCxdOMwyz4kGz5lbJo9JFM1iWrkJ1ZoVAj58yA++nGEmp7+GT9SDFpmc0nFrLJSaqVpL5+JyZ1mkWBZqJs2B71o4ydt3pb49xs0OPy6vRyzoYa1rfFdFCryJl1/GHMw5Wn715OIKvhZPG36ni4A==",
+        "content-length": "347",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/signature/requestHashSessionSignature",
+      "corpo": "{\"algorithm\":\"\",\"desktopCode\":\"4d1f71d2-c20b-44d0-9bb0-5629015f21e8\",\"hashArray\":[{\"hash\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gIQ==\",\"id\":0}],\"issue\":\"CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR\",\"serialNumber\":\"1A2B3C4D5E6F\",\"sessionToken\":\"sessaoAssinatura;327989;CN=AC;SN;0;ZXlKMGVYQWlPaUpLVjFRaWZRPT0=;1788393921;a1b2c3\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "requestHash: cru com DigestInfo(SHA-256)",
+    "endpoint": "request_hash",
+    "entrada": {
+      "algoritmo": "",
+      "codigo_desktop": "4d1f71d2-c20b-44d0-9bb0-5629015f21e8",
+      "dados_b64": "ZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWW",
+      "key_name": "1A2B3C4D5E6F;CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR",
+      "session_token": "sessaoAssinatura;327989;CN=AC;SN;0;ZXlKMGVYQWlPaUpLVjFRaWZRPT0=;1788393921;a1b2c3"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer TDrFjt6qxMDgd1apBD6roN2SeV0WwTjSWnFNBQfOP3gBFQv5MqXFDjEXLOqIhwhXe1j1Tpg8ytPiRQfKzz/zcQ6vUzg3YYjTf9acb9PPeIqcXfVISfL+zCFjcoP+hFzJHL72/Ts+d/b5cw6iQiR3WURoW6TKDNK9T8kY716wUHTL7NXagsBh9thOrLJIhXTQVCTkVFPg7VUYPdb+wxzU7gwfmunAh2WIlrVBB4vli3suT0MchlcE5Fl7in/9zrRX5hdWlfBi4MEjqrzTX+moXvfaHrkzMyqRdngPaZtLFHxOx66gaxzsLIPsSrP6g+EDNmHgde+gqyD3EHj06Ba+Vg==",
+        "content-length": "367",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/signature/requestHashSessionSignature",
+      "corpo": "{\"algorithm\":\"\",\"desktopCode\":\"4d1f71d2-c20b-44d0-9bb0-5629015f21e8\",\"hashArray\":[{\"hash\":\"ZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWW\",\"id\":0}],\"issue\":\"CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR\",\"serialNumber\":\"1A2B3C4D5E6F\",\"sessionToken\":\"sessaoAssinatura;327989;CN=AC;SN;0;ZXlKMGVYQWlPaUpLVjFRaWZRPT0=;1788393921;a1b2c3\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "requestHash: cru no teto de 245",
+    "endpoint": "request_hash",
+    "entrada": {
+      "algoritmo": "",
+      "codigo_desktop": "4d1f71d2-c20b-44d0-9bb0-5629015f21e8",
+      "dados_b64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/Q=",
+      "key_name": "1A2B3C4D5E6F;CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR",
+      "session_token": "sessaoAssinatura;327989;CN=AC;SN;0;ZXlKMGVYQWlPaUpLVjFRaWZRPT0=;1788393921;a1b2c3"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer W5oY8+zkj+DuWFY4Ii25IwY0HjLbZPDt7k5c/7qT9T6XLzoT8t9UUVS76EA+PSWTSPCNOLv274vwACIDwkBltTNSuNN2POgvKY962DiyTK2wRxfIfv1P3s5u51yBDXLUw+cAQkXR3+Uy5E1th6ZCLqQFMT9x2yJwHw+RBsyxG+pCDqalfwbep75Swra8Ky1KQkAuvJfSii//8qXDCRRvn8emoQsb5k0Xa3zS8IkaJxqQpUUWqLCsQau2T1SGJcwIBFs+7lb7uaY/0qlYvXSZuvnAeJIjSUaMA6VqXyMkeYvVKoEtydls4HOv2FGskK6pveiiRPQ7O+tQQiy+qSf1jw==",
+        "content-length": "627",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/signature/requestHashSessionSignature",
+      "corpo": "{\"algorithm\":\"\",\"desktopCode\":\"4d1f71d2-c20b-44d0-9bb0-5629015f21e8\",\"hashArray\":[{\"hash\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/Q=\",\"id\":0}],\"issue\":\"CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR\",\"serialNumber\":\"1A2B3C4D5E6F\",\"sessionToken\":\"sessaoAssinatura;327989;CN=AC;SN;0;ZXlKMGVYQWlPaUpLVjFRaWZRPT0=;1788393921;a1b2c3\"}",
+      "metodo": "POST"
+    }
+  },
+  {
+    "caso": "requestHash: SHA256 com bytes altos",
+    "endpoint": "request_hash",
+    "entrada": {
+      "algoritmo": "SHA256",
+      "codigo_desktop": "4d1f71d2-c20b-44d0-9bb0-5629015f21e8",
+      "dados_b64": "/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v4=",
+      "key_name": "1A2B3C4D5E6F;CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR",
+      "session_token": "sessaoAssinatura;327989;CN=AC;SN;0;ZXlKMGVYQWlPaUpLVjFRaWZRPT0=;1788393921;a1b2c3"
+    },
+    "enviado": {
+      "cabecalhos": {
+        "accept": "application/json",
+        "accept-encoding": "gzip",
+        "authorization": "Bearer JHRTOZA3X+a3VAM+XLvL62oCIf2DPRgvmBEtZli27+WYsW6RA8o/BR6iJM8U7vKwnwTgaCpfLqdLEPqzQvrx6ok1CTvxMg4VV77N8NQZOO3IvRDG0oqxs9s+FJ42I0+l7XSfSGSbndDqa/i/gsKcQ2tWjHWcZnbAR0ge/xLlrOQMufewgY5fu9R/QO8QRdDfZ8eR3Vqi5QsXXht3Lo9YKORpHYVCOC0uXjFKh7px9xR+VZWRa8gI0j1oAHmT4luJ0Ve+OItVjAHbbehG6BNjgeeEwHn30UPMtNSyNveTUOVxtm8OA+nMi68tTSAeMYXUbMneYhcbuTaPN3c+ZepBJw==",
+        "content-length": "349",
+        "content-type": "application/json",
+        "user-agent": "desktopID/2.2.0.1"
+      },
+      "caminho": "/api/signature/requestHashSessionSignature",
+      "corpo": "{\"algorithm\":\"SHA256\",\"desktopCode\":\"4d1f71d2-c20b-44d0-9bb0-5629015f21e8\",\"hashArray\":[{\"hash\":\"/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v4=\",\"id\":0}],\"issue\":\"CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR\",\"serialNumber\":\"1A2B3C4D5E6F\",\"sessionToken\":\"sessaoAssinatura;327989;CN=AC;SN;0;ZXlKMGVYQWlPaUpLVjFRaWZRPT0=;1788393921;a1b2c3\"}",
+      "metodo": "POST"
+    }
+  }
+]
