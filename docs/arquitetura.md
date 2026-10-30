@@ -118,6 +118,9 @@ sonda da supervisão abre um novo a cada 10 s. Daí as regras do módulo:
   nada; trocar o certificado, entrar ou sair da conta derruba as sessões, como
   tirar um cartão e pôr outro. O slot se anuncia removível, que é o que faz o
   NSS voltar a conferi-lo e, achando a sessão inválida, reler o token.
+  Medido num Firefox 159 aberto (Fedora 44, perguntando ao NSS dele a cada
+  2 s): o certificado e a cadeia apareceram na primeira leitura depois de
+  entrar, sumiram na primeira depois de sair e voltaram ao entrar de novo.
 - **A cadeia vai junto.** O token publica, depois do titular, as autoridades
   que o motor baixou do `caIssuers` ao atualizar a carteira, com
   `CKA_CERTIFICATE_CATEGORY` de autoridade e `CKA_ID` próprio, para o
@@ -189,10 +192,6 @@ RemoteID-linux e nunca passou por uma conta real.
 
 ## Em aberto
 
-- **O acompanhamento do token não foi visto num navegador.** O teste prova o
-  lado do módulo (sessões derrubadas quando o certificado muda); que o NSS
-  então relê o token é o que o código dele diz para slots removíveis, e falta
-  conferir num Firefox aberto.
 - **O serviço do Âncora com a sessão.** Hoje o `ancora servir` não sobe sozinho
   no login (pendência do Âncora); até lá, o RemoteID só assina com ele no ar.
 
