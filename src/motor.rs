@@ -3,10 +3,13 @@
 //!
 //! O motor roda dentro do módulo PKCS#11, no serviço do Âncora, e na janela.
 //! Os dois processos dividem o estado em disco; por isso quem usa o motor por
-//! muito tempo chama [`Motor::recarregar`] antes de cada operação.
+//! muito tempo chama [`Motor::recarregar`] antes de cada operação, e toda
+//! escrita passa por [`Estado::alterar`], que aplica só a mudança sobre o que
+//! está no disco.
 
 use std::io;
 
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::caminhos::Caminhos;
@@ -50,6 +53,8 @@ impl From<io::Error> for Erro {
     }
 }
 
+/// O PIN e o OTP de uma tentativa. Vivem só na memória e no pipe do diálogo.
+#[derive(Serialize, Deserialize)]
 pub struct Fatores {
     pub pin: String,
     pub otp: String,
@@ -117,8 +122,9 @@ impl Motor {
         Ok(())
     }
 
-    fn salvar(&self) -> Result<(), Erro> {
-        Ok(self.estado.salvar(&self.caminhos.estado())?)
+    fn alterar(&mut self, mudanca: impl FnOnce(&mut Estado)) -> Result<(), Erro> {
+        self.estado = Estado::alterar(&self.caminhos.estado(), mudanca)?;
+        Ok(())
     }
 
     /// O único caminho até a rede, e por isso o único que registra.
@@ -206,9 +212,19 @@ impl Motor {
             &self.chave,
         );
         let r = self.enviar(&requisicao)?;
-        self.estado.codigo_desktop = Some(resposta::registro(r.http, &r.corpo)?);
-        self.estado.nome_desktop = Some(maquina.nome.into());
-        self.salvar()
+        let codigo = resposta::registro(r.http, &r.corpo)?;
+        // O login só fica em memória até aqui: uma conta sem esta máquina
+        // registrada não serve para nada no disco.
+        let conta = self.estado.clone();
+        self.alterar(|e| {
+            e.user_id = conta.user_id;
+            e.organizacao_id = conta.organizacao_id;
+            e.nome = conta.nome;
+            e.cpf = conta.cpf;
+            e.email = conta.email;
+            e.codigo_desktop = Some(codigo);
+            e.nome_desktop = Some(maquina.nome.into());
+        })
     }
 
     pub fn atualizar_celular(&mut self) -> Result<bool, Erro> {
@@ -220,8 +236,7 @@ impl Motor {
         );
         let r = self.enviar(&requisicao)?;
         let pareado = resposta::status_celular(r.http, &r.corpo)?;
-        self.estado.celular_pareado = Some(pareado);
-        self.salvar()?;
+        self.alterar(|e| e.celular_pareado = Some(pareado))?;
         Ok(pareado)
     }
 
@@ -233,8 +248,8 @@ impl Motor {
             &self.chave,
         );
         let r = self.enviar(&requisicao)?;
-        self.estado.certificados = resposta::carteira(r.http, &r.corpo)?;
-        self.salvar()
+        let certificados = resposta::carteira(r.http, &r.corpo)?;
+        self.alterar(|e| e.certificados = certificados)
     }
 
     /// Tudo o que a primeira vez exige: entrar, registrar esta máquina e
@@ -258,9 +273,14 @@ impl Motor {
         let codigo = self.codigo_desktop()?;
         let mut recusa: Option<String> = None;
         for tentativa in 1..=MAX_TENTATIVAS {
-            let fatores = autorizador
-                .pedir(certificado, recusa.as_deref())
-                .ok_or(Erro::Cancelado)?;
+            self.diagnostico.evento(
+                "pedido",
+                json!({ "tentativa": tentativa, "recusa": recusa }),
+            );
+            let Some(fatores) = autorizador.pedir(certificado, recusa.as_deref()) else {
+                self.diagnostico.evento("cancelado", json!({}));
+                return Err(Erro::Cancelado);
+            };
             let requisicao = requisicao::tokensessao(
                 &self.servidor,
                 &codigo,
@@ -305,15 +325,31 @@ impl Motor {
         Ok(resposta::request_hash(r.http, &r.corpo)?)
     }
 
-    /// Assina `dados` com o certificado ativo. Tenta primeiro a sessão em
-    /// cache, sem pedir nada à pessoa; se o servidor disser que ela não vale
-    /// mais, pede PIN e OTP, abre outra e assina. Para quem chama, a única
-    /// diferença entre os dois caminhos é o tempo.
+    /// Assina `dados` com o certificado ativo. Ver [`Motor::assinar_com`].
+    pub fn assinar(
+        &mut self,
+        algoritmo: Algoritmo,
+        dados: &[u8],
+        autorizador: &dyn Autorizador,
+    ) -> Result<Vec<u8>, Erro> {
+        let certificado = self.certificado()?;
+        self.assinar_com(&certificado, algoritmo, dados, autorizador)
+    }
+
+    /// Assina `dados` com `certificado`. Tenta primeiro a sessão em cache, sem
+    /// pedir nada à pessoa; se o servidor disser que ela não vale mais, pede
+    /// PIN e OTP, abre outra e assina. Para quem chama, a única diferença entre
+    /// os dois caminhos é o tempo.
+    ///
+    /// O módulo PKCS#11 passa o certificado que o token mostra, e não o ativo:
+    /// se a janela trocar a escolha com o aplicativo aberto, a assinatura ainda
+    /// tem de conferir com o certificado que ele leu.
     ///
     /// Os dados são conferidos antes de tudo: um bloco que o servidor recusaria
     /// não pode gastar a sessão nem o OTP de ninguém.
-    pub fn assinar(
+    pub fn assinar_com(
         &mut self,
+        certificado: &Certificado,
         algoritmo: Algoritmo,
         dados: &[u8],
         autorizador: &dyn Autorizador,
@@ -321,7 +357,6 @@ impl Motor {
         if !algoritmo.aceita(dados) {
             return Err(Erro::BlocoInvalido);
         }
-        let certificado = self.certificado()?;
         let chave = certificado.chave();
 
         let em_cache = self
@@ -329,36 +364,33 @@ impl Motor {
             .sessao(&chave, (self.relogio)(), TTL_SESSAO_S)
             .map(|s| s.token.clone());
         if let Some(token) = em_cache {
-            match self.assinar_com_sessao(&token, &certificado, algoritmo, dados) {
+            match self.assinar_com_sessao(&token, certificado, algoritmo, dados) {
                 Err(Erro::Protocolo(ErroProtocolo::Servidor { mensagem, .. }))
                     if classificacao::falha_de_sessao(&mensagem, "") =>
                 {
-                    self.estado.esquecer_sessao(&chave);
-                    self.salvar()?;
+                    self.alterar(|e| e.esquecer_sessao(&chave))?;
                 }
                 resultado => return resultado,
             }
         }
 
-        let token = self.abrir_sessao(&certificado, autorizador)?;
-        let assinatura = self.assinar_com_sessao(&token, &certificado, algoritmo, dados)?;
-        self.estado.guardar_sessao(chave, token, (self.relogio)());
-        self.salvar()?;
+        let token = self.abrir_sessao(certificado, autorizador)?;
+        let assinatura = self.assinar_com_sessao(&token, certificado, algoritmo, dados)?;
+        let agora = (self.relogio)();
+        self.alterar(|e| e.guardar_sessao(chave, token, agora))?;
         Ok(assinatura)
     }
 
     /// Faz a próxima assinatura pedir PIN e OTP.
     pub fn reautorizar_proxima(&mut self) -> Result<(), Erro> {
         let chave = self.certificado()?.chave();
-        self.estado.esquecer_sessao(&chave);
-        self.salvar()
+        self.alterar(|e| e.esquecer_sessao(&chave))
     }
 
     pub fn escolher_certificado(&mut self, chave: &str) -> Result<(), Erro> {
         if !self.estado.certificados.iter().any(|c| c.chave() == chave) {
             return Err(Erro::NaoPreparado("o certificado não está na carteira"));
         }
-        self.estado.certificado_ativo = Some(chave.into());
-        self.salvar()
+        self.alterar(|e| e.certificado_ativo = Some(chave.into()))
     }
 }

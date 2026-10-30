@@ -54,6 +54,26 @@ Credenciais: `teste@remoteid.local` / `teste-1234`, PIN `1234`, OTP `123456`.
 `POST /_mock/expirar` esquece as sessões abertas, como quando elas vencem.
 `REMOTEID_HOME` separa o estado e a chave de teste dos da conta real.
 
+## O módulo PKCS#11 à mão
+
+`tests/modulo.rs` percorre o módulo pela tabela de funções. Para vê-lo num
+hospedeiro de verdade, com o `pkcs11-tool` do OpenSC e o servidor falso:
+
+```bash
+cargo build
+export REMOTEID_HOME=/mnt/dados/caches/remoteid-teste REMOTEID_SERVIDOR=http://127.0.0.1:8799
+target/debug/remoteid-mock &
+echo teste-1234 | target/debug/remoteid entrar teste@remoteid.local
+pkcs11-tool --module target/debug/libremoteid.so -L
+pkcs11-tool --module target/debug/libremoteid.so -s -m SHA256-RSA-PKCS -i doc -o doc.sig
+```
+
+A assinatura abre o diálogo de PIN e OTP (`remoteid pedir`, ao lado do `.so`).
+`REMOTEID_DIALOGO` troca o executável do diálogo, por exemplo por um roteiro que
+responde sozinho: ele recebe o pedido em JSON no stdin, escreve
+`{"pin":"…","otp":"…"}` no stdout e sai com 0, ou sai com outro código para
+desistir.
+
 ## Diagnóstico
 
 Cada execução grava um JSONL em `<estado>/diagnostico/`, os 20 últimos, com

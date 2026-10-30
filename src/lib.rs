@@ -8,8 +8,11 @@ pub mod cripto;
 pub mod diagnostico;
 pub mod estado;
 pub mod motor;
+pub mod pedido;
+pub mod pkcs11;
 pub mod protocolo;
 pub mod transporte;
+pub mod x509;
 
 /// O ref da extensão. É também o id do aplicativo GTK: o Flatpak deixa o
 /// sandbox do Âncora ser dono de nomes D-Bus abaixo de `dev.lukakuuhaku.Ancora`.

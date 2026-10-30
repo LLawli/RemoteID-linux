@@ -52,13 +52,61 @@ verdade hoje (a real e a de teste): o `Transporte` (HTTP ou falso) e o
 | `estado` | conta, registro, carteira e sessões em cache, num JSON 0600 |
 | `caminhos` | onde fica cada arquivo, e o servidor (`REMOTEID_SERVIDOR` troca pelo falso) |
 | `motor` | o fluxo: preparar a conta e assinar, com a sessão em cache |
+| `pkcs11/` | o módulo Cryptoki: o token montado do estado, e o `C_Sign` pelo motor |
+| `pedido` | o `Autorizador` do módulo: abre o `remoteid pedir` e lê o PIN e o OTP por pipe |
+| `x509` | os campos do certificado que o token publica, e o nome do titular |
 | `diagnostico` | um JSONL por execução, com segredos e dados do titular redigidos |
 | `bin/remoteid-mock` | o servidor falso dos testes |
 
 O motor roda em dois processos que dividem o mesmo estado em disco: o módulo,
 no serviço do Âncora, e a janela. Cada um relê o estado antes de agir
 (`Motor::recarregar`); a escrita é por troca atômica, então ninguém lê um
-arquivo pela metade.
+arquivo pela metade. Toda escrita passa por `Estado::alterar`, que relê o
+arquivo sob uma trava (`estado.trava`, com `flock`) e aplica só a mudança: o
+módulo guarda a sessão nova depois de um diálogo que pode ter levado um minuto,
+e gravar a cópia lida antes apagaria o que a janela mudou nesse tempo. A trava
+dura o tempo de ler e gravar, nunca o de uma pergunta à pessoa, e quem só lê
+não a pega.
+
+## O módulo dentro do `p11-kit server`
+
+O `p11-kit server` do Âncora abre um `p11-kit-remote` por conexão, e cada um
+carrega o módulo do zero: o navegador tem o seu, o leitor de PDF o dele, e a
+sonda da supervisão abre um novo a cada 10 s. Daí as regras do módulo:
+
+- **Listar não custa nada.** O `C_Initialize` só lê o `estado.json`: não gera a
+  chave da instalação, não cria arquivo de diagnóstico, não vai à rede. O motor
+  é aberto na primeira assinatura.
+- **Nenhuma trava segura a pessoa.** O `C_Sign` tira a operação da sessão sob a
+  trava do módulo e assina sem ela, então o mesmo aplicativo continua listando
+  tokens enquanto o diálogo está aberto. Duas assinaturas do mesmo processo
+  esperam uma pela outra no motor, e a segunda aproveita a sessão da primeira.
+  Como a sonda tem processo próprio, um `C_Sign` esperando a pessoa não a
+  atrasa, e a supervisão não precisa de campo novo no contrato. Medido na VM
+  Fedora 44 em 2026-10-30, com só o `ancora servir` no ar: o diálogo ficou
+  mais de 4 minutos aberto, o driver continuou publicado, e listar tokens nesse
+  tempo levou 0,08 s.
+- **Sempre há token.** Sem conta, o slot tem um token não inicializado e sem
+  objetos, como o slot livre do SoftHSM. Um slot sem token faz o
+  `C_GetSlotList(CK_TRUE)` devolver a lista vazia, e pelo RPC do p11-kit
+  0.26 a segunda passada com zero itens volta `CKR_BUFFER_TOO_SMALL`: quem
+  repete enquanto o buffer é pequeno, como o `get_slots_with_token` do crate
+  `cryptoki` que a sonda do Âncora usa, fica em laço para sempre. Na VM, isso
+  parou o driver em três sondas e levou a carga a 16.
+- **O diálogo é outro processo.** `remoteid pedir`, achado ao lado do `.so`
+  (`../bin/remoteid`, pelo `/proc/self/maps`), recebe o nome do titular pelo
+  stdin e devolve o PIN e o OTP pelo stdout, nunca por argumento nem ambiente.
+  O stdout do módulo é o canal do p11-kit com o aplicativo, e por isso o
+  diálogo nunca o herda. Fechar a janela, ou cinco minutos sem resposta, é
+  `CKR_FUNCTION_CANCELED`.
+- **O token assina com o certificado que mostra**, e não com o ativo do
+  momento: se a janela trocar a escolha com o aplicativo aberto, a assinatura
+  ainda confere com o certificado que ele leu.
+
+Do RemoteID-linux vêm, com o motivo em comentário no código, as escolhas que
+os hospedeiros exigem: o token não anuncia login (o NSS pedia o PIN em laço), o
+`CKM_RSA_PKCS` anuncia cifra (o SunPKCS11 do PJeOffice precisa), e a assinatura
+em fluxo (`C_SignUpdate`) existe porque o BouncyCastle nunca chama `C_Sign`.
 
 ## O protocolo com a Certisign não muda
 
@@ -104,9 +152,9 @@ documentação, e o diagnóstico só grava o que já passou pela redação.
    servidor RemoteID falso que os testes usam. O servidor falso confere o
    `Bearer` com a chave do registro e lembra as sessões, e o transporte novo
    manda os mesmos bytes e cabeçalhos que o antigo.
-4. **Módulo PKCS#11 com o motor dentro e o diálogo de PIN e OTP sob demanda**,
-   testados com só o `ancora servir` no ar (nenhuma janela aberta), por
-   `pkcs11-tool` contra o servidor falso.
+4. **Módulo PKCS#11 com o motor dentro e o diálogo de PIN e OTP sob demanda**
+   (feito), testados com só o `ancora servir` no ar (nenhuma janela aberta), por
+   `pkcs11-tool` contra o servidor falso. Falta a cadeia de autoridades.
 5. **Interface**: entrar na conta, painel, PIN e OTP, escolha do certificado,
    configurações.
 6. **Terminal**: `remoteid assinar` (inclusive o `.p7s` CAdES-BES com
@@ -119,17 +167,20 @@ RemoteID-linux e nunca passou por uma conta real.
 
 ## Em aberto
 
-- **Um `C_Sign` que espera a pessoa digitar.** O pedido de PIN e OTP segura o
-  `C_Sign` por dezenas de segundos dentro do `p11-kit server` do Âncora.
-  Conferir na etapa 4 que a supervisão do Âncora (sonda a cada 10 s, com limite
-  de 10 s) não toma isso por driver travado, e se o contrato de extensão
-  precisa de um campo novo para isso.
-- **Duas escritas ao mesmo tempo.** O módulo grava a sessão nova enquanto a
-  janela grava uma escolha de certificado: a última troca vence e a outra
-  mudança se perde. Decidir na etapa 4 se vale uma trava de arquivo.
+- **A sonda do Âncora em laço com driver sem token.** O laço acima pega
+  qualquer driver sem token, uma leitora sem cartão por exemplo; o RemoteID
+  se protege, mas a correção é do Âncora (pedir os slots sem filtro e olhar
+  `CKF_TOKEN_PRESENT`, ou não repetir com contagem zero).
+- **O sandbox do Âncora não tem rede.** O motor fala HTTPS com a Certisign de
+  dentro do `p11-kit server` do Âncora, e o manifesto dele não tem
+  `--share=network` (o do flatpak-adv-br tinha). Uma extensão não acrescenta
+  permissões: sem a rede no Âncora, toda assinatura falha.
 - **A cadeia de autoridades.** O antigo baixava pelo `caIssuers` a cadeia de
   cada certificado da carteira, para o validador do outro lado fechar a
-  confiança. Entra na etapa 4, onde o módulo a publica.
+  confiança. O módulo publica o certificado do titular; a cadeia ainda não.
+- **O token não se atualiza numa conexão aberta.** O módulo lê o estado no
+  `C_Initialize`; um navegador aberto antes de a conta ser preparada só vê o
+  certificado quando reconecta.
 - **O serviço do Âncora com a sessão.** Hoje o `ancora servir` não sobe sozinho
   no login (pendência do Âncora); até lá, o RemoteID só assina com ele no ar.
 

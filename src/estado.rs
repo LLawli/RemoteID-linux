@@ -4,6 +4,12 @@
 //! Fica num JSON 0600 no diretório do RemoteID ([`crate::caminhos`]), gravado
 //! por troca atômica: o módulo PKCS#11 e a janela leem o mesmo arquivo, e uma
 //! escrita pela metade não pode deixar nenhum dos dois sem conta.
+//!
+//! Quem escreve passa por [`Estado::alterar`], que relê o arquivo sob uma trava
+//! e aplica só a mudança: o módulo guarda a sessão nova depois de um diálogo de
+//! PIN e OTP que pode ter levado um minuto, e gravar a cópia que leu antes
+//! apagaria o que a janela mudou nesse meio tempo. A trava dura o tempo de ler e
+//! gravar, nunca o de uma pergunta à pessoa; quem só lê não a pega.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -98,9 +104,28 @@ impl Estado {
         }
     }
 
-    pub fn salvar(&self, caminho: &Path) -> io::Result<()> {
+    fn salvar(&self, caminho: &Path) -> io::Result<()> {
         let texto = serde_json::to_vec_pretty(self).expect("o estado sempre vira JSON");
         gravar_privado(caminho, &texto)
+    }
+
+    /// Relê o estado do disco, aplica `mudanca` e grava, tudo sob a trava de
+    /// escrita. Devolve o estado como ficou.
+    pub fn alterar(caminho: &Path, mudanca: impl FnOnce(&mut Estado)) -> io::Result<Estado> {
+        if let Some(pai) = caminho.parent() {
+            fs::create_dir_all(pai)?;
+        }
+        let trava = fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .open(caminho.with_extension("trava"))?;
+        trava.lock()?;
+        let mut estado = Estado::carregar(caminho)?;
+        mudanca(&mut estado);
+        estado.salvar(caminho)?;
+        Ok(estado)
     }
 
     pub fn preparado(&self) -> bool {

@@ -15,6 +15,7 @@ use sha2::Sha256;
 
 use remoteid::caminhos::Caminhos;
 use remoteid::cripto::sha256;
+use remoteid::estado::Estado;
 use remoteid::motor::{Autorizador, Erro, Fatores, MAX_TENTATIVAS, Motor};
 use remoteid::protocolo::requisicao::Maquina;
 use remoteid::protocolo::resposta::Erro as ErroProtocolo;
@@ -346,9 +347,10 @@ fn o_diagnostico_registra_o_fluxo_sem_segredo_nem_dado_do_titular() {
         .unwrap();
 
     let registro = std::fs::read_to_string(arquivo).unwrap();
-    // Uma linha por requisição e por resposta: login, registro, celular,
-    // carteira, tokensessao e requestHash.
-    assert_eq!(registro.lines().count(), 12, "{registro}");
+    // Uma linha por requisição e por resposta (login, registro, celular,
+    // carteira, tokensessao e requestHash), e uma pelo pedido de fatores.
+    assert_eq!(registro.lines().count(), 13, "{registro}");
+    assert!(registro.contains(r#""evento":"pedido""#), "{registro}");
     let token = &m.estado.sessoes.values().next().unwrap().token;
     let certificado = m.estado.certificado().unwrap().base64.clone().unwrap();
     for segredo in [
@@ -369,4 +371,48 @@ fn o_diagnostico_registra_o_fluxo_sem_segredo_nem_dado_do_titular() {
         registro.contains("/api/signature/tokensessao"),
         "{registro}"
     );
+}
+
+#[test]
+fn escritas_ao_mesmo_tempo_nao_se_apagam() {
+    let caminho = diretorio_vazio("concorrente").estado();
+    let threads: Vec<_> = (0..8)
+        .map(|t| {
+            let caminho = caminho.clone();
+            std::thread::spawn(move || {
+                for i in 0..20 {
+                    Estado::alterar(&caminho, |e| {
+                        e.guardar_sessao(format!("{t}-{i}"), "t".into(), 0);
+                    })
+                    .unwrap();
+                }
+            })
+        })
+        .collect();
+    for t in threads {
+        t.join().unwrap();
+    }
+    assert_eq!(Estado::carregar(&caminho).unwrap().sessoes.len(), 8 * 20);
+}
+
+#[test]
+fn a_escrita_de_um_processo_nao_apaga_a_do_outro() {
+    let mock = Mock::subir();
+    let caminhos = diretorio("dois-processos");
+    let mut janela = motor(&mock, &caminhos);
+    janela
+        .preparar("teste@remoteid.local", "teste-1234", &MAQUINA)
+        .unwrap();
+    // O módulo leu o estado antes de a janela gravar a escolha, e grava a
+    // sessão nova depois.
+    let mut modulo = motor(&mock, &caminhos);
+    let chave = janela.estado.certificado().unwrap().chave();
+    janela.escolher_certificado(&chave).unwrap();
+    modulo
+        .assinar(Algoritmo::Sha256, &[1; 32], &Roteiro::certo())
+        .unwrap();
+
+    let disco = Estado::carregar(&caminhos.estado()).unwrap();
+    assert_eq!(disco.certificado_ativo.as_deref(), Some(chave.as_str()));
+    assert_eq!(disco.sessoes.len(), 1);
 }

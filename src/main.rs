@@ -1,7 +1,19 @@
+mod terminal;
+mod ui;
+
 use adw::prelude::*;
-use remoteid::{APP_ID, NOME};
+use remoteid::{APP_ID, NOME, pedido};
 
 fn main() -> gtk::glib::ExitCode {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.first().map(String::as_str) {
+        Some(pedido::SUBCOMANDO) => ui::pedido::executar(),
+        Some(terminal::ENTRAR) => terminal::entrar(&args[1..]),
+        _ => janela(),
+    }
+}
+
+fn janela() -> gtk::glib::ExitCode {
     let app = adw::Application::builder().application_id(APP_ID).build();
     app.connect_activate(montar_janela);
     app.run()

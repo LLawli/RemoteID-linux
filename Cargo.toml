@@ -28,6 +28,10 @@ rsa = { version = "0.9", features = ["sha2"] }
 serde = { version = "1", features = ["derive"] }
 rand = "0.8"
 ureq = "3"
+# A ABI do Cryptoki 2.40 (tipos e constantes, sem gerar nada no build) e a
+# leitura do X.509 do titular, de onde saem os atributos dos objetos do token.
+cryptoki-sys = "0.5"
+x509-cert = { version = "0.2", default-features = false, features = ["std"] }
 
 [profile.release]
 lto = true
