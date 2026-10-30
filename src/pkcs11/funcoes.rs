@@ -217,8 +217,8 @@ pub(super) unsafe extern "C" fn C_GetTokenInfo(
         // `C_GetSlotList(CK_TRUE)` devolver a lista vazia, e pelo RPC do
         // p11-kit a segunda passada com zero itens volta
         // `CKR_BUFFER_TOO_SMALL`: quem repete enquanto o buffer é pequeno (o
-        // crate `cryptoki`, que a sonda do Âncora usa) fica em laço para
-        // sempre. Medido no p11-kit 0.26 do runtime GNOME 51.
+        // crate `cryptoki`, que a sonda do Âncora usava até `bbfbfaf`) fica
+        // em laço para sempre. Medido no p11-kit 0.26 do runtime GNOME 51.
         //
         // Sem CKF_LOGIN_REQUIRED e sem CKF_USER_PIN_INITIALIZED, de propósito:
         // o token não tem PIN próprio, o do certificado é pedido no C_Sign.

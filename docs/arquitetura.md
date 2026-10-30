@@ -87,13 +87,21 @@ sonda da supervisão abre um novo a cada 10 s. Daí as regras do módulo:
   Fedora 44 em 2026-10-30, com só o `ancora servir` no ar: o diálogo ficou
   mais de 4 minutos aberto, o driver continuou publicado, e listar tokens nesse
   tempo levou 0,08 s.
+- **A rede é a do Âncora.** O motor fala HTTPS com a Certisign, e baixa a
+  cadeia, de dentro do sandbox do `ancora servir`; uma extensão não acrescenta
+  permissões, e o Âncora tem `--share=network` para isso desde `bbfbfaf`. Na
+  VM, com o servidor falso numa instância separada, entrar, baixar a cadeia
+  (3 certificados no token) e assinar passaram.
 - **Sempre há token.** Sem conta, o slot tem um token não inicializado e sem
   objetos, como o slot livre do SoftHSM. Um slot sem token faz o
   `C_GetSlotList(CK_TRUE)` devolver a lista vazia, e pelo RPC do p11-kit
   0.26 a segunda passada com zero itens volta `CKR_BUFFER_TOO_SMALL`: quem
   repete enquanto o buffer é pequeno, como o `get_slots_with_token` do crate
   `cryptoki` que a sonda do Âncora usa, fica em laço para sempre. Na VM, isso
-  parou o driver em três sondas e levou a carga a 16.
+  parou o driver em três sondas e levou a carga a 16. O Âncora corrigiu a
+  sonda (`bbfbfaf`, lista os slots pela chamada crua), e o token não
+  inicializado fica: protege qualquer outro hospedeiro que use o `cryptoki`
+  pelo RPC do p11-kit.
 - **O diálogo é outro processo.** `remoteid pedir`, achado ao lado do `.so`
   (`../bin/remoteid`, pelo `/proc/self/maps`), recebe o nome do titular pelo
   stdin e devolve o PIN e o OTP pelo stdout, nunca por argumento nem ambiente.
@@ -181,14 +189,6 @@ RemoteID-linux e nunca passou por uma conta real.
 
 ## Em aberto
 
-- **A sonda do Âncora em laço com driver sem token.** O laço acima pega
-  qualquer driver sem token, uma leitora sem cartão por exemplo; o RemoteID
-  se protege, mas a correção é do Âncora (pedir os slots sem filtro e olhar
-  `CKF_TOKEN_PRESENT`, ou não repetir com contagem zero).
-- **O sandbox do Âncora não tem rede.** O motor fala HTTPS com a Certisign de
-  dentro do `p11-kit server` do Âncora, e o manifesto dele não tem
-  `--share=network` (o do flatpak-adv-br tinha). Uma extensão não acrescenta
-  permissões: sem a rede no Âncora, toda assinatura falha.
 - **O acompanhamento do token não foi visto num navegador.** O teste prova o
   lado do módulo (sessões derrubadas quando o certificado muda); que o NSS
   então relê o token é o que o código dele diz para slots removíveis, e falta
