@@ -11,12 +11,15 @@ use std::io;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use zeroize::Zeroizing;
 
 use crate::cadeia::{self, Cadeia};
 use crate::caminhos::Caminhos;
+use crate::cofre::{Cofre, SemCofre};
 use crate::cripto::{ChaveInstalacao, b64, de_b64};
 use crate::diagnostico::Diagnostico;
 use crate::estado::{Estado, TTL_SESSAO_S};
+use crate::pin::{self, Abertura};
 use crate::protocolo::classificacao::{self, Origem};
 use crate::protocolo::requisicao::{self, Maquina};
 use crate::protocolo::resposta::{self, Erro as ErroProtocolo};
@@ -44,6 +47,9 @@ pub enum Erro {
     Disco(io::Error),
     /// A pessoa fechou o pedido de PIN e OTP.
     Cancelado,
+    /// O PIN local errou vezes demais: a senha cifrada foi apagada e a conta
+    /// saiu deste computador.
+    PinBloqueado,
     /// O servidor não assina estes dados neste modo.
     BlocoInvalido,
 }
@@ -60,19 +66,65 @@ impl From<io::Error> for Erro {
     }
 }
 
-/// O PIN e o OTP de uma tentativa. Vivem só na memória e no pipe do diálogo.
+/// O que a pessoa informa para abrir uma sessão. Vive só na memória e no
+/// pipe do diálogo.
+///
+/// O servidor chama de PIN o que é a senha da conta, a mesma do login; o
+/// campo do protocolo continua `pin`. Aqui `pin` é o PIN local, que abre a
+/// senha cifrada no disco ([`crate::pin`]). Cada campo vem só quando a
+/// [`Credencial`] o pediu.
 #[derive(Serialize, Deserialize)]
 pub struct Fatores {
-    pub pin: String,
+    #[serde(default)]
+    pub senha: Option<String>,
+    #[serde(default)]
+    pub pin: Option<String>,
     pub otp: String,
 }
 
-/// Quem pede o PIN e o OTP à pessoa: o diálogo da janela, ou fatores fixos
-/// num teste.
+/// O que o diálogo pergunta, além do OTP.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Credencial<'a> {
+    /// A senha está guardada (no chaveiro ou na memória deste processo): só o
+    /// OTP.
+    Guardada,
+    /// O PIN local, que abre a senha cifrada no disco.
+    Pin,
+    /// A senha da conta: não há uma guardada, ou o servidor recusou a
+    /// tentativa e não diz se o errado foi ela ou o OTP. `atual` é a
+    /// guardada, para a pessoa só confirmar.
+    Senha { atual: Option<&'a str> },
+}
+
+impl Credencial<'_> {
+    fn nome(&self) -> &'static str {
+        match self {
+            Credencial::Guardada => "guardada",
+            Credencial::Pin => "pin",
+            Credencial::Senha { .. } => "senha",
+        }
+    }
+}
+
+/// Quem pede os fatores à pessoa: o diálogo da janela, ou fatores fixos num
+/// teste.
 pub trait Autorizador {
-    /// `recusa` é a mensagem do servidor quando a tentativa anterior foi
-    /// recusada. `None` de volta é a pessoa desistindo.
-    fn pedir(&self, certificado: &Certificado, recusa: Option<&str>) -> Option<Fatores>;
+    /// `recusa` é a mensagem da tentativa anterior (do servidor, ou do PIN
+    /// local errado). `None` de volta é a pessoa desistindo.
+    fn pedir(
+        &self,
+        certificado: &Certificado,
+        recusa: Option<&str>,
+        credencial: Credencial<'_>,
+    ) -> Option<Fatores>;
+}
+
+/// A senha que este processo já conhece, e o PIN que a abriu, até ele
+/// fechar. Só serve à conta de `email`.
+struct Memoria {
+    email: String,
+    senha: Zeroizing<String>,
+    pin: Option<Zeroizing<String>>,
 }
 
 pub struct Motor {
@@ -83,6 +135,9 @@ pub struct Motor {
     transporte: Box<dyn Transporte>,
     relogio: Box<dyn Fn() -> u64 + Send>,
     diagnostico: Diagnostico,
+    /// Onde fica a senha da conta entre uma sessão e outra.
+    cofre: Box<dyn Cofre>,
+    memoria: Option<Memoria>,
     /// O JWT do login. Só o registro o usa, e ele não vai para o disco.
     jwt: Option<String>,
 }
@@ -109,6 +164,8 @@ impl Motor {
             transporte,
             relogio: Box::new(agora_do_sistema),
             diagnostico: Diagnostico::inerte(),
+            cofre: Box::new(SemCofre),
+            memoria: None,
             jwt: None,
         })
     }
@@ -121,6 +178,64 @@ impl Motor {
     pub fn com_diagnostico(mut self, diagnostico: Diagnostico) -> Motor {
         self.diagnostico = diagnostico;
         self
+    }
+
+    pub fn com_cofre(mut self, cofre: Box<dyn Cofre>) -> Motor {
+        self.cofre = cofre;
+        self
+    }
+
+    /// Guarda no chaveiro a senha que o servidor acabou de aceitar. Devolve
+    /// se deu.
+    fn guardar_senha(&self, email: &str, senha: &str) -> bool {
+        let resultado = self.cofre.guardar(email, senha);
+        let guardada = resultado.is_ok();
+        self.diagnostico.evento(
+            "cofre",
+            json!({ "guardada": guardada, "erro": resultado.err() }),
+        );
+        guardada
+    }
+
+    /// Sem chaveiro, cifra a senha da conta com um PIN local
+    /// ([`crate::pin::valido`]): o PIN passa a ser pedido na primeira
+    /// assinatura de cada processo.
+    pub fn proteger_com_pin(&mut self, senha: &str, pin: &str) -> Result<(), Erro> {
+        let email = self
+            .estado
+            .email
+            .clone()
+            .ok_or(Erro::NaoPreparado("entre na conta antes de criar o PIN"))?;
+        pin::cifrar(&self.caminhos.senha_cifrada(), &email, senha, pin)?;
+        self.diagnostico
+            .evento("cofre", json!({ "arquivo": "criado" }));
+        Ok(())
+    }
+
+    /// Lembra a senha que o servidor aceitou até o processo fechar e, se ela
+    /// mudou, guarda a nova: no chaveiro, ou no arquivo com o PIN que este
+    /// processo conhece.
+    fn lembrar_senha(&mut self, email: &str, senha: &Zeroizing<String>, anterior: Option<&str>) {
+        let pin = self
+            .memoria
+            .take()
+            .filter(|m| m.email == email)
+            .and_then(|m| m.pin);
+        if anterior != Some(senha.as_str())
+            && !self.guardar_senha(email, senha)
+            && let Some(pin) = &pin
+        {
+            let resultado = pin::cifrar(&self.caminhos.senha_cifrada(), email, senha, pin);
+            self.diagnostico.evento(
+                "cofre",
+                json!({ "arquivo": "trocado", "erro": resultado.err().map(|e| e.to_string()) }),
+            );
+        }
+        self.memoria = Some(Memoria {
+            email: email.into(),
+            senha: senha.clone(),
+            pin,
+        });
     }
 
     /// Relê o estado do disco, que o outro processo pode ter mudado.
@@ -336,54 +451,150 @@ impl Motor {
     /// Tudo o que a primeira vez exige: entrar, registrar esta máquina e
     /// baixar a carteira. O celular só informa, e uma falha nele não impede o
     /// resto.
-    pub fn preparar(&mut self, email: &str, senha: &str, maquina: &Maquina) -> Result<(), Erro> {
+    /// Entra, registra esta máquina e baixa a carteira. Devolve se a senha
+    /// ficou no chaveiro; sem ele, quem chamou oferece
+    /// [`Motor::proteger_com_pin`].
+    pub fn preparar(&mut self, email: &str, senha: &str, maquina: &Maquina) -> Result<bool, Erro> {
         self.entrar(email, senha)?;
+        // Um arquivo de outra entrada não abre com a conta nova e só
+        // gastaria tentativas de PIN.
+        pin::apagar(&self.caminhos.senha_cifrada())?;
+        self.memoria = None;
+        let no_chaveiro = self.guardar_senha(email, senha);
         self.registrar(maquina)?;
         let _ = self.atualizar_celular();
-        self.atualizar_carteira()
+        self.atualizar_carteira()?;
+        Ok(no_chaveiro)
     }
 
     /// Abre uma sessão de assinatura, pedindo o PIN e o OTP de novo a cada
     /// recusa que a pessoa pode corrigir, até [`MAX_TENTATIVAS`]. Rede e
     /// servidor sobem na hora: ali o servidor não julgou os fatores.
     fn abrir_sessao(
-        &self,
+        &mut self,
         certificado: &Certificado,
         autorizador: &dyn Autorizador,
     ) -> Result<String, Erro> {
         let codigo = self.codigo_desktop()?;
+        let email = self
+            .estado
+            .email
+            .clone()
+            .ok_or(Erro::NaoPreparado("a conta não tem e-mail"))?;
+        let arquivo = self.caminhos.senha_cifrada();
+        let da_memoria = self
+            .memoria
+            .as_ref()
+            .filter(|m| m.email == email)
+            .map(|m| m.senha.clone());
+        let mut conhecida = da_memoria
+            .clone()
+            .or_else(|| self.cofre.ler(&email).map(Zeroizing::new));
+        self.diagnostico.evento(
+            "cofre",
+            json!({
+                "memoria": da_memoria.is_some(),
+                "lida": da_memoria.is_none() && conhecida.is_some(),
+                "arquivo": arquivo.exists(),
+            }),
+        );
         let mut recusa: Option<String> = None;
-        for tentativa in 1..=MAX_TENTATIVAS {
+        let mut servidor_recusou = false;
+        let mut tentativa = 0;
+        loop {
+            let credencial = match &conhecida {
+                Some(s) if servidor_recusou => Credencial::Senha {
+                    atual: Some(s.as_str()),
+                },
+                Some(_) => Credencial::Guardada,
+                None if arquivo.exists() => Credencial::Pin,
+                None => Credencial::Senha { atual: None },
+            };
             self.diagnostico.evento(
                 "pedido",
-                json!({ "tentativa": tentativa, "recusa": recusa }),
+                json!({
+                    "tentativa": tentativa + 1,
+                    "recusa": recusa,
+                    "credencial": credencial.nome(),
+                }),
             );
-            let Some(fatores) = autorizador.pedir(certificado, recusa.as_deref()) else {
-                self.diagnostico.evento("cancelado", json!({}));
-                return Err(Erro::Cancelado);
+            let cancelar = |m: &Motor| {
+                m.diagnostico.evento("cancelado", json!({}));
+                Err(Erro::Cancelado)
             };
+            let Some(fatores) = autorizador.pedir(certificado, recusa.as_deref(), credencial)
+            else {
+                return cancelar(self);
+            };
+            let senha = match credencial {
+                Credencial::Guardada => conhecida.clone().expect("guardada só com senha conhecida"),
+                Credencial::Senha { .. } => match fatores.senha {
+                    Some(s) => Zeroizing::new(s),
+                    None => return cancelar(self),
+                },
+                Credencial::Pin => {
+                    let Some(pin) = fatores.pin.map(Zeroizing::new) else {
+                        return cancelar(self);
+                    };
+                    match pin::abrir(&arquivo, &email, &pin)? {
+                        Abertura::Senha(s) => {
+                            self.diagnostico
+                                .evento("cofre", json!({ "arquivo": "aberto" }));
+                            self.memoria = Some(Memoria {
+                                email: email.clone(),
+                                senha: s.clone(),
+                                pin: Some(pin),
+                            });
+                            conhecida = Some(s.clone());
+                            s
+                        }
+                        Abertura::Errado { restantes } => {
+                            self.diagnostico.evento(
+                                "cofre",
+                                json!({ "arquivo": "pin errado", "restantes": restantes }),
+                            );
+                            recusa = Some(format!(
+                                "PIN incorreto: mais {restantes} erro{} e a conta sai deste computador",
+                                if restantes == 1 { "" } else { "s" }
+                            ));
+                            continue;
+                        }
+                        Abertura::Bloqueado => {
+                            self.diagnostico
+                                .evento("cofre", json!({ "arquivo": "bloqueado" }));
+                            self.sair()?;
+                            return Err(Erro::PinBloqueado);
+                        }
+                    }
+                }
+            };
+            tentativa += 1;
             let requisicao = requisicao::tokensessao(
                 &self.servidor,
                 &codigo,
                 certificado,
-                &fatores.pin,
+                &senha,
                 &fatores.otp,
                 &self.chave,
             );
             let r = self.enviar(&requisicao)?;
             match resposta::tokensessao(r.http, &r.corpo) {
-                Ok(token) => return Ok(token),
+                Ok(token) => {
+                    let anterior = conhecida.as_ref().map(|s| s.to_string());
+                    self.lembrar_senha(&email, &senha, anterior.as_deref());
+                    return Ok(token);
+                }
                 Err(ErroProtocolo::Servidor {
                     mensagem,
                     regra: Some(regra),
                     ..
                 }) if regra.origem == Origem::Usuario && tentativa < MAX_TENTATIVAS => {
                     recusa = Some(mensagem);
+                    servidor_recusou = true;
                 }
                 Err(e) => return Err(e.into()),
             }
         }
-        unreachable!("a última tentativa sempre devolve")
     }
 
     fn assinar_com_sessao(
@@ -466,6 +677,23 @@ impl Motor {
     pub fn reautorizar_proxima(&mut self) -> Result<(), Erro> {
         let chave = self.certificado()?.chave();
         self.alterar(|e| e.esquecer_sessao(&chave))
+    }
+
+    /// Sai da conta: esquece o registro desta máquina, a carteira, as sessões
+    /// e a senha guardada. A chave da instalação fica, e o próximo registro a
+    /// usa.
+    pub fn sair(&mut self) -> Result<(), Erro> {
+        self.jwt = None;
+        self.memoria = None;
+        pin::apagar(&self.caminhos.senha_cifrada())?;
+        if let Some(email) = &self.estado.email {
+            let resultado = self.cofre.apagar(email);
+            self.diagnostico.evento(
+                "cofre",
+                json!({ "apagada": resultado.is_ok(), "erro": resultado.err() }),
+            );
+        }
+        self.alterar(|e| *e = Estado::default())
     }
 
     pub fn escolher_certificado(&mut self, chave: &str) -> Result<(), Erro> {

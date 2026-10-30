@@ -68,11 +68,16 @@ pkcs11-tool --module target/debug/libremoteid.so -L
 pkcs11-tool --module target/debug/libremoteid.so -s -m SHA256-RSA-PKCS -i doc -o doc.sig
 ```
 
-A assinatura abre o diálogo de PIN e OTP (`remoteid pedir`, ao lado do `.so`).
+A assinatura abre o diálogo (`remoteid pedir`, ao lado do `.so`).
 `REMOTEID_DIALOGO` troca o executável do diálogo, por exemplo por um roteiro que
-responde sozinho: ele recebe o pedido em JSON no stdin, escreve
-`{"pin":"…","otp":"…"}` no stdout e sai com 0, ou sai com outro código para
+responde sozinho: ele recebe o pedido em JSON no stdin (`pedir_senha`,
+`pedir_pin`), escreve `{"senha":"…","pin":"…","otp":"…"}` no stdout, só com o
+que foi pedido além do OTP, e sai com 0, ou sai com outro código para
 desistir.
+
+A senha vai para o chaveiro de quem roda. `REMOTEID_COFRE=nenhum` desliga o
+chaveiro (os testes usam); aí o `remoteid entrar` lê o PIN local na segunda
+linha da entrada, ou a senha é pedida a cada sessão.
 
 ## Diagnóstico
 

@@ -6,8 +6,9 @@ assinadores que você já usa. É para quem tem certificado RemoteID e precisa
 assinar ou entrar com ele (PJe, e-SAJ, Receita) numa máquina Linux.
 
 É uma extensão do [Âncora](https://github.com/LLawli/flatpak-adv-br): instale o
-Âncora, depois esta extensão pela tela de extensões dele. O PIN e o código do
-autenticador são pedidos numa janela no seu desktop, e a assinatura acontece no
+Âncora, depois esta extensão pela tela de extensões dele. Você entra na conta
+uma vez; a senha fica no chaveiro do sistema e, ao assinar, só o código do
+autenticador é pedido, numa janela no seu desktop. A assinatura acontece no
 HSM da Certisign: a chave do certificado nunca esteve na sua máquina.
 
 > **Não é um produto oficial da Certisign.** O protocolo foi reconstruído por

@@ -29,7 +29,7 @@ const TITULAR: &[u8] = include_bytes!("mock/fake-cert.der");
 
 /// O que o diálogo falso responde. São os fatores sintéticos do servidor
 /// falso.
-const FATORES: &str = r#"{"pin":"1234","otp":"123456"}"#;
+const FATORES: &str = r#"{"senha":"teste-1234","otp":"123456"}"#;
 
 /// Quanto o diálogo falso demora quando o teste quer uma pessoa lenta.
 const DEMORA: Duration = Duration::from_secs(2);
@@ -261,6 +261,8 @@ fn o_modulo_assina_pelo_motor_e_pede_os_fatores_so_quando_precisa() {
         std::env::set_var("REMOTEID_HOME", &conta);
         std::env::set_var("REMOTEID_SERVIDOR", &mock.url);
         std::env::set_var("REMOTEID_DIALOGO", dialogo.0.join("dialogo"));
+        // Nada no chaveiro de quem roda o teste: a senha vai pelo diálogo.
+        std::env::set_var("REMOTEID_COFRE", "nenhum");
     }
 
     let f = lista();

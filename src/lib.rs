@@ -5,11 +5,14 @@
 
 pub mod cadeia;
 pub mod caminhos;
+pub mod carteira;
+pub mod cofre;
 pub mod cripto;
 pub mod diagnostico;
 pub mod estado;
 pub mod motor;
 pub mod pedido;
+pub mod pin;
 pub mod pkcs11;
 pub mod protocolo;
 pub mod transporte;

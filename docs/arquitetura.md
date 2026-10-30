@@ -18,12 +18,12 @@ A extensão traz duas peças, as duas rodando no sandbox do Âncora:
 | peça | o que é | quem a usa |
 |---|---|---|
 | `lib/libremoteid.so` | o módulo PKCS#11, sem GTK, com o motor inteiro: estado, sessão em cache e a conversa com a Certisign | o `p11-kit server` que o `ancora servir` mantém no ar, e por ele os navegadores, o leitor de PDF e os assinadores |
-| `bin/remoteid` | a janela (entrar na conta, certificados, configurações), o diálogo de PIN e OTP, e os subcomandos de terminal | a pessoa, pelo atalho que o Âncora cria; o módulo, para pedir PIN e OTP |
+| `bin/remoteid` | a janela (entrar na conta, a carteira em cartões), o diálogo do código do autenticador, e os subcomandos de terminal | a pessoa, pelo atalho que o Âncora cria; o módulo, para pedir PIN e OTP |
 
 **Assinar não depende da janela aberta.** Basta o que o Âncora mantém sempre
 ativo, o `ancora servir` publicando o driver. A chave do certificado fica no HSM
 da Certisign. No `C_Sign` o módulo, dentro do serviço do Âncora, usa a sessão
-em cache ou, quando ela não vale mais, abre só o diálogo de PIN e OTP
+em cache ou, quando ela não vale mais, abre só o diálogo do código do autenticador
 (`remoteid` num modo de pedido, um processo que vive o tempo da pergunta), fala
 com o servidor e devolve a assinatura. A janela só é necessária para entrar na
 conta e configurar.
@@ -42,7 +42,8 @@ O RemoteID-linux tinha 23 crates, com uma porta (trait) para cada efeito,
 pensadas para uma versão central multi-conta que nunca existiu. Aqui os
 domínios são módulos, e uma trait só existe quando há duas implementações de
 verdade hoje (a real e a de teste): o `Transporte` (HTTP ou falso) e o
-`Autorizador` (o diálogo de PIN e OTP, ou fatores fixos num teste).
+`Autorizador` (o diálogo, ou fatores fixos num teste) e o `Cofre` (o chaveiro
+do sistema, ou um na memória).
 
 | módulo | o que faz |
 |---|---|
@@ -53,7 +54,10 @@ verdade hoje (a real e a de teste): o `Transporte` (HTTP ou falso) e o
 | `caminhos` | onde fica cada arquivo, e o servidor (`REMOTEID_SERVIDOR` troca pelo falso) |
 | `motor` | o fluxo: preparar a conta e assinar, com a sessão em cache |
 | `pkcs11/` | o módulo Cryptoki: o token montado do estado, e o `C_Sign` pelo motor |
-| `pedido` | o `Autorizador` do módulo: abre o `remoteid pedir` e lê o PIN e o OTP por pipe |
+| `pedido` | o `Autorizador` do módulo: abre o `remoteid pedir` e lê os fatores por pipe |
+| `cofre` | a senha da conta no chaveiro do sistema (`oo7`: portal de segredos, ou Secret Service) |
+| `pin` | sem chaveiro, a senha cifrada no disco com um PIN local |
+| `carteira` | o que a janela mostra, montado do estado: cartões, sessão, validade, cadeia |
 | `x509` | os campos do certificado que o token publica, e o nome do titular |
 | `cadeia` | as autoridades do certificado, do `caIssuers` até a raiz; puro, o download é do motor |
 | `diagnostico` | um JSONL por execução, com segredos e dados do titular redigidos |
@@ -104,7 +108,8 @@ sonda da supervisão abre um novo a cada 10 s. Daí as regras do módulo:
   pelo RPC do p11-kit.
 - **O diálogo é outro processo.** `remoteid pedir`, achado ao lado do `.so`
   (`../bin/remoteid`, pelo `/proc/self/maps`), recebe o nome do titular pelo
-  stdin e devolve o PIN e o OTP pelo stdout, nunca por argumento nem ambiente.
+  stdin e devolve o OTP (e, quando pedidos, a senha da conta ou o PIN local)
+  pelo stdout, nunca por argumento nem ambiente.
   O stdout do módulo é o canal do p11-kit com o aplicativo, e por isso o
   diálogo nunca o herda. Fechar a janela, ou cinco minutos sem resposta, é
   `CKR_FUNCTION_CANCELED`.
@@ -180,8 +185,12 @@ documentação, e o diagnóstico só grava o que já passou pela redação.
 4. **Módulo PKCS#11 com o motor dentro e o diálogo de PIN e OTP sob demanda**
    (feito), testados com só o `ancora servir` no ar (nenhuma janela aberta), por
    `pkcs11-tool` contra o servidor falso.
-5. **Interface**: entrar na conta, painel, PIN e OTP, escolha do certificado,
-   configurações.
+5. **Interface** (feito): a janela na direção "Carteira" (o certificado que
+   assina é um cartão com o selo da sessão; trocar é passar o cartão; os
+   detalhes sobem de baixo), escolhida entre três mocks; a senha da conta no
+   chaveiro, ou cifrada com um PIN local; o diálogo pedindo só o código do
+   autenticador. Testada na VM com a extensão instalada, dirigida pelo
+   teclado.
 6. **Terminal**: `remoteid assinar` (inclusive o `.p7s` CAdES-BES com
    `signingCertificateV2`) e o harness de diagnóstico.
 7. **Publicação**: no remote do Âncora, no lugar da extensão RemoteID do
@@ -190,7 +199,43 @@ documentação, e o diagnóstico só grava o que já passou pela redação.
 Fora da primeira versão: a aprovação por celular (push). Está implementada no
 RemoteID-linux e nunca passou por uma conta real.
 
+## A senha da conta
+
+O que o servidor chama de PIN, no pedido da sessão de assinatura, é a senha da
+conta RemoteID, a mesma do login e do aplicativo de celular; o fator que
+autentica de verdade é o OTP. O campo do protocolo continua `pin`, e o servidor
+falso agora exige nele a senha da conta.
+
+- **No chaveiro.** Ao entrar, a senha vai para o chaveiro do sistema pelo
+  `oo7`: dentro do Flatpak, o portal de segredos (um arquivo cifrado por
+  aplicativo, no sandbox do Âncora, que o módulo e a janela dividem); sem o
+  portal, o Secret Service do host pelo D-Bus. A assinatura então pede só o
+  OTP. O `oo7` 0.6 promete essa queda para o D-Bus e não a faz (devolve o erro
+  do portal antes); a queda está em `cofre.rs`. Medido na VM em 2026-10-30:
+  com o portal (sessão GNOME) e com o D-Bus (sessão sem portal, com a
+  permissão), as duas assinaturas pediram só o OTP.
+- **Sem chaveiro**, a senha vai cifrada para `senha.cifrada` com um PIN de 4 a
+  6 dígitos que a pessoa cria logo depois de entrar (Argon2id de 64 MiB e três
+  passadas, ChaCha20-Poly1305 com o e-mail como dado associado). O PIN é
+  pedido na primeira assinatura de cada processo, e a senha aberta fica na
+  memória dele até ele fechar. Cinco PINs errados seguidos apagam o arquivo e
+  saem da conta. O limite só vale aqui dentro: quem copiar o arquivo testa os
+  PINs fora, atrasado só pelo Argon2id.
+- **Recusa do servidor.** Ele não diz se o errado foi a senha ou o OTP; depois
+  de uma recusa, o diálogo mostra a senha guardada preenchida, para confirmar
+  ou corrigir, e a senha nova que o servidor aceita substitui a guardada.
+
 ## Em aberto
+
+- **O chaveiro num desktop sem portal de segredos.** No Hyprland medido nesta
+  máquina, o portal não atende `org.freedesktop.portal.Secret`, e o Âncora não
+  tem `--talk-name=org.freedesktop.secrets`: o RemoteID cai no PIN local. Com
+  a permissão no Âncora, o Secret Service do host (o `gnome-keyring`) atende.
+- **Configurações.** A janela tem reautorizar, sair e sobre; não há tela de
+  configurações, porque nada mais é configurável hoje.
+- **`cargo audit`**: o `zvariant`, o `zvariant_derive` e o `zbus_names`, que
+  vêm com o `oo7`, foram marcados como sem manutenção (RUSTSEC-2026-0370 a
+  0372, de 2026-10-16). São avisos, não vulnerabilidades.
 
 - **O serviço do Âncora com a sessão.** Hoje o `ancora servir` não sobe sozinho
   no login (pendência do Âncora); até lá, o RemoteID só assina com ele no ar.

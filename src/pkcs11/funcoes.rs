@@ -15,6 +15,7 @@ use super::objetos::Objeto;
 use super::token::{ID_SLOT, Token};
 use super::{MODULO, MOTOR, Modulo, Operacao, entrada, trava};
 use crate::caminhos::{self, Caminhos};
+use crate::cofre;
 use crate::cripto::sha256;
 use crate::diagnostico::Diagnostico;
 use crate::motor::{Erro, Motor};
@@ -837,7 +838,11 @@ fn assinar(
             Box::new(Http::novo(TEMPO_LIMITE)),
         )
         .map_err(|e| rv_do_erro(&e))?;
-        *guarda = Some(motor.com_diagnostico(diagnostico));
+        *guarda = Some(
+            motor
+                .com_diagnostico(diagnostico)
+                .com_cofre(cofre::do_ambiente()),
+        );
     }
     let motor = guarda.as_mut().expect("aberto acima");
     motor.recarregar().map_err(|e| rv_do_erro(&e))?;
@@ -851,6 +856,7 @@ fn assinar(
 fn rv_do_erro(erro: &Erro) -> CK_RV {
     match erro {
         Erro::Cancelado => CKR_FUNCTION_CANCELED,
+        Erro::PinBloqueado => CKR_PIN_LOCKED,
         Erro::BlocoInvalido => CKR_DATA_LEN_RANGE,
         Erro::Protocolo(ErroProtocolo::Servidor {
             regra: Some(regra), ..

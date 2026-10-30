@@ -1,5 +1,6 @@
-//! O pedido de PIN e OTP do módulo PKCS#11: o `remoteid pedir`, um processo
-//! que vive o tempo da pergunta.
+//! O pedido do código do autenticador (e, quando preciso, da senha da conta)
+//! do módulo PKCS#11: o `remoteid pedir`, um processo que vive o tempo da
+//! pergunta.
 //!
 //! O pedido vai pelo stdin e os fatores voltam pelo stdout, nunca por
 //! argumento nem por ambiente, que outros processos leem em `/proc`. O stdout
@@ -15,7 +16,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::cripto::de_b64;
-use crate::motor::{Autorizador, Fatores};
+use crate::motor::{Autorizador, Credencial, Fatores};
 use crate::protocolo::Certificado;
 use crate::x509;
 
@@ -28,13 +29,22 @@ pub const ENV_DIALOGO: &str = "REMOTEID_DIALOGO";
 /// Quanto a pessoa tem para responder antes de a assinatura desistir.
 pub const LIMITE: Duration = Duration::from_secs(5 * 60);
 
-/// O que o diálogo recebe.
-#[derive(Debug, Default, Serialize, Deserialize)]
+/// O que o diálogo recebe. Sem `Debug`: pode levar a senha guardada.
+#[derive(Default, Serialize, Deserialize)]
 pub struct Pedido {
     /// O nome do titular, como está no certificado.
     pub titular: Option<String>,
     /// Por que o servidor recusou a tentativa anterior.
     pub recusa: Option<String>,
+    /// Se a senha da conta é perguntada, além do OTP.
+    #[serde(default)]
+    pub pedir_senha: bool,
+    /// Se o PIN local é perguntado, além do OTP.
+    #[serde(default)]
+    pub pedir_pin: bool,
+    /// A senha guardada, para a pessoa só confirmar depois de uma recusa.
+    #[serde(default)]
+    pub senha_atual: Option<String>,
 }
 
 pub struct Dialogo {
@@ -88,15 +98,27 @@ impl Dialogo {
 }
 
 impl Autorizador for Dialogo {
-    fn pedir(&self, certificado: &Certificado, recusa: Option<&str>) -> Option<Fatores> {
+    fn pedir(
+        &self,
+        certificado: &Certificado,
+        recusa: Option<&str>,
+        credencial: Credencial<'_>,
+    ) -> Option<Fatores> {
         let titular = certificado
             .base64
             .as_deref()
             .and_then(de_b64)
             .and_then(|der| x509::ler(&der).ok()?.nome);
+        let (pedir_senha, senha_atual) = match credencial {
+            Credencial::Senha { atual } => (true, atual.map(str::to_string)),
+            _ => (false, None),
+        };
         self.perguntar(&Pedido {
             titular,
             recusa: recusa.map(str::to_string),
+            pedir_senha,
+            pedir_pin: credencial == Credencial::Pin,
+            senha_atual,
         })
     }
 }

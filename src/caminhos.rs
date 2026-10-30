@@ -39,6 +39,11 @@ impl Caminhos {
         self.raiz.join("chave-instalacao.pem")
     }
 
+    /// A senha da conta cifrada com o PIN local, quando não há chaveiro.
+    pub fn senha_cifrada(&self) -> PathBuf {
+        self.raiz.join("senha.cifrada")
+    }
+
     pub fn diagnostico(&self) -> PathBuf {
         self.raiz.join("diagnostico")
     }

@@ -33,6 +33,26 @@ ureq = "3"
 cryptoki-sys = "0.5"
 x509-cert = { version = "0.2", default-features = false, features = ["std"] }
 cms = { version = "0.2", default-features = false, features = ["alloc"] }
+# O chaveiro do sistema, onde fica a senha da conta: o portal de segredos
+# dentro do Flatpak e, sem ele, o Secret Service pelo D-Bus. Com async-io em
+# vez de tokio, e o futures-lite só para esperar as chamadas.
+oo7 = { version = "0.6", default-features = false, features = ["async-std", "native_crypto"] }
+futures-lite = "2"
+async-io = "2"
+# Sem chaveiro, a senha da conta vai para um arquivo cifrado com um PIN
+# local (src/pin.rs): Argon2id para derivar a chave, ChaCha20-Poly1305 para
+# cifrar, e a senha aberta só em memória que se apaga.
+argon2 = "0.5"
+chacha20poly1305 = "0.10"
+zeroize = "1"
+
+# O Argon2id custa 64 MiB e três passadas por PIN: sem otimizar, cada teste
+# que abre o arquivo levaria segundos.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3
 
 [profile.release]
 lto = true

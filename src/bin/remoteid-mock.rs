@@ -5,7 +5,8 @@
 //! fala com ele com `REMOTEID_SERVIDOR=<endereço>`.
 //!
 //! Aceita só as credenciais de teste: `teste@remoteid.local` / `teste-1234`,
-//! PIN `1234`, OTP `123456`. Responde como o servidor real, nas formas medidas
+//! OTP `123456`. Como no servidor real, o "pin" da sessão de assinatura é a
+//! senha da conta. Responde como o servidor real, nas formas medidas
 //! (HTTP 200 com `status: false` no erro de negócio), e é mais estrito que um
 //! servidor que só devolve respostas prontas: confere o `Bearer` de cada
 //! requisição de operação com a chave pública do registro, e lembra as
@@ -37,7 +38,6 @@ const EMISSOR: &str = "CN=AC TESTE DESKTOPID, O=ICP-Brasil TESTE, C=BR";
 
 const EMAIL: &str = "teste@remoteid.local";
 const SENHA: &str = "teste-1234";
-const PIN: &str = "1234";
 const OTP: &str = "123456";
 const JWT: &str = "jwt.do.login";
 const CODIGO_DESKTOP: &str = "4d1f71d2-c20b-44d0-9bb0-5629015f21e8";
@@ -64,7 +64,7 @@ fn main() {
         .unwrap_or_else(|e| panic!("não abriu 127.0.0.1:{porta}: {e}"));
     println!("http://{}", ouvinte.local_addr().unwrap());
     std::io::stdout().flush().unwrap();
-    eprintln!("login {EMAIL} / {SENHA}, PIN {PIN}, OTP {OTP}");
+    eprintln!("login {EMAIL} / {SENHA}, OTP {OTP}");
 
     let titular = RsaPrivateKey::from_pkcs8_pem(CHAVE_TITULAR).unwrap();
     let mut servidor = Servidor::default();
@@ -182,7 +182,7 @@ fn rotear(
         );
     }
     if caminho.ends_with("/tokensessao") {
-        if texto("pin") != PIN || texto("otp") != OTP {
+        if texto("pin") != SENHA || texto("otp") != OTP {
             return (
                 200,
                 json!({"status": false, "message": RECUSA_FATOR, "token": null}),

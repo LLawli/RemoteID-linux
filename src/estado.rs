@@ -91,6 +91,14 @@ impl Sessao {
         }
         agora.saturating_sub(emitido) < ttl
     }
+
+    /// Até quando a sessão dispensa PIN e OTP, quando dá para saber. Sem a
+    /// data de emissão, ou com o relógio longe do de quando a guardamos, só o
+    /// servidor sabe.
+    pub fn ate(&self, agora: u64, ttl: u64) -> Option<u64> {
+        let emitido = self.emitido_em?;
+        (agora.abs_diff(self.visto_em) <= DRIFT_MAXIMO_S).then_some(emitido + ttl)
+    }
 }
 
 impl Estado {
@@ -207,6 +215,22 @@ mod tests {
             ..s
         };
         assert!(opaca.vale_tentar(u64::MAX, TTL_SESSAO_S));
+    }
+
+    #[test]
+    fn o_fim_da_sessao_so_quando_da_para_saber() {
+        let s = Sessao {
+            token: "t".into(),
+            emitido_em: Some(1000),
+            visto_em: 1000,
+        };
+        assert_eq!(s.ate(1010, TTL_SESSAO_S), Some(1000 + TTL_SESSAO_S));
+        assert_eq!(s.ate(1000 + DRIFT_MAXIMO_S + 1, TTL_SESSAO_S), None);
+        let opaca = Sessao {
+            emitido_em: None,
+            ..s
+        };
+        assert_eq!(opaca.ate(1010, TTL_SESSAO_S), None);
     }
 
     #[test]

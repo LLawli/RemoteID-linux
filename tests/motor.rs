@@ -14,9 +14,10 @@ use rsa::{RsaPrivateKey, RsaPublicKey};
 use sha2::Sha256;
 
 use remoteid::caminhos::Caminhos;
+use remoteid::cofre::{Cofre, NaMemoria};
 use remoteid::cripto::sha256;
 use remoteid::estado::Estado;
-use remoteid::motor::{Autorizador, Erro, Fatores, MAX_TENTATIVAS, Motor};
+use remoteid::motor::{Autorizador, Credencial, Erro, Fatores, MAX_TENTATIVAS, Motor};
 use remoteid::protocolo::requisicao::Maquina;
 use remoteid::protocolo::resposta::Erro as ErroProtocolo;
 use remoteid::protocolo::{Algoritmo, Certificado, Servidor};
@@ -103,11 +104,14 @@ fn preparado(mock: &Mock, nome: &str) -> Motor {
     m
 }
 
-/// Responde a cada pedido com o próximo item do roteiro (`None` é desistir),
-/// e anota a recusa que acompanhou cada pedido.
+/// Responde a cada pedido com o próximo item do roteiro (`None` é desistir):
+/// o segredo que a credencial pediu (a senha da conta ou o PIN local; vazio
+/// quando só o OTP foi pedido) e o OTP. Anota a recusa e a credencial de cada
+/// pedido: `guardada`, `pin`, `senha` ou `senha:<a guardada que mostrou>`.
 struct Roteiro {
     respostas: RefCell<VecDeque<Option<(&'static str, &'static str)>>>,
     recusas: RefCell<Vec<Option<String>>>,
+    credenciais: RefCell<Vec<String>>,
 }
 
 impl Roteiro {
@@ -115,11 +119,12 @@ impl Roteiro {
         Roteiro {
             respostas: RefCell::new(respostas.iter().copied().collect()),
             recusas: RefCell::new(Vec::new()),
+            credenciais: RefCell::new(Vec::new()),
         }
     }
 
     fn certo() -> Roteiro {
-        Roteiro::novo(&[Some(("1234", "123456"))])
+        Roteiro::novo(&[Some(("teste-1234", "123456"))])
     }
 
     fn pedidos(&self) -> usize {
@@ -128,15 +133,30 @@ impl Roteiro {
 }
 
 impl Autorizador for Roteiro {
-    fn pedir(&self, _: &Certificado, recusa: Option<&str>) -> Option<Fatores> {
+    fn pedir(
+        &self,
+        _: &Certificado,
+        recusa: Option<&str>,
+        credencial: Credencial<'_>,
+    ) -> Option<Fatores> {
         self.recusas.borrow_mut().push(recusa.map(str::to_string));
-        let (pin, otp) = self
+        self.credenciais.borrow_mut().push(match credencial {
+            Credencial::Guardada => "guardada".into(),
+            Credencial::Pin => "pin".into(),
+            Credencial::Senha { atual: None } => "senha".into(),
+            Credencial::Senha { atual: Some(a) } => format!("senha:{a}"),
+        });
+        let (segredo, otp) = self
             .respostas
             .borrow_mut()
             .pop_front()
             .expect("o motor pediu fatores além do roteiro")?;
+        let segredo = (!segredo.is_empty()).then(|| segredo.to_string());
         Some(Fatores {
-            pin: pin.into(),
+            senha: matches!(credencial, Credencial::Senha { .. })
+                .then(|| segredo.clone())
+                .flatten(),
+            pin: (credencial == Credencial::Pin).then_some(segredo).flatten(),
             otp: otp.into(),
         })
     }
@@ -209,7 +229,10 @@ fn sessao_vencida_pede_pin_e_otp_e_assina_na_mesma_chamada() {
 fn pin_errado_pede_de_novo_mostrando_a_recusa() {
     let mock = Mock::subir();
     let mut m = preparado(&mock, "pin-errado");
-    let roteiro = Roteiro::novo(&[Some(("0000", "123456")), Some(("1234", "123456"))]);
+    let roteiro = Roteiro::novo(&[
+        Some(("senha-errada", "123456")),
+        Some(("teste-1234", "123456")),
+    ]);
     m.assinar(Algoritmo::Sha256, &[1; 32], &roteiro).unwrap();
     assert_eq!(
         *roteiro.recusas.borrow(),
@@ -221,7 +244,7 @@ fn pin_errado_pede_de_novo_mostrando_a_recusa() {
 fn as_tentativas_acabam_e_o_erro_sobe_classificado() {
     let mock = Mock::subir();
     let mut m = preparado(&mock, "tentativas");
-    let errado = Some(("0000", "000000"));
+    let errado = Some(("senha-errada", "000000"));
     let roteiro = Roteiro::novo(&[errado; MAX_TENTATIVAS as usize]);
     match m.assinar(Algoritmo::Sha256, &[1; 32], &roteiro) {
         Err(Erro::Protocolo(ErroProtocolo::Servidor { regra: Some(r), .. })) => {
@@ -348,14 +371,16 @@ fn o_diagnostico_registra_o_fluxo_sem_segredo_nem_dado_do_titular() {
     let registro = std::fs::read_to_string(arquivo).unwrap();
     // Uma linha por requisição e por resposta (login, registro, celular,
     // carteira, tokensessao e requestHash), duas pela cadeia (o download e o
-    // resultado) e uma pelo pedido de fatores.
-    assert_eq!(registro.lines().count(), 15, "{registro}");
+    // resultado), uma pelo pedido de fatores e três pelo cofre (guardar a
+    // senha do login, procurá-la antes do pedido, guardar a que abriu a
+    // sessão).
+    assert_eq!(registro.lines().count(), 18, "{registro}");
+    assert!(registro.contains(r#""credencial":"senha""#), "{registro}");
     assert!(registro.contains(r#""evento":"pedido""#), "{registro}");
     let token = &m.estado.sessoes.values().next().unwrap().token;
     let certificado = m.estado.certificado().unwrap().base64.clone().unwrap();
     for segredo in [
         "teste-1234",           // senha
-        "\"1234\"",             // PIN
         "\"123456\"",           // OTP
         "teste@remoteid.local", // e-mail
         "\"TESTE DESKTOPID\"",  // nome do titular
@@ -455,4 +480,217 @@ fn uma_ac_fora_do_ar_nao_impede_a_carteira_nem_apaga_a_cadeia_que_havia() {
     novo.preparar("teste@remoteid.local", "teste-1234", &MAQUINA)
         .unwrap();
     assert!(novo.estado.certificado().unwrap().cadeia.is_empty());
+}
+
+#[test]
+fn sair_esquece_a_conta_e_guarda_a_chave_para_entrar_de_novo() {
+    let mock = Mock::subir();
+    let caminhos = diretorio("sair");
+    let mut m = motor(&mock, &caminhos);
+    m.preparar("teste@remoteid.local", "teste-1234", &MAQUINA)
+        .unwrap();
+    m.assinar(Algoritmo::Sha256, &[1; 32], &Roteiro::certo())
+        .unwrap();
+    let chave = std::fs::read(caminhos.chave()).unwrap();
+
+    m.sair().unwrap();
+    assert_eq!(
+        Estado::carregar(&caminhos.estado()).unwrap(),
+        Estado::default()
+    );
+    assert_eq!(std::fs::read(caminhos.chave()).unwrap(), chave);
+    assert!(matches!(
+        m.assinar(Algoritmo::Sha256, &[2; 32], &Roteiro::novo(&[])),
+        Err(Erro::NaoPreparado(_))
+    ));
+
+    let mut de_novo = motor(&mock, &caminhos);
+    de_novo
+        .preparar("teste@remoteid.local", "teste-1234", &MAQUINA)
+        .unwrap();
+    assert!(de_novo.estado.preparado());
+}
+
+/// Um cofre que o teste também enxerga depois de entregá-lo ao motor.
+#[derive(Clone, Default)]
+struct CofreDividido(std::sync::Arc<NaMemoria>);
+
+impl Cofre for CofreDividido {
+    fn ler(&self, email: &str) -> Option<String> {
+        self.0.ler(email)
+    }
+    fn guardar(&self, email: &str, senha: &str) -> Result<(), String> {
+        self.0.guardar(email, senha)
+    }
+    fn apagar(&self, email: &str) -> Result<(), String> {
+        self.0.apagar(email)
+    }
+}
+
+const EMAIL: &str = "teste@remoteid.local";
+
+fn com_cofre(mock: &Mock, nome: &str) -> (Motor, CofreDividido) {
+    let cofre = CofreDividido::default();
+    let mut m = motor(mock, &diretorio(nome)).com_cofre(Box::new(cofre.clone()));
+    m.preparar(EMAIL, "teste-1234", &MAQUINA).unwrap();
+    (m, cofre)
+}
+
+#[test]
+fn com_a_senha_guardada_ao_entrar_a_assinatura_so_pede_o_otp() {
+    let mock = Mock::subir();
+    let (mut m, cofre) = com_cofre(&mock, "cofre-otp");
+    assert_eq!(cofre.ler(EMAIL).as_deref(), Some("teste-1234"));
+    let roteiro = Roteiro::novo(&[Some(("", "123456"))]);
+    m.assinar(Algoritmo::Sha256, &[1; 32], &roteiro).unwrap();
+    assert_eq!(*roteiro.credenciais.borrow(), ["guardada"]);
+}
+
+#[test]
+fn depois_de_uma_recusa_a_senha_e_perguntada_ja_preenchida() {
+    let mock = Mock::subir();
+    let (mut m, _) = com_cofre(&mock, "cofre-recusa");
+    // O servidor não diz se o errado é a senha ou o OTP.
+    // O diálogo devolve a senha que mostrou preenchida.
+    let roteiro = Roteiro::novo(&[Some(("", "000000")), Some(("teste-1234", "123456"))]);
+    m.assinar(Algoritmo::Sha256, &[1; 32], &roteiro).unwrap();
+    assert_eq!(
+        *roteiro.credenciais.borrow(),
+        ["guardada", "senha:teste-1234"]
+    );
+}
+
+#[test]
+fn a_senha_que_o_servidor_aceita_substitui_a_guardada() {
+    let mock = Mock::subir();
+    let (mut m, cofre) = com_cofre(&mock, "cofre-troca");
+    cofre.guardar(EMAIL, "senha-antiga").unwrap();
+    let roteiro = Roteiro::novo(&[Some(("", "123456")), Some(("teste-1234", "123456"))]);
+    m.assinar(Algoritmo::Sha256, &[1; 32], &roteiro).unwrap();
+    assert_eq!(cofre.ler(EMAIL).as_deref(), Some("teste-1234"));
+}
+
+#[test]
+fn sem_cofre_a_senha_e_perguntada_toda_vez() {
+    let mock = Mock::subir();
+    let mut m = preparado(&mock, "sem-cofre");
+    let roteiro = Roteiro::certo();
+    m.assinar(Algoritmo::Sha256, &[1; 32], &roteiro).unwrap();
+    assert_eq!(*roteiro.credenciais.borrow(), ["senha"]);
+}
+
+#[test]
+fn sair_apaga_a_senha_guardada() {
+    let mock = Mock::subir();
+    let (mut m, cofre) = com_cofre(&mock, "cofre-sair");
+    m.sair().unwrap();
+    assert_eq!(cofre.ler(EMAIL), None);
+}
+
+/// Sem chaveiro: entra, e protege a senha com o PIN `4321`.
+fn com_pin(mock: &Mock, nome: &str) -> (Motor, Caminhos) {
+    let caminhos = diretorio(nome);
+    let mut m = motor(mock, &caminhos);
+    let no_chaveiro = m.preparar(EMAIL, "teste-1234", &MAQUINA).unwrap();
+    assert!(!no_chaveiro);
+    m.proteger_com_pin("teste-1234", "4321").unwrap();
+    (m, caminhos)
+}
+
+#[test]
+fn com_chaveiro_nao_ha_arquivo_e_sem_ele_o_login_pede_o_pin() {
+    let mock = Mock::subir();
+    let (_, _) = com_cofre(&mock, "pin-com-chaveiro");
+    assert!(
+        !diretorio_existente("pin-com-chaveiro")
+            .senha_cifrada()
+            .exists()
+    );
+    let (_, caminhos) = com_pin(&mock, "pin-sem-chaveiro");
+    let bruto = std::fs::read_to_string(caminhos.senha_cifrada()).unwrap();
+    assert!(!bruto.contains("teste-1234"));
+}
+
+#[test]
+fn o_pin_abre_a_senha_uma_vez_por_processo() {
+    let mock = Mock::subir();
+    let (mut m, caminhos) = com_pin(&mock, "pin-processo");
+    let primeira = Roteiro::novo(&[Some(("4321", "123456"))]);
+    m.assinar(Algoritmo::Sha256, &[1; 32], &primeira).unwrap();
+    assert_eq!(*primeira.credenciais.borrow(), ["pin"]);
+
+    // A sessão vence; o mesmo processo ainda conhece a senha.
+    mock.expirar_sessoes();
+    let segunda = Roteiro::novo(&[Some(("", "123456"))]);
+    m.assinar(Algoritmo::Sha256, &[2; 32], &segunda).unwrap();
+    assert_eq!(*segunda.credenciais.borrow(), ["guardada"]);
+
+    // Outro processo, e a sessão vencida: o PIN de novo.
+    mock.expirar_sessoes();
+    let mut outro = motor(&mock, &caminhos);
+    let terceira = Roteiro::novo(&[Some(("4321", "123456"))]);
+    outro
+        .assinar(Algoritmo::Sha256, &[3; 32], &terceira)
+        .unwrap();
+    assert_eq!(*terceira.credenciais.borrow(), ["pin"]);
+}
+
+#[test]
+fn pin_errado_avisa_quantos_restam_sem_gastar_tentativa_no_servidor() {
+    let mock = Mock::subir();
+    let (mut m, _) = com_pin(&mock, "pin-errado-local");
+    let errado = Some(("0000", "123456"));
+    let mut respostas = vec![errado; MAX_TENTATIVAS as usize];
+    respostas.push(Some(("4321", "123456")));
+    let roteiro = Roteiro::novo(&respostas);
+    m.assinar(Algoritmo::Sha256, &[1; 32], &roteiro).unwrap();
+    let recusas = roteiro.recusas.borrow();
+    assert_eq!(recusas[0], None);
+    assert!(
+        recusas[1]
+            .as_deref()
+            .unwrap()
+            .starts_with("PIN incorreto: mais 4 erros"),
+        "{recusas:?}"
+    );
+    assert!(recusas[3].as_deref().unwrap().contains("mais 2 erros"));
+}
+
+#[test]
+fn o_limite_de_pins_errados_apaga_o_arquivo_e_sai_da_conta() {
+    let mock = Mock::subir();
+    let (mut m, caminhos) = com_pin(&mock, "pin-bloqueado");
+    let roteiro = Roteiro::novo(&[Some(("0000", "123456")); remoteid::pin::MAX_ERROS as usize]);
+    let r = m.assinar(Algoritmo::Sha256, &[1; 32], &roteiro);
+    assert!(matches!(r, Err(Erro::PinBloqueado)), "{r:?}");
+    assert!(!caminhos.senha_cifrada().exists());
+    assert_eq!(
+        Estado::carregar(&caminhos.estado()).unwrap(),
+        Estado::default()
+    );
+}
+
+#[test]
+fn a_senha_trocada_e_cifrada_de_novo_com_o_pin_da_memoria() {
+    let mock = Mock::subir();
+    let caminhos = diretorio("pin-troca");
+    let mut m = motor(&mock, &caminhos);
+    m.preparar(EMAIL, "teste-1234", &MAQUINA).unwrap();
+    // O arquivo guarda uma senha que a conta já não usa.
+    m.proteger_com_pin("senha-antiga", "4321").unwrap();
+    let roteiro = Roteiro::novo(&[Some(("4321", "123456")), Some(("teste-1234", "123456"))]);
+    m.assinar(Algoritmo::Sha256, &[1; 32], &roteiro).unwrap();
+    assert_eq!(*roteiro.credenciais.borrow(), ["pin", "senha:senha-antiga"]);
+
+    mock.expirar_sessoes();
+    let mut outro = motor(&mock, &caminhos);
+    let depois = Roteiro::novo(&[Some(("4321", "123456"))]);
+    outro.assinar(Algoritmo::Sha256, &[2; 32], &depois).unwrap();
+    assert_eq!(*depois.credenciais.borrow(), ["pin"]);
+}
+
+fn diretorio_existente(nome: &str) -> Caminhos {
+    Caminhos {
+        raiz: PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("motor-{nome}")),
+    }
 }
