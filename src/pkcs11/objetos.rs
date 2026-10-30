@@ -12,6 +12,9 @@ use crate::x509::Campos;
 pub const HANDLE_CERTIFICADO: CK_OBJECT_HANDLE = 1;
 pub const HANDLE_CHAVE_PRIVADA: CK_OBJECT_HANDLE = 2;
 pub const HANDLE_CHAVE_PUBLICA: CK_OBJECT_HANDLE = 3;
+/// As autoridades da cadeia ocupam os handles daqui em diante, na ordem da
+/// cadeia (o emissor do titular primeiro).
+pub const HANDLE_PRIMEIRA_AUTORIDADE: CK_OBJECT_HANDLE = 4;
 
 pub type Atributo = (CK_ATTRIBUTE_TYPE, Vec<u8>);
 

@@ -3,6 +3,7 @@
 //! Não depende de GTK: o mesmo código vira o `libremoteid.so`, que roda dentro
 //! do `p11-kit server` do Âncora, e o binário `remoteid`, que tem a janela.
 
+pub mod cadeia;
 pub mod caminhos;
 pub mod cripto;
 pub mod diagnostico;

@@ -33,6 +33,10 @@ pub const NOME_APLICACAO: &str = "RemoteID-linux";
 pub struct Servidor {
     pub remoteid: String,
     pub certinext: String,
+    /// A origem que substitui a do `caIssuers` dos certificados, mantendo o
+    /// caminho. Só o servidor falso usa: o certificado sintético aponta para
+    /// `localhost:8799`, e os testes sobem o falso em outra porta.
+    pub repositorio: Option<String>,
 }
 
 impl Servidor {
@@ -40,7 +44,27 @@ impl Servidor {
         Servidor {
             remoteid: REMOTEID_URL.into(),
             certinext: CERTINEXT_URL.into(),
+            repositorio: None,
         }
+    }
+
+    /// Tudo num endereço só: o servidor falso.
+    pub fn falso(url: &str) -> Servidor {
+        Servidor {
+            remoteid: url.into(),
+            certinext: url.into(),
+            repositorio: Some(url.into()),
+        }
+    }
+
+    /// Onde baixar o `caIssuers` de `url`.
+    pub fn url_do_repositorio(&self, url: &str) -> String {
+        let Some(origem) = &self.repositorio else {
+            return url.into();
+        };
+        let resto = url.split_once("://").map_or(url, |(_, r)| r);
+        let caminho = resto.find('/').map_or("/", |i| &resto[i..]);
+        format!("{}{caminho}", origem.trim_end_matches('/'))
     }
 }
 
@@ -53,6 +77,10 @@ pub struct Certificado {
     pub issue: String,
     /// O DER do certificado em base64, quando a carteira o traz.
     pub base64: Option<String>,
+    /// As autoridades acima dele, em base64, do emissor até a raiz. Não vem
+    /// da carteira: o motor as baixa do `caIssuers` ([`crate::cadeia`]).
+    #[serde(default)]
+    pub cadeia: Vec<String>,
 }
 
 impl Certificado {
@@ -63,6 +91,7 @@ impl Certificado {
             serial_number: serial.into(),
             issue: emissor.into(),
             base64,
+            cadeia: Vec::new(),
         })
     }
 

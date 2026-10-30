@@ -21,10 +21,14 @@ mod stubs;
 mod token;
 
 use std::collections::HashMap;
+use std::os::unix::fs::MetadataExt;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
+use std::time::SystemTime;
 
 use cryptoki_sys::*;
 
+use crate::estado::Estado;
 use crate::motor::Motor;
 use token::Token;
 
@@ -44,6 +48,10 @@ static MOTOR: Mutex<Option<Motor>> = Mutex::new(None);
 
 struct Modulo {
     token: Option<Token>,
+    /// O `estado.json` de onde o token saiu, e a identidade dele quando foi
+    /// lido.
+    estado: PathBuf,
+    identidade: Option<Identidade>,
     sessoes: HashMap<CK_SESSION_HANDLE, Sessao>,
     proximo_handle: CK_SESSION_HANDLE,
     /// O login vale para a aplicação inteira, não para uma sessão.
@@ -69,7 +77,53 @@ struct Operacao {
     acumulado: Vec<u8>,
 }
 
+/// O que muda a cada gravação do estado: a troca atômica cria um inode novo.
+type Identidade = (u64, SystemTime);
+
+fn identidade(caminho: &Path) -> Option<Identidade> {
+    let metadados = std::fs::metadata(caminho).ok()?;
+    Some((metadados.ino(), metadados.modified().ok()?))
+}
+
 impl Modulo {
+    fn abrir(estado: PathBuf) -> Modulo {
+        let mut modulo = Modulo {
+            token: None,
+            estado,
+            identidade: None,
+            sessoes: HashMap::new(),
+            proximo_handle: 1,
+            logado: false,
+        };
+        modulo.recarregar();
+        modulo
+    }
+
+    fn recarregar(&mut self) {
+        self.identidade = identidade(&self.estado);
+        // Um estado ilegível é um token vazio, não um erro: falhar tiraria o
+        // módulo de todo aplicativo da máquina por causa de um arquivo nosso.
+        let estado = Estado::carregar(&self.estado).unwrap_or_default();
+        self.token = Token::do_estado(&estado);
+    }
+
+    /// Acompanha o estado em disco numa conexão que fica aberta, como a do
+    /// navegador. Uma gravação que não troca o certificado (cada assinatura
+    /// grava a sessão em cache) não muda nada. Trocar o certificado, ou entrar
+    /// e sair da conta, é tirar um cartão e pôr outro: as sessões acabam, e o
+    /// NSS, ao achar a dele inválida, relê o token.
+    fn acompanhar(&mut self) {
+        if identidade(&self.estado) == self.identidade {
+            return;
+        }
+        let antes = self.token.as_ref().map(|t| t.certificado.clone());
+        self.recarregar();
+        if self.token.as_ref().map(|t| &t.certificado) != antes.as_ref() {
+            self.sessoes.clear();
+            self.logado = false;
+        }
+    }
+
     fn nova_sessao(&mut self, flags: CK_FLAGS) -> CK_SESSION_HANDLE {
         let h = self.proximo_handle;
         self.proximo_handle += 1;

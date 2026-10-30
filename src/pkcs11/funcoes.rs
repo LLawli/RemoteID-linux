@@ -6,7 +6,6 @@
 
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use std::collections::HashMap;
 use std::ffi::c_void;
 
 use cryptoki_sys::*;
@@ -18,7 +17,6 @@ use super::{MODULO, MOTOR, Modulo, Operacao, entrada, trava};
 use crate::caminhos::{self, Caminhos};
 use crate::cripto::sha256;
 use crate::diagnostico::Diagnostico;
-use crate::estado::Estado;
 use crate::motor::{Erro, Motor};
 use crate::pedido::Dialogo;
 use crate::protocolo::classificacao::Origem;
@@ -98,15 +96,7 @@ pub(super) unsafe extern "C" fn C_Initialize(pInitArgs: *mut c_void) -> CK_RV {
         if guarda.is_some() {
             return CKR_CRYPTOKI_ALREADY_INITIALIZED;
         }
-        // Um estado ilegível é um token vazio, não um erro: falhar aqui tiraria
-        // o módulo de todo aplicativo da máquina por causa de um arquivo nosso.
-        let estado = Estado::carregar(&Caminhos::do_ambiente().estado()).unwrap_or_default();
-        *guarda = Some(Modulo {
-            token: Token::do_estado(&estado),
-            sessoes: HashMap::new(),
-            proximo_handle: 1,
-            logado: false,
-        });
+        *guarda = Some(Modulo::abrir(Caminhos::do_ambiente().estado()));
         CKR_OK
     })
 }
@@ -158,7 +148,7 @@ pub(super) unsafe extern "C" fn C_GetSlotList(
 ) -> CK_RV {
     entrada!({
         let mut guarda = trava(&MODULO);
-        modulo!(guarda);
+        modulo!(guarda).acompanhar();
         // O slot sempre tem token, mesmo sem conta: ver `C_GetTokenInfo`.
         entregar_lista(&[ID_SLOT], pSlotList, pulCount)
     })
@@ -170,7 +160,7 @@ pub(super) unsafe extern "C" fn C_GetSlotInfo(
 ) -> CK_RV {
     entrada!({
         let mut guarda = trava(&MODULO);
-        modulo!(guarda);
+        modulo!(guarda).acompanhar();
         if let Err(rv) = conferir_slot(slotID) {
             return rv;
         }
@@ -183,9 +173,11 @@ pub(super) unsafe extern "C" fn C_GetSlotInfo(
             "RemoteID Certisign (certificado em nuvem)",
         );
         preencher(&mut info.manufacturerID, "Certisign");
-        // Sem CKF_HW_SLOT: o HSM é hardware, mas do outro lado da rede, e o
-        // hospedeiro prometeria coisas de leitor de cartão (presença, remoção).
-        info.flags = CKF_TOKEN_PRESENT;
+        // Sem CKF_HW_SLOT: o HSM é hardware, mas do outro lado da rede. Com
+        // CKF_REMOVABLE_DEVICE: é o que faz o NSS voltar a conferir o slot e,
+        // achando a sessão dele inválida, reler o token quando a conta muda
+        // (ver `Modulo::acompanhar`).
+        info.flags = CKF_TOKEN_PRESENT | CKF_REMOVABLE_DEVICE;
         info.hardwareVersion = VERSAO;
         info.firmwareVersion = VERSAO;
         CKR_OK
@@ -199,6 +191,7 @@ pub(super) unsafe extern "C" fn C_GetTokenInfo(
     entrada!({
         let mut guarda = trava(&MODULO);
         let modulo = modulo!(guarda);
+        modulo.acompanhar();
         if let Err(rv) = conferir_slot(slotID) {
             return rv;
         }
@@ -320,6 +313,7 @@ pub(super) unsafe extern "C" fn C_OpenSession(
     entrada!({
         let mut guarda = trava(&MODULO);
         let modulo = modulo!(guarda);
+        modulo.acompanhar();
         if let Err(rv) = conferir_slot(slotID) {
             return rv;
         }

@@ -32,6 +32,7 @@ ureq = "3"
 # leitura do X.509 do titular, de onde saem os atributos dos objetos do token.
 cryptoki-sys = "0.5"
 x509-cert = { version = "0.2", default-features = false, features = ["std"] }
+cms = { version = "0.2", default-features = false, features = ["alloc"] }
 
 [profile.release]
 lto = true

@@ -13,5 +13,9 @@ Todas as mudanças visíveis para quem usa ficam aqui. O formato segue o
 - O módulo PKCS#11 assina sozinho, com só o serviço do Âncora no ar: mostra o
   certificado da carteira como token e, quando a sessão em cache não vale
   mais, abre uma janela que pede o PIN e o código do autenticador.
+- O token traz a cadeia de autoridades do certificado, baixada do
+  `caIssuers`, para os assinadores que montam a cadeia pelo token.
+- Um navegador aberto vê o certificado quando a conta é preparada ou trocada,
+  sem precisar ser reiniciado.
 - `remoteid entrar <email>` entra na conta, registra a máquina e baixa a
   carteira, com a senha pelo stdin.

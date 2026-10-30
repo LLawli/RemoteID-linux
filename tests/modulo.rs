@@ -19,6 +19,7 @@ use rsa::{Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey};
 use sha2::{Digest, Sha256};
 
 use remoteid::caminhos::Caminhos;
+use remoteid::estado::Estado;
 use remoteid::motor::Motor;
 use remoteid::protocolo::Servidor;
 use remoteid::protocolo::requisicao::Maquina;
@@ -82,10 +83,7 @@ fn preparar(mock: &Mock, raiz: &Path) {
     };
     std::fs::create_dir_all(raiz).unwrap();
     std::fs::write(caminhos.chave(), include_str!("paridade/chave-teste.pem")).unwrap();
-    let servidor = Servidor {
-        remoteid: mock.url.clone(),
-        certinext: mock.url.clone(),
-    };
+    let servidor = Servidor::falso(&mock.url);
     Motor::abrir(caminhos, servidor, Box::new(Http::novo(TEMPO_LIMITE)))
         .unwrap()
         .preparar(
@@ -292,9 +290,18 @@ fn o_modulo_assina_pelo_motor_e_pede_os_fatores_so_quando_precisa() {
             f.C_OpenSession.unwrap()(slot, CKF_SERIAL_SESSION, ptr::null_mut(), None, &mut sessao);
         assert_eq!(rv, CKR_OK);
 
-        let [certificado] = buscar(f, sessao, CKO_CERTIFICATE)[..] else {
-            panic!("um certificado só");
+        // O titular primeiro, e a AC e a raiz que vieram do caIssuers.
+        let [certificado, ac, ac_raiz] = buscar(f, sessao, CKO_CERTIFICATE)[..] else {
+            panic!("o titular e a cadeia");
         };
+        assert_eq!(
+            atributo(f, sessao, ac, CKA_LABEL).unwrap(),
+            b"AC TESTE DESKTOPID"
+        );
+        assert_eq!(
+            atributo(f, sessao, ac_raiz, CKA_SUBJECT),
+            atributo(f, sessao, ac_raiz, CKA_ISSUER)
+        );
         let [privada] = buscar(f, sessao, CKO_PRIVATE_KEY)[..] else {
             panic!("uma chave privada só");
         };
@@ -389,7 +396,10 @@ fn o_modulo_assina_pelo_motor_e_pede_os_fatores_so_quando_precisa() {
         let rv =
             f.C_OpenSession.unwrap()(slot, CKF_SERIAL_SESSION, ptr::null_mut(), None, &mut outra);
         assert_eq!(rv, CKR_OK);
-        assert_eq!(buscar(f, outra, CKO_CERTIFICATE), [certificado]);
+        assert_eq!(
+            buscar(f, outra, CKO_CERTIFICATE),
+            [certificado, ac, ac_raiz]
+        );
         assert_eq!(f.C_GetTokenInfo.unwrap()(slot, &mut info), CKR_OK);
         assert!(comeco.elapsed() < DEMORA / 4, "{:?}", comeco.elapsed());
         assert!(
@@ -429,6 +439,44 @@ fn o_modulo_assina_pelo_motor_e_pede_os_fatores_so_quando_precisa() {
                 .unwrap(),
             claro
         );
+
+        // A conexão do navegador fica aberta: o módulo acompanha o estado.
+        let estado = conta.join("estado.json");
+        let mut slot_info: CK_SLOT_INFO = std::mem::zeroed();
+        let mut sessao_info: CK_SESSION_INFO = std::mem::zeroed();
+        // Gravar sem trocar o certificado, como cada assinatura faz, não mexe
+        // nas sessões.
+        Estado::alterar(&estado, |e| e.sessoes.clear()).unwrap();
+        assert_eq!(f.C_GetSlotInfo.unwrap()(slot, &mut slot_info), CKR_OK);
+        assert_ne!(slot_info.flags & CKF_REMOVABLE_DEVICE, 0);
+        assert_eq!(
+            f.C_GetSessionInfo.unwrap()(sessao, &mut sessao_info),
+            CKR_OK
+        );
+        // Sair da conta é tirar o cartão: a sessão acaba e o token esvazia.
+        let carteira = Estado::carregar(&estado).unwrap().certificados;
+        Estado::alterar(&estado, |e| e.certificados.clear()).unwrap();
+        assert_eq!(f.C_GetSlotInfo.unwrap()(slot, &mut slot_info), CKR_OK);
+        assert_eq!(
+            f.C_GetSessionInfo.unwrap()(sessao, &mut sessao_info),
+            CKR_SESSION_HANDLE_INVALID
+        );
+        assert_eq!(f.C_GetTokenInfo.unwrap()(slot, &mut info), CKR_OK);
+        assert_eq!(info.flags & CKF_TOKEN_INITIALIZED, 0);
+        // Entrar de novo traz o token, numa sessão nova.
+        Estado::alterar(&estado, |e| e.certificados = carteira).unwrap();
+        assert_eq!(f.C_GetTokenInfo.unwrap()(slot, &mut info), CKR_OK);
+        assert_ne!(info.flags & CKF_TOKEN_INITIALIZED, 0);
+        let mut de_novo = 0;
+        let rv = f.C_OpenSession.unwrap()(
+            slot,
+            CKF_SERIAL_SESSION,
+            ptr::null_mut(),
+            None,
+            &mut de_novo,
+        );
+        assert_eq!(rv, CKR_OK);
+        assert_eq!(buscar(f, de_novo, CKO_CERTIFICATE).len(), 3);
 
         assert_eq!(f.C_Finalize.unwrap()(ptr::null_mut()), CKR_OK);
 

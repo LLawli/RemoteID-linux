@@ -56,10 +56,7 @@ fn xdg_state() -> PathBuf {
 /// O servidor de produção, ou o falso quando [`ENV_SERVIDOR`] diz.
 pub fn servidor() -> Servidor {
     match env::var(ENV_SERVIDOR) {
-        Ok(url) if !url.is_empty() => Servidor {
-            remoteid: url.clone(),
-            certinext: url,
-        },
+        Ok(url) if !url.is_empty() => Servidor::falso(&url),
         _ => Servidor::producao(),
     }
 }

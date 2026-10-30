@@ -9,7 +9,7 @@ use cryptoki_sys::*;
 use rsa::RsaPublicKey;
 use rsa::traits::PublicKeyParts;
 
-use super::objetos::{HANDLE_CERTIFICADO, Objeto};
+use super::objetos::{HANDLE_CERTIFICADO, HANDLE_PRIMEIRA_AUTORIDADE, Objeto};
 use crate::cripto::de_b64;
 use crate::estado::Estado;
 use crate::protocolo::Certificado;
@@ -49,7 +49,9 @@ impl Token {
         // `to_bytes_be` tira os zeros à esquerda, como o Cryptoki manda.
         let modulo = publica.n().to_bytes_be();
         let expoente = publica.e().to_bytes_be();
-        let objetos = vec![
+        // Os objetos do titular primeiro: há hospedeiro que pega o primeiro
+        // certificado de uma busca e o toma pelo do titular.
+        let mut objetos = vec![
             Objeto::certificado(
                 HANDLE_CERTIFICADO,
                 der,
@@ -60,6 +62,25 @@ impl Token {
             Objeto::chave_privada(&campos, &rotulo, &modulo, &expoente),
             Objeto::chave_publica(&campos, &rotulo, &modulo, &expoente),
         ];
+        // Uma autoridade ilegível fica de fora sem derrubar o titular.
+        let autoridades = certificado
+            .cadeia
+            .iter()
+            .filter_map(|b| de_b64(b))
+            .filter_map(|der| Some((x509::ler(&der).ok()?, der)));
+        for ((campos, der), handle) in autoridades.zip(HANDLE_PRIMEIRA_AUTORIDADE..) {
+            let rotulo = campos
+                .nome
+                .clone()
+                .unwrap_or_else(|| "Autoridade certificadora".into());
+            objetos.push(Objeto::certificado(
+                handle,
+                &der,
+                &campos,
+                &rotulo,
+                CK_CERTIFICATE_CATEGORY_AUTHORITY,
+            ));
+        }
         Ok(Token {
             certificado,
             objetos,
@@ -92,9 +113,18 @@ mod tests {
     use crate::cripto::b64;
 
     const TITULAR: &[u8] = include_bytes!("../../tests/mock/fake-cert.der");
+    const AC: &str = include_str!("../../tests/mock/fake-ac.pem");
+    const RAIZ: &str = include_str!("../../tests/mock/fake-ac-raiz.pem");
+
+    /// O DER de um PEM de um certificado só.
+    fn der(pem: &str) -> Vec<u8> {
+        let corpo: String = pem.lines().filter(|l| !l.starts_with("-----")).collect();
+        crate::cripto::de_b64(&corpo).unwrap()
+    }
 
     fn token() -> Token {
-        let certificado = Certificado::do_key_name("SERIE;CN=AC", Some(b64(TITULAR))).unwrap();
+        let mut certificado = Certificado::do_key_name("SERIE;CN=AC", Some(b64(TITULAR))).unwrap();
+        certificado.cadeia = vec![b64(&der(AC)), "lixo".into(), b64(&der(RAIZ))];
         Token::do_estado(&Estado {
             certificados: vec![certificado],
             ..Estado::default()
@@ -146,7 +176,7 @@ mod tests {
         let t = token();
         let privadas = t.buscar(&[(CKA_CLASS, ulong(CKO_PRIVATE_KEY))]);
         assert_eq!(privadas, [HANDLE_CHAVE_PRIVADA]);
-        assert_eq!(t.buscar(&[]).len(), 3);
+        assert_eq!(t.buscar(&[]).len(), 5);
         assert!(t.buscar(&[(CKA_MODULUS, vec![1, 2, 3])]).is_empty());
     }
 
@@ -160,5 +190,52 @@ mod tests {
         // No certificado, `CKA_VALUE` é o DER, e é público.
         assert!(!t.objeto(HANDLE_CERTIFICADO).unwrap().e_sensivel(CKA_VALUE));
         assert_eq!(t.bytes_bloco(), 256);
+    }
+
+    fn atributo(t: &Token, h: CK_OBJECT_HANDLE, tipo: CK_ATTRIBUTE_TYPE) -> Vec<u8> {
+        t.objeto(h).unwrap().atributo(tipo).unwrap().to_vec()
+    }
+
+    #[test]
+    fn a_cadeia_se_percorre_pelo_subject_como_o_sunpkcs11_faz() {
+        // O `P11KeyStore.loadChain`: do certificado final, procura o
+        // certificado cujo CKA_SUBJECT é o emissor do anterior, até a
+        // autoassinada. A autoridade ilegível ficou de fora sem furar a
+        // sequência de handles.
+        let t = token();
+        let classe = (CKA_CLASS, ulong(CKO_CERTIFICATE));
+        let mut atual = HANDLE_CERTIFICADO;
+        let mut caminho = vec![];
+        while atributo(&t, atual, CKA_ISSUER) != atributo(&t, atual, CKA_SUBJECT) {
+            let emissor = (CKA_SUBJECT, atributo(&t, atual, CKA_ISSUER));
+            let [proximo] = t.buscar(&[classe.clone(), emissor])[..] else {
+                panic!("um emissor por passo");
+            };
+            atual = proximo;
+            caminho.push(atual);
+        }
+        assert_eq!(
+            caminho,
+            [HANDLE_PRIMEIRA_AUTORIDADE, HANDLE_PRIMEIRA_AUTORIDADE + 1]
+        );
+    }
+
+    #[test]
+    fn as_autoridades_nao_pareiam_com_a_chave() {
+        let t = token();
+        let id_titular = atributo(&t, HANDLE_CERTIFICADO, CKA_ID);
+        for h in [HANDLE_PRIMEIRA_AUTORIDADE, HANDLE_PRIMEIRA_AUTORIDADE + 1] {
+            assert_eq!(
+                atributo(&t, h, CKA_CERTIFICATE_CATEGORY),
+                ulong(CK_CERTIFICATE_CATEGORY_AUTHORITY)
+            );
+            assert_ne!(atributo(&t, h, CKA_ID), id_titular);
+        }
+        assert_eq!(
+            atributo(&t, HANDLE_PRIMEIRA_AUTORIDADE, CKA_LABEL),
+            b"AC TESTE DESKTOPID"
+        );
+        let certificados = t.buscar(&[(CKA_CLASS, ulong(CKO_CERTIFICATE))]);
+        assert_eq!(certificados[0], HANDLE_CERTIFICADO);
     }
 }

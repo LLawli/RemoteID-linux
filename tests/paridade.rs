@@ -202,10 +202,7 @@ fn o_transporte_manda_os_mesmos_bytes_e_cabecalhos() {
     use remoteid::transporte::{Http, TEMPO_LIMITE, Transporte};
     let chave = chave();
     let (base, capturadas) = gravador();
-    let servidor = Servidor {
-        remoteid: base.clone(),
-        certinext: base,
-    };
+    let servidor = Servidor::falso(&base);
     let http = Http::novo(TEMPO_LIMITE);
     let mut diferencas = Vec::new();
     for caso in fixture("requisicoes.json", 24) {

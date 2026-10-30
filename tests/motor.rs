@@ -53,10 +53,7 @@ impl Mock {
     }
 
     fn servidor(&self) -> Servidor {
-        Servidor {
-            remoteid: self.url.clone(),
-            certinext: self.url.clone(),
-        }
+        Servidor::falso(&self.url)
     }
 
     /// Esquece as sessões, como o servidor real faz quando elas vencem.
@@ -161,6 +158,8 @@ fn prepara_e_assina_e_a_assinatura_confere_com_o_certificado() {
         m.estado.certificado().unwrap().serial_number,
         "16C3F7EFA6CCE55817FA659DC8EAA29B7E512621"
     );
+    // A AC e a raiz, baixadas do caIssuers do certificado.
+    assert_eq!(m.estado.certificado().unwrap().cadeia.len(), 2);
 
     let digest = sha256(b"contrato");
     let roteiro = Roteiro::certo();
@@ -348,8 +347,9 @@ fn o_diagnostico_registra_o_fluxo_sem_segredo_nem_dado_do_titular() {
 
     let registro = std::fs::read_to_string(arquivo).unwrap();
     // Uma linha por requisição e por resposta (login, registro, celular,
-    // carteira, tokensessao e requestHash), e uma pelo pedido de fatores.
-    assert_eq!(registro.lines().count(), 13, "{registro}");
+    // carteira, tokensessao e requestHash), duas pela cadeia (o download e o
+    // resultado) e uma pelo pedido de fatores.
+    assert_eq!(registro.lines().count(), 15, "{registro}");
     assert!(registro.contains(r#""evento":"pedido""#), "{registro}");
     let token = &m.estado.sessoes.values().next().unwrap().token;
     let certificado = m.estado.certificado().unwrap().base64.clone().unwrap();
@@ -415,4 +415,44 @@ fn a_escrita_de_um_processo_nao_apaga_a_do_outro() {
     let disco = Estado::carregar(&caminhos.estado()).unwrap();
     assert_eq!(disco.certificado_ativo.as_deref(), Some(chave.as_str()));
     assert_eq!(disco.sessoes.len(), 1);
+}
+
+#[test]
+fn uma_ac_fora_do_ar_nao_impede_a_carteira_nem_apaga_a_cadeia_que_havia() {
+    let mock = Mock::subir();
+    let caminhos = diretorio("cadeia-fora-do-ar");
+    let mut m = motor(&mock, &caminhos);
+    m.preparar("teste@remoteid.local", "teste-1234", &MAQUINA)
+        .unwrap();
+    assert_eq!(m.estado.certificado().unwrap().cadeia.len(), 2);
+
+    // Uma porta que acabou de ser liberada: ninguém escuta nela.
+    let porta = std::net::TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port();
+    let servidor = Servidor {
+        repositorio: Some(format!("http://127.0.0.1:{porta}")),
+        ..mock.servidor()
+    };
+    let mut sem_ac = Motor::abrir(
+        caminhos.clone(),
+        servidor,
+        Box::new(Http::novo(TEMPO_LIMITE)),
+    )
+    .unwrap();
+    sem_ac.atualizar_carteira().unwrap();
+    assert_eq!(sem_ac.estado.certificado().unwrap().cadeia.len(), 2);
+
+    let vazio = diretorio("cadeia-nunca");
+    std::fs::copy(caminhos.chave(), vazio.chave()).unwrap();
+    let servidor = Servidor {
+        repositorio: Some(format!("http://127.0.0.1:{porta}")),
+        ..mock.servidor()
+    };
+    let mut novo = Motor::abrir(vazio, servidor, Box::new(Http::novo(TEMPO_LIMITE))).unwrap();
+    novo.preparar("teste@remoteid.local", "teste-1234", &MAQUINA)
+        .unwrap();
+    assert!(novo.estado.certificado().unwrap().cadeia.is_empty());
 }

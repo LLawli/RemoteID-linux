@@ -12,8 +12,9 @@ use std::io;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+use crate::cadeia::{self, Cadeia};
 use crate::caminhos::Caminhos;
-use crate::cripto::ChaveInstalacao;
+use crate::cripto::{ChaveInstalacao, b64, de_b64};
 use crate::diagnostico::Diagnostico;
 use crate::estado::{Estado, TTL_SESSAO_S};
 use crate::protocolo::classificacao::{self, Origem};
@@ -25,6 +26,12 @@ use crate::transporte::{Resposta, Transporte};
 /// Quantas vezes a pessoa pode errar o PIN ou o OTP dentro de uma mesma
 /// assinatura antes de o erro subir.
 pub const MAX_TENTATIVAS: u32 = 3;
+
+/// Quantos pacotes do `caIssuers` baixar para um certificado. Na ICP-Brasil o
+/// primeiro já traz a cadeia inteira; os seguintes existem para a AC que
+/// publica só o próprio certificado, e o teto impede que um AIA mal
+/// configurado vire um laço de downloads.
+pub const MAX_PACOTES_CADEIA: usize = 4;
 
 #[derive(Debug)]
 pub enum Erro {
@@ -248,8 +255,82 @@ impl Motor {
             &self.chave,
         );
         let r = self.enviar(&requisicao)?;
-        let certificados = resposta::carteira(r.http, &r.corpo)?;
+        let mut certificados = resposta::carteira(r.http, &r.corpo)?;
+        // A cadeia não é pré-requisito: sem ela, fica a que o mesmo
+        // certificado já tinha, ou nenhuma.
+        for certificado in &mut certificados {
+            let anterior = self
+                .estado
+                .certificados
+                .iter()
+                .find(|a| a.chave() == certificado.chave() && a.base64 == certificado.base64);
+            certificado.cadeia = self
+                .cadeia_de(certificado)
+                .or_else(|| anterior.map(|a| a.cadeia.clone()))
+                .unwrap_or_default();
+        }
         self.alterar(|e| e.certificados = certificados)
+    }
+
+    /// A cadeia de `certificado` em base64, ou `None` se não deu para montá-la.
+    fn cadeia_de(&self, certificado: &Certificado) -> Option<Vec<String>> {
+        let resultado = certificado
+            .base64
+            .as_deref()
+            .and_then(de_b64)
+            .ok_or_else(|| "a carteira não trouxe o DER do certificado".to_string())
+            .and_then(|der| self.baixar_cadeia(&der));
+        match resultado {
+            Ok(cadeia) => {
+                self.diagnostico.evento(
+                    "cadeia",
+                    json!({ "autoridades": cadeia.autoridades.len(), "completa": cadeia.completa }),
+                );
+                // Nenhuma autoridade de um final que não é autoassinado: o
+                // pacote não trouxe o emissor, e isso não é uma cadeia.
+                (cadeia.completa || !cadeia.autoridades.is_empty())
+                    .then(|| cadeia.autoridades.iter().map(|der| b64(der)).collect())
+            }
+            Err(motivo) => {
+                self.diagnostico.evento("cadeia", json!({ "erro": motivo }));
+                None
+            }
+        }
+    }
+
+    /// Segue o `caIssuers` a partir do certificado até a raiz, até o próximo
+    /// elo não dizer de onde vem, ou até [`MAX_PACOTES_CADEIA`]. Uma falha
+    /// depois do primeiro pacote fica com o que já veio: as intermediárias já
+    /// servem ao validador.
+    fn baixar_cadeia(&self, final_der: &[u8]) -> Result<Cadeia, String> {
+        let mut candidatos = Vec::new();
+        let mut visitadas: Vec<String> = Vec::new();
+        let mut cadeia = cadeia::montar(final_der, &candidatos)?;
+        while !cadeia.completa && visitadas.len() < MAX_PACOTES_CADEIA {
+            let url = match cadeia::url_ca_issuers(cadeia::proximo_a_seguir(final_der, &cadeia))? {
+                Some(url) if !visitadas.contains(&url) => url,
+                None if visitadas.is_empty() => {
+                    return Err("o certificado não declara um caIssuers HTTP".into());
+                }
+                _ => break,
+            };
+            let destino = self.servidor.url_do_repositorio(&url);
+            visitadas.push(url);
+            self.diagnostico
+                .evento("repositorio", json!({ "url": destino }));
+            let pacote = self
+                .transporte
+                .baixar(&destino)
+                .map_err(|e| e.0)
+                .and_then(|bytes| cadeia::certificados_do_pacote(&bytes));
+            match pacote {
+                Ok(certificados) => candidatos.extend(certificados),
+                Err(motivo) if cadeia.autoridades.is_empty() => return Err(motivo),
+                Err(_) => break,
+            }
+            cadeia = cadeia::montar(final_der, &candidatos)?;
+        }
+        Ok(cadeia)
     }
 
     /// Tudo o que a primeira vez exige: entrar, registrar esta máquina e

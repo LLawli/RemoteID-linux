@@ -55,6 +55,7 @@ verdade hoje (a real e a de teste): o `Transporte` (HTTP ou falso) e o
 | `pkcs11/` | o módulo Cryptoki: o token montado do estado, e o `C_Sign` pelo motor |
 | `pedido` | o `Autorizador` do módulo: abre o `remoteid pedir` e lê o PIN e o OTP por pipe |
 | `x509` | os campos do certificado que o token publica, e o nome do titular |
+| `cadeia` | as autoridades do certificado, do `caIssuers` até a raiz; puro, o download é do motor |
 | `diagnostico` | um JSONL por execução, com segredos e dados do titular redigidos |
 | `bin/remoteid-mock` | o servidor falso dos testes |
 
@@ -102,6 +103,19 @@ sonda da supervisão abre um novo a cada 10 s. Daí as regras do módulo:
 - **O token assina com o certificado que mostra**, e não com o ativo do
   momento: se a janela trocar a escolha com o aplicativo aberto, a assinatura
   ainda confere com o certificado que ele leu.
+- **O token acompanha a conta numa conexão aberta.** O navegador mantém a
+  conexão o tempo todo, então o módulo confere a identidade do `estado.json`
+  (inode e data, que a troca atômica renova) nas chamadas de slot e token. Uma
+  gravação que não troca o certificado, como a de cada assinatura, não muda
+  nada; trocar o certificado, entrar ou sair da conta derruba as sessões, como
+  tirar um cartão e pôr outro. O slot se anuncia removível, que é o que faz o
+  NSS voltar a conferi-lo e, achando a sessão inválida, reler o token.
+- **A cadeia vai junto.** O token publica, depois do titular, as autoridades
+  que o motor baixou do `caIssuers` ao atualizar a carteira, com
+  `CKA_CERTIFICATE_CATEGORY` de autoridade e `CKA_ID` próprio, para o
+  SunPKCS11 montar a cadeia pelo `CKA_SUBJECT` sem ir à rede (o assinador do
+  Projudi precisa). Uma AC fora do ar não impede a carteira: fica a cadeia que
+  o certificado já tinha, ou nenhuma.
 
 Do RemoteID-linux vêm, com o motivo em comentário no código, as escolhas que
 os hospedeiros exigem: o token não anuncia login (o NSS pedia o PIN em laço), o
@@ -154,7 +168,7 @@ documentação, e o diagnóstico só grava o que já passou pela redação.
    manda os mesmos bytes e cabeçalhos que o antigo.
 4. **Módulo PKCS#11 com o motor dentro e o diálogo de PIN e OTP sob demanda**
    (feito), testados com só o `ancora servir` no ar (nenhuma janela aberta), por
-   `pkcs11-tool` contra o servidor falso. Falta a cadeia de autoridades.
+   `pkcs11-tool` contra o servidor falso.
 5. **Interface**: entrar na conta, painel, PIN e OTP, escolha do certificado,
    configurações.
 6. **Terminal**: `remoteid assinar` (inclusive o `.p7s` CAdES-BES com
@@ -175,12 +189,10 @@ RemoteID-linux e nunca passou por uma conta real.
   dentro do `p11-kit server` do Âncora, e o manifesto dele não tem
   `--share=network` (o do flatpak-adv-br tinha). Uma extensão não acrescenta
   permissões: sem a rede no Âncora, toda assinatura falha.
-- **A cadeia de autoridades.** O antigo baixava pelo `caIssuers` a cadeia de
-  cada certificado da carteira, para o validador do outro lado fechar a
-  confiança. O módulo publica o certificado do titular; a cadeia ainda não.
-- **O token não se atualiza numa conexão aberta.** O módulo lê o estado no
-  `C_Initialize`; um navegador aberto antes de a conta ser preparada só vê o
-  certificado quando reconecta.
+- **O acompanhamento do token não foi visto num navegador.** O teste prova o
+  lado do módulo (sessões derrubadas quando o certificado muda); que o NSS
+  então relê o token é o que o código dele diz para slots removíveis, e falta
+  conferir num Firefox aberto.
 - **O serviço do Âncora com a sessão.** Hoje o `ancora servir` não sobe sozinho
   no login (pendência do Âncora); até lá, o RemoteID só assina com ele no ar.
 
