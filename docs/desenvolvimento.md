@@ -24,7 +24,7 @@ dos runners traz GTK e libadwaita mais antigos que os do runtime.
 ## Dependências Rust e o Flatpak
 
 O `flatpak-builder` constrói sem rede. Cada crate do `Cargo.lock` precisa estar
-em `flatpak/cargo-sources.json`, e depois de mexer nas dependências é preciso
+em `cargo-sources.json`, e depois de mexer nas dependências é preciso
 regenerar:
 
 ```bash
@@ -89,10 +89,13 @@ máquina.
 ## Construir a extensão
 
 ```bash
-flatpak run org.flatpak.Builder --user --install --force-clean build-dir flatpak/dev.lukakuuhaku.Ancora.Driver.RemoteID.yml
+scripts/construir.sh
 flatpak run --command=ancora dev.lukakuuhaku.Ancora extensoes
 flatpak run --command=/app/extensoes/driver/RemoteID/bin/remoteid dev.lukakuuhaku.Ancora
 ```
 
-O segundo comando confere que o Âncora leu o `ancora.toml`; o terceiro abre a
+O `construir.sh` exporta para `repo/` e instala de lá, por um remote
+`file://` local, como quem instala do remote do projeto; `--repo DIR` só
+exporta. O build mora em `.flatpak-builder/`, um link para o SSD de dados. O
+segundo comando confere que o Âncora leu o `ancora.toml`; o terceiro abre a
 janela dentro do sandbox do Âncora, como o atalho fará.

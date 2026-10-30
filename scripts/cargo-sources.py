@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenera flatpak/cargo-sources.json a partir do Cargo.lock.
+"""Regenera cargo-sources.json a partir do Cargo.lock.
 
 O flatpak-builder constrói sem rede, então cada crate do Cargo.lock precisa
 estar no manifesto como fonte, com o sha256. Rode depois de qualquer mudança no
@@ -63,7 +63,7 @@ def fontes(lock):
 
 def main():
     lock = tomllib.loads((RAIZ / "Cargo.lock").read_text())
-    destino = RAIZ / "flatpak" / "cargo-sources.json"
+    destino = RAIZ / "cargo-sources.json"
     destino.write_text(json.dumps(fontes(lock), indent=4) + "\n")
 
 

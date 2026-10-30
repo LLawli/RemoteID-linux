@@ -9,4 +9,4 @@ cargo clippy --all-targets --locked -- -D warnings
 cargo test --locked
 cargo audit
 
-appstreamcli validate --no-net --explain data/dev.lukakuuhaku.Ancora.Driver.RemoteID.metainfo.xml
+appstreamcli validate --no-net --explain dev.lukakuuhaku.Ancora.Driver.RemoteID.metainfo.xml

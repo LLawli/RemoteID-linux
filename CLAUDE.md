@@ -34,10 +34,10 @@ a etapa onde ela pega e o caminho da página de origem.
 - **PIN, OTP e senha nunca** vão para log, teste, fixture ou documentação.
   Fixtures são sintéticas; nada de `.logs/` do antigo entra no repositório.
 - Gates: `scripts/ci.sh`, rodado com teto de CPU e memória nesta máquina.
-- Build só no SSD de dados (`target/` e `paridade/target/` são symlinks para
-  `/mnt/dados/builds/`), nunca em `/tmp`. Artefato de debug, build-dir de
-  Flatpak e experimento são apagados quando cumprem o propósito; no mínimo ao
-  fechar cada etapa.
+- Build só no SSD de dados (`target/`, `paridade/target/` e
+  `.flatpak-builder/` são symlinks para `/mnt/dados/builds/`), nunca em
+  `/tmp`. Artefato de debug, build do Flatpak e experimento são apagados
+  quando cumprem o propósito; no mínimo ao fechar cada etapa.
 - Depois de mudar o `Cargo.lock`, rode `scripts/cargo-sources.py`.
 - O ref `dev.lukakuuhaku.Ancora.Driver.RemoteID` é também o id do aplicativo e
   não muda.

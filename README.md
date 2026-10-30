@@ -26,7 +26,7 @@ com o Âncora já instalado:
 
 ```bash
 flatpak install flathub org.gnome.Sdk//51 org.freedesktop.Sdk.Extension.rust-stable//26.08
-flatpak run org.flatpak.Builder --user --install --force-clean build-dir flatpak/dev.lukakuuhaku.Ancora.Driver.RemoteID.yml
+scripts/construir.sh
 ```
 
 ## Para quem vai mexer no código

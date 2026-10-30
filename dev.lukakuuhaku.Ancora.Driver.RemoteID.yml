@@ -23,18 +23,17 @@ modules:
         CARGO_HOME: /run/build/remoteid/cargo
     build-commands:
       - cargo --offline build --release --locked
-      - install -Dm644 data/ancora.toml -t ${FLATPAK_DEST}
+      - install -Dm644 ancora.toml -t ${FLATPAK_DEST}
       - install -Dm755 target/release/libremoteid.so -t ${FLATPAK_DEST}/lib
       - install -Dm755 target/release/remoteid -t ${FLATPAK_DEST}/bin
-      - install -Dm644 data/dev.lukakuuhaku.Ancora.Driver.RemoteID.metainfo.xml
+      - install -Dm644 dev.lukakuuhaku.Ancora.Driver.RemoteID.metainfo.xml
         -t ${FLATPAK_DEST}/share/metainfo
     sources:
       - type: dir
-        path: ..
+        path: .
         skip:
           - target
           - .flatpak-builder
-          - build-dir
           - repo
           - .jj
           - .git

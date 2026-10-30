@@ -1,5 +1,5 @@
 //! O manifesto Flatpak constrói sem rede: cada crate do Cargo.lock precisa
-//! estar no flatpak/cargo-sources.json. Um crate faltando só aparece no
+//! estar no cargo-sources.json. Um crate faltando só aparece no
 //! flatpak-builder, minutos depois, como "failed to download". Este teste
 //! acusa antes.
 
@@ -29,8 +29,8 @@ fn crates_do_lock(lock: &str) -> Vec<String> {
 fn todo_crate_do_lock_esta_no_cargo_sources() {
     let raiz = Path::new(env!("CARGO_MANIFEST_DIR"));
     let lock = fs::read_to_string(raiz.join("Cargo.lock")).expect("Cargo.lock");
-    let fontes = fs::read_to_string(raiz.join("flatpak/cargo-sources.json"))
-        .expect("flatpak/cargo-sources.json: rode scripts/cargo-sources.py");
+    let fontes = fs::read_to_string(raiz.join("cargo-sources.json"))
+        .expect("cargo-sources.json: rode scripts/cargo-sources.py");
 
     let crates = crates_do_lock(&lock);
     // Um lock lido errado daria zero crates, e zero faltando passaria.

@@ -4,9 +4,9 @@
 
 use remoteid::APP_ID;
 
-const MANIFESTO: &str = include_str!("../flatpak/dev.lukakuuhaku.Ancora.Driver.RemoteID.yml");
-const METAINFO: &str = include_str!("../data/dev.lukakuuhaku.Ancora.Driver.RemoteID.metainfo.xml");
-const DESCRITOR: &str = include_str!("../data/ancora.toml");
+const MANIFESTO: &str = include_str!("../dev.lukakuuhaku.Ancora.Driver.RemoteID.yml");
+const METAINFO: &str = include_str!("../dev.lukakuuhaku.Ancora.Driver.RemoteID.metainfo.xml");
+const DESCRITOR: &str = include_str!("../ancora.toml");
 
 #[test]
 fn o_ref_e_o_mesmo_no_manifesto_e_no_metainfo() {
