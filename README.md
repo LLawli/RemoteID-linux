@@ -29,6 +29,25 @@ flatpak install flathub org.gnome.Sdk//51 org.freedesktop.Sdk.Extension.rust-sta
 scripts/construir.sh
 ```
 
+## Usar
+
+O RemoteID aparece no Âncora: entre na conta pela janela, e os navegadores e
+assinadores passam a ver o certificado como um token. O código do autenticador
+é pedido na hora de assinar.
+
+Pelo terminal, um `.p7s` (CAdES-BES, destacado) de qualquer arquivo:
+
+```bash
+R="flatpak run --command=/app/extensoes/driver/RemoteID/bin/remoteid dev.lukakuuhaku.Ancora"
+$R assinar < contrato.pdf > contrato.pdf.p7s
+```
+
+`--anexar` põe o documento dentro do `.p7s`, `--cru` devolve só a assinatura
+RSA, e `--hash <hex>` assina um SHA-256 pronto. O documento entra pela entrada
+padrão porque o Âncora não enxerga a pasta pessoal, e o código do autenticador
+é pedido na janela do RemoteID. `$R harness` testa o fluxo
+e grava um relatório para mandar a quem investiga um problema.
+
 ## Para quem vai mexer no código
 
 [docs/arquitetura.md](docs/arquitetura.md) explica as peças e o plano, e

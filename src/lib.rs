@@ -4,12 +4,14 @@
 //! do `p11-kit server` do Âncora, e o binário `remoteid`, que tem a janela.
 
 pub mod cadeia;
+pub mod cades;
 pub mod caminhos;
 pub mod carteira;
 pub mod cofre;
 pub mod cripto;
 pub mod diagnostico;
 pub mod estado;
+pub mod harness;
 pub mod motor;
 pub mod pedido;
 pub mod pin;

@@ -16,6 +16,7 @@ devolve respostas prontas. Todos os valores são sintéticos.
 | `canonica.json` | a forma canônica e o `Bearer` de corpos que o caminho PIN+OTP não exercita |
 | `algoritmo.json` | os tamanhos e nomes que o campo `algorithm` aceita |
 | `constantes.json` | URLs, User-Agent e nome da aplicação |
+| `cades.json` | o que o montador do `.p7s` manda ao HSM e o envelope que fecha, e os casos que recusa |
 
 `tests/paridade/chave-teste.pem` é uma chave RSA gerada só para isto. Com ela,
 o `Bearer` de cada requisição sai igual nos dois lados (o PKCS#1 v1.5 é

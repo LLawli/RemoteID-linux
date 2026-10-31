@@ -2,21 +2,25 @@
 //! roda como processo à parte, confere o `Bearer` de cada requisição e lembra
 //! as sessões abertas.
 
+mod comum;
+
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
+use std::process::Command;
 
 use rsa::pkcs1v15::Pkcs1v15Sign;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use sha2::Sha256;
 
+use comum::Mock;
+use remoteid::cades;
 use remoteid::caminhos::Caminhos;
 use remoteid::cofre::{Cofre, NaMemoria};
 use remoteid::cripto::sha256;
 use remoteid::estado::Estado;
+use remoteid::harness;
 use remoteid::motor::{Autorizador, Credencial, Erro, Fatores, MAX_TENTATIVAS, Motor};
 use remoteid::protocolo::requisicao::Maquina;
 use remoteid::protocolo::resposta::Erro as ErroProtocolo;
@@ -28,49 +32,6 @@ const MAQUINA: Maquina = Maquina {
     usuario_local: "teste",
     dominio_rede: "pc-de-teste",
 };
-
-/// O servidor falso, morto quando o teste acaba.
-struct Mock {
-    processo: Child,
-    url: String,
-}
-
-impl Mock {
-    fn subir() -> Mock {
-        let mut processo = Command::new(env!("CARGO_BIN_EXE_remoteid-mock"))
-            .arg("0")
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let mut url = String::new();
-        BufReader::new(processo.stdout.take().unwrap())
-            .read_line(&mut url)
-            .unwrap();
-        Mock {
-            processo,
-            url: url.trim().to_string(),
-        }
-    }
-
-    fn servidor(&self) -> Servidor {
-        Servidor::falso(&self.url)
-    }
-
-    /// Esquece as sessões, como o servidor real faz quando elas vencem.
-    fn expirar_sessoes(&self) {
-        ureq::post(format!("{}/_mock/expirar", self.url))
-            .send_empty()
-            .unwrap();
-    }
-}
-
-impl Drop for Mock {
-    fn drop(&mut self) {
-        let _ = self.processo.kill();
-        let _ = self.processo.wait();
-    }
-}
 
 /// Um diretório só deste teste, dentro do `target/` (no SSD de dados), com
 /// uma chave da instalação pronta: gerar RSA-2048 num build de debug leva
@@ -693,4 +654,208 @@ fn diretorio_existente(nome: &str) -> Caminhos {
     Caminhos {
         raiz: PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("motor-{nome}")),
     }
+}
+
+// --- o .p7s e o harness -------------------------------------------------------
+
+const AGORA: u64 = 1_800_000_000; // 2027-01-15, dentro da validade do certificado falso
+
+/// O `openssl cms -verify` com a cadeia de teste: confere a assinatura sobre
+/// os atributos, o `messageDigest` contra o documento, o
+/// `signingCertificateV2` e o caminho até a raiz.
+fn openssl_aceita(nome: &str, p7s: &[u8], documento: Option<&[u8]>) -> bool {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("p7s-{nome}"));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("a.p7s"), p7s).unwrap();
+    let mock = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/mock");
+    let mut cmd = Command::new("openssl");
+    cmd.args([
+        "cms", "-verify", "-binary", "-inform", "DER", "-purpose", "any",
+    ])
+    .args(["-attime", &AGORA.to_string()])
+    .arg("-in")
+    .arg(dir.join("a.p7s"))
+    .arg("-CAfile")
+    .arg(format!("{mock}/fake-ac-raiz.pem"))
+    .arg("-certfile")
+    .arg(format!("{mock}/fake-ac.pem"))
+    .arg("-out")
+    .arg(dir.join("saida"));
+    if let Some(documento) = documento {
+        std::fs::write(dir.join("documento"), documento).unwrap();
+        cmd.arg("-content").arg(dir.join("documento"));
+    }
+    let saida = cmd.output().expect("openssl no PATH");
+    let aceito = saida.status.success();
+    if aceito && documento.is_none() {
+        // Anexado: o que sai é o documento de dentro do envelope.
+        assert_eq!(
+            std::fs::read(dir.join("saida")).unwrap(),
+            b"contrato de teste"
+        );
+    }
+    aceito
+}
+
+#[test]
+fn o_p7s_destacado_passa_no_openssl_e_nao_com_outro_documento() {
+    let mock = Mock::subir();
+    let mut m = preparado(&mock, "p7s-destacado");
+    let documento = b"contrato de teste";
+    let p7s = cades::assinar(&mut m, &sha256(documento), None, AGORA, &Roteiro::certo()).unwrap();
+    assert!(openssl_aceita("destacado", &p7s, Some(documento)));
+    assert!(!openssl_aceita(
+        "trocado",
+        &p7s,
+        Some(b"contrato de teste!")
+    ));
+}
+
+#[test]
+fn o_p7s_anexado_leva_o_documento_e_passa_no_openssl() {
+    let mock = Mock::subir();
+    let mut m = preparado(&mock, "p7s-anexado");
+    let documento = b"contrato de teste".to_vec();
+    let p7s = cades::assinar(
+        &mut m,
+        &sha256(&documento),
+        Some(documento),
+        AGORA,
+        &Roteiro::certo(),
+    )
+    .unwrap();
+    assert!(openssl_aceita("anexado", &p7s, None));
+}
+
+#[test]
+fn o_p7s_usa_a_sessao_em_cache_como_o_token() {
+    let mock = Mock::subir();
+    let mut m = preparado(&mock, "p7s-cache");
+    let roteiro = Roteiro::certo();
+    for _ in 0..2 {
+        cades::assinar(&mut m, &[3; 32], None, AGORA, &roteiro).unwrap();
+    }
+    assert_eq!(roteiro.pedidos(), 1);
+}
+
+#[test]
+fn sem_carteira_o_p7s_nao_vai_a_rede() {
+    let mock = Mock::subir();
+    let mut m = motor(&mock, &diretorio("p7s-sem-conta"));
+    let erro = cades::assinar(&mut m, &[3; 32], None, AGORA, &Roteiro::novo(&[])).unwrap_err();
+    assert!(matches!(erro, Erro::NaoPreparado(_)), "{erro:?}");
+}
+
+fn marcas(r: &harness::Relatorio) -> Vec<(&'static str, harness::Marca)> {
+    r.passos.iter().map(|p| (p.rotulo, p.marca)).collect()
+}
+
+#[test]
+fn o_harness_com_a_conta_entrada_passa_inteiro_e_grava_sem_segredo() {
+    use harness::Marca::Ok as M;
+    let mock = Mock::subir();
+    let caminhos = diretorio("harness");
+    let mut m = motor(&mock, &caminhos);
+    m.preparar("teste@remoteid.local", "teste-1234", &MAQUINA)
+        .unwrap();
+    let mut vistos = 0;
+    let r = harness::rodar(&mut m, &Roteiro::certo(), AGORA, None, |_| vistos += 1);
+    assert_eq!(
+        marcas(&r),
+        [
+            ("ambiente", M),
+            ("conectividade", M),
+            ("conta", M),
+            ("carteira", M),
+            ("cadeia", M),
+            ("assinatura", M),
+            ("p7s", M)
+        ]
+    );
+    assert_eq!(vistos, r.passos.len());
+    assert!(!r.falhou());
+
+    let caminho = r.salvar(&caminhos.diagnostico()).unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    let modo = std::fs::metadata(&caminho).unwrap().permissions().mode();
+    assert_eq!(modo & 0o777, 0o600);
+    let texto = std::fs::read_to_string(&caminho).unwrap();
+    assert!(texto.contains("sessão nova, 1 pedido"), "{texto}");
+    assert!(texto.contains("AC TESTE DESKTOPID"), "{texto}");
+    for proibido in [
+        "teste-1234",
+        "123456",
+        "teste@remoteid.local",
+        "DESKTOPID:",
+        "00000000000",
+        "16C3F7EF",
+        "jwt",
+    ] {
+        assert!(
+            !texto.contains(proibido),
+            "{proibido} no relatório:\n{texto}"
+        );
+    }
+}
+
+#[test]
+fn o_harness_so_diz_sessao_em_cache_quando_nada_foi_pedido() {
+    let mock = Mock::subir();
+    let mut m = preparado(&mock, "harness-cache");
+    let roteiro = Roteiro::novo(&[
+        Some(("teste-1234", "123456")),
+        Some(("teste-1234", "123456")),
+    ]);
+    let assinatura = |m: &mut Motor| {
+        let r = harness::rodar(m, &roteiro, AGORA, None, |_| {});
+        r.passos
+            .iter()
+            .find(|p| p.rotulo == "assinatura")
+            .unwrap()
+            .detalhe
+            .clone()
+    };
+    assert!(assinatura(&mut m).starts_with("sessão nova"));
+    assert!(assinatura(&mut m).starts_with("sessão em cache"));
+    // Guardada no estado, mas esquecida pelo servidor: pede de novo.
+    mock.expirar_sessoes();
+    assert!(assinatura(&mut m).starts_with("sessão nova"));
+    assert_eq!(roteiro.pedidos(), 2);
+}
+
+#[test]
+fn o_harness_sem_conta_marca_onde_parou_e_pula_o_resto() {
+    use harness::Marca::{Falha, Ok as M, Pulado};
+    let mock = Mock::subir();
+    let mut m = motor(&mock, &diretorio("harness-sem-conta"));
+    let r = harness::rodar(&mut m, &Roteiro::novo(&[]), AGORA, None, |_| {});
+    assert_eq!(
+        marcas(&r),
+        [
+            ("ambiente", M),
+            ("conectividade", M),
+            ("conta", Falha),
+            ("carteira", Pulado),
+            ("cadeia", Pulado),
+            ("assinatura", Pulado),
+            ("p7s", Pulado)
+        ]
+    );
+    assert!(r.falhou());
+}
+
+#[test]
+fn o_harness_registra_quem_desistiu_do_codigo() {
+    let mock = Mock::subir();
+    let mut m = preparado(&mock, "harness-cancelado");
+    let r = harness::rodar(&mut m, &Roteiro::novo(&[None]), AGORA, None, |_| {});
+    let assinatura = r.passos.iter().find(|p| p.rotulo == "assinatura").unwrap();
+    assert_eq!(assinatura.marca, harness::Marca::Falha);
+    assert!(
+        assinatura.detalhe.contains("Cancelado"),
+        "{}",
+        assinatura.detalhe
+    );
+    assert_eq!(r.passos.last().unwrap().marca, harness::Marca::Pulado);
 }

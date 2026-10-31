@@ -52,6 +52,33 @@ pub enum Erro {
     PinBloqueado,
     /// O servidor não assina estes dados neste modo.
     BlocoInvalido,
+    /// O `.p7s` não pôde ser montado ([`crate::cades`]).
+    Envelope(String),
+}
+
+/// O que a pessoa lê de cada falha, na janela e no terminal.
+impl std::fmt::Display for Erro {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Erro::Protocolo(ErroProtocolo::Servidor { mensagem, .. }) if !mensagem.is_empty() => {
+                f.write_str(mensagem)
+            }
+            Erro::Rede(_) => f.write_str("Sem conexão com a Certisign"),
+            Erro::Protocolo(_) => f.write_str("A Certisign respondeu algo inesperado"),
+            Erro::Disco(_) => f.write_str("Não foi possível gravar os dados"),
+            Erro::NaoPreparado(motivo) => {
+                let mut letras = motivo.chars();
+                if let Some(primeira) = letras.next() {
+                    write!(f, "{}{}", primeira.to_uppercase(), letras.as_str())?;
+                }
+                Ok(())
+            }
+            Erro::Cancelado => f.write_str("Cancelado"),
+            Erro::PinBloqueado => f.write_str("PIN bloqueado: entre na conta de novo"),
+            Erro::BlocoInvalido => f.write_str("Dados que a Certisign não assina"),
+            Erro::Envelope(e) => write!(f, "O .p7s não pôde ser montado: {e}"),
+        }
+    }
 }
 
 impl From<ErroProtocolo> for Erro {

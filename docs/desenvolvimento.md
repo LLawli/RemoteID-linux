@@ -6,6 +6,7 @@
 - GTK 4.18 e libadwaita 1.7, ou mais novos, com os cabeçalhos
   (`gtk4-devel libadwaita-devel` no Fedora).
 - `appstream`, para validar o metainfo.
+- `openssl`, que os testes usam para conferir o `.p7s`.
 - `cargo-audit`.
 - Para a extensão: o Âncora (`dev.lukakuuhaku.Ancora`) instalado,
   `org.flatpak.Builder`, `org.gnome.Sdk//51` e
@@ -85,6 +86,12 @@ Cada execução grava um JSONL em `<estado>/diagnostico/`, os 20 últimos, com
 senha, PIN, OTP e dados do titular fora e tokens como impressão digital.
 `REMOTEID_DIAG_CRU=1` mostra os tokens, para investigar o protocolo na própria
 máquina.
+
+`remoteid harness` roda o fluxo com a conta já entrada (servidor, conta,
+carteira, cadeia e uma assinatura de teste, conferida contra a chave do
+certificado e fechada num `.p7s`) e grava um relatório em
+`<estado>/diagnostico/harness-<epoch>.txt`, sem senha, PIN, OTP, e-mail nem o
+titular. Gasta um código do autenticador quando não há sessão em cache.
 
 ## Construir a extensão
 

@@ -862,6 +862,7 @@ fn rv_do_erro(erro: &Erro) -> CK_RV {
             regra: Some(regra), ..
         }) if regra.origem == Origem::Usuario => CKR_PIN_INCORRECT,
         Erro::Rede(_) | Erro::Disco(_) | Erro::NaoPreparado(_) => CKR_DEVICE_ERROR,
+        Erro::Envelope(_) => CKR_FUNCTION_FAILED,
         Erro::Protocolo(_) => CKR_FUNCTION_FAILED,
     }
 }

@@ -799,6 +799,43 @@ fn constantes() -> Value {
     })
 }
 
+/// O envelope CAdES-BES do `remoteid assinar`. O certificado é o sintético do
+/// servidor falso, e a assinatura são bytes fixos: o montador não a confere,
+/// e assim a fixture não depende de chave nenhuma.
+fn cades() -> Vec<Value> {
+    use remoteid_assinatura::Montador;
+    use remoteid_cripto::sha256;
+
+    let certificado = include_bytes!("../../tests/mock/fake-cert.der");
+    let assinatura: Vec<u8> = (0..=255u8).collect();
+    let documento = b"contrato de teste".to_vec();
+    let casos: [(&str, Vec<u8>, u64, Option<Vec<u8>>); 6] = [
+        ("destacado", sha256(&documento).to_vec(), AGORA, None),
+        ("anexado", sha256(&documento).to_vec(), AGORA, Some(documento.clone())),
+        ("vazio", sha256(b"").to_vec(), 0, Some(Vec::new())),
+        ("2049", sha256(&documento).to_vec(), 2_524_607_999, None),
+        ("digest curto", vec![7; 20], AGORA, None),
+        ("anexado com outro digest", sha256(b"outro").to_vec(), AGORA, Some(documento)),
+    ];
+    casos
+        .into_iter()
+        .map(|(nome, digest, momento, anexar)| {
+            let mut caso = json!({
+                "nome": nome, "digest": b64(&digest), "momento": momento,
+                "anexar": anexar.as_deref().map(b64), "assinatura": b64(&assinatura),
+            });
+            match Montador::novo(certificado, &digest, momento, anexar) {
+                Ok(m) => {
+                    caso["a_assinar"] = json!(b64(m.digest_a_assinar()));
+                    caso["p7s"] = json!(b64(&m.finalizar(&assinatura).unwrap()));
+                }
+                Err(_) => caso["erro"] = json!(true),
+            }
+            caso
+        })
+        .collect()
+}
+
 fn gravar(destino: &Path, nome: &str, valor: &Value) {
     let texto = serde_json::to_string_pretty(valor).unwrap() + "\n";
     std::fs::write(destino.join(nome), texto).unwrap();
@@ -830,4 +867,5 @@ fn main() {
     gravar(&destino, "algoritmo.json", &Value::Array(algoritmo()));
     gravar(&destino, "canonica.json", &Value::Array(canonica()));
     gravar(&destino, "constantes.json", &constantes());
+    gravar(&destino, "cades.json", &Value::Array(cades()));
 }

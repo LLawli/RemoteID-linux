@@ -511,6 +511,7 @@ name = "paridade"
 version = "0.0.0"
 dependencies = [
  "remoteid-aplicacao",
+ "remoteid-assinatura",
  "remoteid-autorizacao",
  "remoteid-cripto",
  "remoteid-diag-jsonl",
@@ -658,6 +659,18 @@ dependencies = [
  "remoteid-store-json",
  "remoteid-tipos",
  "serde_json",
+]
+
+[[package]]
+name = "remoteid-assinatura"
+version = "0.3.2"
+source = "git+https://github.com/LLawli/RemoteID-linux?tag=v0.3.2#d88ed842414eb0ec56e19ae71f14d54d40f30484"
+dependencies = [
+ "cms",
+ "der",
+ "remoteid-cripto",
+ "remoteid-tipos",
+ "x509-cert",
 ]
 
 [[package]]

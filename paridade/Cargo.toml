@@ -12,6 +12,7 @@ description = "Grava, a partir do RemoteID-linux v0.3.2, as fixtures de paridade
 
 [dependencies]
 remoteid-aplicacao = { git = "https://github.com/LLawli/RemoteID-linux", tag = "v0.3.2" }
+remoteid-assinatura = { git = "https://github.com/LLawli/RemoteID-linux", tag = "v0.3.2" }
 remoteid-autorizacao = { git = "https://github.com/LLawli/RemoteID-linux", tag = "v0.3.2" }
 remoteid-cripto = { git = "https://github.com/LLawli/RemoteID-linux", tag = "v0.3.2" }
 remoteid-diag-jsonl = { git = "https://github.com/LLawli/RemoteID-linux", tag = "v0.3.2" }

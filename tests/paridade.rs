@@ -384,3 +384,41 @@ fn as_constantes_sao_as_mesmas() {
     });
     assert_eq!(novas, antigas);
 }
+
+// --- o .p7s -------------------------------------------------------------------
+
+#[test]
+fn o_p7s_sai_byte_a_byte_igual_ao_do_antigo() {
+    use remoteid::cades::Montador;
+    let certificado = include_bytes!("mock/fake-cert.der");
+    let mut diferencas = Vec::new();
+    let casos = fixture("cades.json", 6);
+    for caso in &casos {
+        let nome = s(caso, "nome");
+        let digest = de_b64(&s(caso, "digest")).unwrap();
+        let anexar = caso["anexar"].as_str().map(|a| de_b64(a).unwrap());
+        let momento = caso["momento"].as_u64().unwrap();
+        let assinatura = de_b64(&s(caso, "assinatura")).unwrap();
+        match (
+            Montador::novo(certificado, &digest, momento, anexar),
+            caso.get("erro"),
+        ) {
+            (Ok(m), None) => {
+                if b64(m.a_assinar()) != s(caso, "a_assinar") {
+                    diferencas.push(format!("{nome}: o que vai ao HSM"));
+                }
+                if b64(&m.finalizar(&assinatura).unwrap()) != s(caso, "p7s") {
+                    diferencas.push(format!("{nome}: o DER do envelope"));
+                }
+            }
+            (Err(_), Some(_)) => {}
+            (Ok(_), Some(_)) => {
+                diferencas.push(format!("{nome}: o antigo recusou, o novo aceitou"))
+            }
+            (Err(e), None) => diferencas.push(format!("{nome}: o novo recusou ({e})")),
+        }
+    }
+    // Os dois caminhos de erro e os quatro envelopes têm de estar no corpus.
+    assert_eq!(casos.iter().filter(|c| c.get("erro").is_some()).count(), 2);
+    conferir(diferencas);
+}

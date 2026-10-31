@@ -5,10 +5,10 @@
 //! Um `#[test]` só, de propósito: o estado do módulo é global por processo,
 //! como o Cryptoki manda, e o ambiente também.
 
-use std::io::{BufRead, BufReader};
+mod comum;
+
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
 use std::ptr;
 use std::time::{Duration, Instant};
 
@@ -18,10 +18,10 @@ use rsa::pkcs8::DecodePrivateKey;
 use rsa::{Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey};
 use sha2::{Digest, Sha256};
 
+use comum::Mock;
 use remoteid::caminhos::Caminhos;
 use remoteid::estado::Estado;
 use remoteid::motor::Motor;
-use remoteid::protocolo::Servidor;
 use remoteid::protocolo::requisicao::Maquina;
 use remoteid::transporte::{Http, TEMPO_LIMITE};
 
@@ -45,37 +45,6 @@ echo >> "$dir/pedidos"
 cat "$dir/resposta"
 "#;
 
-struct Mock {
-    processo: Child,
-    url: String,
-}
-
-impl Mock {
-    fn subir() -> Mock {
-        let mut processo = Command::new(env!("CARGO_BIN_EXE_remoteid-mock"))
-            .arg("0")
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let mut url = String::new();
-        BufReader::new(processo.stdout.take().unwrap())
-            .read_line(&mut url)
-            .unwrap();
-        Mock {
-            processo,
-            url: url.trim().to_string(),
-        }
-    }
-}
-
-impl Drop for Mock {
-    fn drop(&mut self) {
-        let _ = self.processo.kill();
-        let _ = self.processo.wait();
-    }
-}
-
 /// Uma conta preparada no servidor falso, com o diálogo falso ao lado.
 fn preparar(mock: &Mock, raiz: &Path) {
     let caminhos = Caminhos {
@@ -83,7 +52,7 @@ fn preparar(mock: &Mock, raiz: &Path) {
     };
     std::fs::create_dir_all(raiz).unwrap();
     std::fs::write(caminhos.chave(), include_str!("paridade/chave-teste.pem")).unwrap();
-    let servidor = Servidor::falso(&mock.url);
+    let servidor = mock.servidor();
     Motor::abrir(caminhos, servidor, Box::new(Http::novo(TEMPO_LIMITE)))
         .unwrap()
         .preparar(

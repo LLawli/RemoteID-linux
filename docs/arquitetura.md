@@ -61,6 +61,8 @@ do sistema, ou um na memória).
 | `x509` | os campos do certificado que o token publica, e o nome do titular |
 | `cadeia` | as autoridades do certificado, do `caIssuers` até a raiz; puro, o download é do motor |
 | `diagnostico` | um JSONL por execução, com segredos e dados do titular redigidos |
+| `cades` | o `.p7s` CAdES-BES em duas fases, com a ida ao HSM no meio; igual byte a byte ao do antigo |
+| `harness` | o fluxo com a conta entrada, passo a passo, e o relatório para enviar |
 | `bin/remoteid-mock` | o servidor falso dos testes |
 
 O motor roda em dois processos que dividem o mesmo estado em disco: o módulo,
@@ -191,13 +193,37 @@ documentação, e o diagnóstico só grava o que já passou pela redação.
    chaveiro, ou cifrada com um PIN local; o diálogo pedindo só o código do
    autenticador. Testada na VM com a extensão instalada, dirigida pelo
    teclado.
-6. **Terminal**: `remoteid assinar` (inclusive o `.p7s` CAdES-BES com
-   `signingCertificateV2`) e o harness de diagnóstico.
+6. **Terminal** (feito): `remoteid assinar` (inclusive o `.p7s` CAdES-BES
+   com `signingCertificateV2`) e o harness de diagnóstico, testados na VM
+   dentro do sandbox do Âncora.
 7. **Publicação**: no remote do Âncora, no lugar da extensão RemoteID do
    flatpak-adv-br.
 
 Fora da primeira versão: a aprovação por celular (push). Está implementada no
 RemoteID-linux e nunca passou por uma conta real.
+
+## O terminal
+
+`remoteid assinar` lê o documento do stdin e escreve a assinatura no stdout,
+porque o sandbox do Âncora não enxerga a pasta pessoal. O `.p7s` sai do
+montador do RemoteID-linux (`src/cades.rs`), igual byte a byte
+(`tests/paridade/cades.json`), e o `openssl cms -verify` o aceita com a cadeia
+de teste. A assinatura usa a sessão em cache como o token.
+
+Os fatores são pedidos no `/dev/tty`, sem eco, e na janela do módulo quando o
+terminal não serve. Dentro do Flatpak ele quase nunca serve: medido na VM em
+2026-10-31, o Flatpak 1.18.4 só deixa o app no grupo em primeiro plano do
+terminal quando stdin, stdout e stderr são todos o terminal (o 1.18.2 deixava
+sempre). O `assinar` redireciona a saída, então fica em segundo plano, e ler
+ou mexer no terminal dali para o processo com SIGTTOU. Com SIGTTIN e SIGTTOU
+ignorados, a leitura volta EIO, e o pedido vai para a janela. Não dá para
+saber antes pelos números de grupo: dentro do namespace de PID do sandbox, o
+do processo e o do terminal aparecem os dois como 0. Tomar o primeiro plano
+(`setpgid` mais `tcsetpgrp`) contornaria uma escolha do Flatpak e não teria
+como devolver o terminal ao grupo de antes, invisível dali.
+
+`remoteid harness` não redireciona nada e pergunta no terminal mesmo no
+Flatpak.
 
 ## A senha da conta
 

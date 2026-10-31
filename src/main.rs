@@ -9,6 +9,8 @@ fn main() -> gtk::glib::ExitCode {
     match args.first().map(String::as_str) {
         Some(pedido::SUBCOMANDO) => ui::pedido::executar(),
         Some(terminal::ENTRAR) => terminal::entrar(&args[1..]),
+        Some(terminal::ASSINAR) => terminal::assinar(&args[1..]),
+        Some(terminal::HARNESS) => terminal::harness(&args[1..]),
         _ => janela(),
     }
 }

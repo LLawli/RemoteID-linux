@@ -33,6 +33,11 @@ ureq = "3"
 cryptoki-sys = "0.5"
 x509-cert = { version = "0.2", default-features = false, features = ["std"] }
 cms = { version = "0.2", default-features = false, features = ["alloc"] }
+# O `.p7s` (src/cades.rs) declara as estruturas da RFC 5035 com o derive do
+# der, que o x509-cert já traz.
+der = { version = "0.7", default-features = false, features = ["alloc", "derive", "oid"] }
+# Desligar o eco do terminal enquanto a pessoa digita o OTP e a senha.
+libc = "0.2"
 # O chaveiro do sistema, onde fica a senha da conta: o portal de segredos
 # dentro do Flatpak e, sem ele, o Secret Service pelo D-Bus. Com async-io em
 # vez de tokio, e o futures-lite só para esperar as chamadas.

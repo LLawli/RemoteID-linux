@@ -24,7 +24,6 @@ use remoteid::estado::Estado;
 use remoteid::motor::{Erro, Motor};
 use remoteid::pin;
 use remoteid::protocolo::requisicao::Maquina;
-use remoteid::protocolo::resposta::Erro as ErroProtocolo;
 use remoteid::transporte::{Http, TEMPO_LIMITE};
 use remoteid::{APP_ID, NOME};
 
@@ -153,31 +152,9 @@ fn em_segundo_plano<T: Send + 'static>(
 /// O que só toca o disco roda aqui mesmo.
 fn no_disco(j: &Rc<Janela>, op: impl FnOnce(&mut Motor) -> Result<(), Erro>) {
     if let Err(e) = motor(&j.caminhos, false).and_then(|mut m| op(&mut m)) {
-        j.toasts.add_toast(adw::Toast::new(&mensagem(&e)));
+        j.toasts.add_toast(adw::Toast::new(&e.to_string()));
     }
     recarregar(j);
-}
-
-/// O que a pessoa lê de cada falha.
-fn mensagem(erro: &Erro) -> String {
-    match erro {
-        Erro::Protocolo(ErroProtocolo::Servidor { mensagem, .. }) if !mensagem.is_empty() => {
-            mensagem.clone()
-        }
-        Erro::Rede(_) => "Sem conexão com a Certisign".into(),
-        Erro::Protocolo(_) => "A Certisign respondeu algo inesperado".into(),
-        Erro::Disco(_) => "Não foi possível gravar os dados".into(),
-        Erro::NaoPreparado(motivo) => {
-            let mut letras = motivo.chars();
-            letras
-                .next()
-                .map(|p| p.to_uppercase().chain(letras).collect())
-                .unwrap_or_default()
-        }
-        Erro::Cancelado => "Cancelado".into(),
-        Erro::PinBloqueado => "PIN bloqueado: entre na conta de novo".into(),
-        Erro::BlocoInvalido => "Dados que a Certisign não assina".into(),
-    }
 }
 
 fn construir_entrar() -> (
@@ -761,7 +738,7 @@ fn enviar(j: &Rc<Janela>) {
                     }
                 }
                 Err(e) => {
-                    j.erro_texto.set_label(&mensagem(&e));
+                    j.erro_texto.set_label(&e.to_string());
                     j.erro.set_visible(true);
                     j.senha.add_css_class("error");
                     j.senha.grab_focus();
@@ -812,7 +789,7 @@ fn guardar_pin(j: &Rc<Janela>) {
                     recarregar(j);
                 }
                 Err(e) => {
-                    j.erro_pin_texto.set_label(&mensagem(&e));
+                    j.erro_pin_texto.set_label(&e.to_string());
                     j.erro_pin.set_visible(true);
                 }
             }
