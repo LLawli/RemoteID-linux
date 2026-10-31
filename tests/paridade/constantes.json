@@ -1,0 +1,8 @@
+{
+  "algoritmo_padrao": "SHA256",
+  "certinext_base": "/CertisignerServices",
+  "certinext_url": "https://certinext.certisign.com.br",
+  "nome_aplicacao": "RemoteID-linux",
+  "remoteid_url": "https://remoteidcertisign.com.br",
+  "user_agent": "desktopID/2.2.0.1"
+}

@@ -1,8 +1,0 @@
-[package]
-name = "remoteid-autorizacao"
-description = "Política de autorização do RemoteID-linux (pin+otp vs push), núcleo puro"
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
-license.workspace = true
-repository.workspace = true

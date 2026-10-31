@@ -1,0 +1,166 @@
+[
+  {
+    "aceito": false,
+    "algoritmo": "SHA256",
+    "tamanho": 0
+  },
+  {
+    "aceito": false,
+    "algoritmo": "SHA256",
+    "tamanho": 1
+  },
+  {
+    "aceito": false,
+    "algoritmo": "SHA256",
+    "tamanho": 20
+  },
+  {
+    "aceito": false,
+    "algoritmo": "SHA256",
+    "tamanho": 31
+  },
+  {
+    "aceito": true,
+    "algoritmo": "SHA256",
+    "tamanho": 32
+  },
+  {
+    "aceito": false,
+    "algoritmo": "SHA256",
+    "tamanho": 33
+  },
+  {
+    "aceito": false,
+    "algoritmo": "SHA256",
+    "tamanho": 34
+  },
+  {
+    "aceito": false,
+    "algoritmo": "SHA256",
+    "tamanho": 51
+  },
+  {
+    "aceito": false,
+    "algoritmo": "SHA256",
+    "tamanho": 244
+  },
+  {
+    "aceito": false,
+    "algoritmo": "SHA256",
+    "tamanho": 245
+  },
+  {
+    "aceito": false,
+    "algoritmo": "SHA256",
+    "tamanho": 246
+  },
+  {
+    "aceito": false,
+    "algoritmo": "SHA256",
+    "tamanho": 255
+  },
+  {
+    "aceito": false,
+    "algoritmo": "SHA256",
+    "tamanho": 256
+  },
+  {
+    "aceito": false,
+    "algoritmo": "SHA256",
+    "tamanho": 512
+  },
+  {
+    "aceito": false,
+    "algoritmo": "",
+    "tamanho": 0
+  },
+  {
+    "aceito": true,
+    "algoritmo": "",
+    "tamanho": 1
+  },
+  {
+    "aceito": true,
+    "algoritmo": "",
+    "tamanho": 20
+  },
+  {
+    "aceito": true,
+    "algoritmo": "",
+    "tamanho": 31
+  },
+  {
+    "aceito": true,
+    "algoritmo": "",
+    "tamanho": 32
+  },
+  {
+    "aceito": true,
+    "algoritmo": "",
+    "tamanho": 33
+  },
+  {
+    "aceito": true,
+    "algoritmo": "",
+    "tamanho": 34
+  },
+  {
+    "aceito": true,
+    "algoritmo": "",
+    "tamanho": 51
+  },
+  {
+    "aceito": true,
+    "algoritmo": "",
+    "tamanho": 244
+  },
+  {
+    "aceito": true,
+    "algoritmo": "",
+    "tamanho": 245
+  },
+  {
+    "aceito": false,
+    "algoritmo": "",
+    "tamanho": 246
+  },
+  {
+    "aceito": false,
+    "algoritmo": "",
+    "tamanho": 255
+  },
+  {
+    "aceito": false,
+    "algoritmo": "",
+    "tamanho": 256
+  },
+  {
+    "aceito": false,
+    "algoritmo": "",
+    "tamanho": 512
+  },
+  {
+    "conhecido": true,
+    "nome": "SHA256"
+  },
+  {
+    "conhecido": true,
+    "nome": ""
+  },
+  {
+    "conhecido": false,
+    "nome": "SHA1"
+  },
+  {
+    "conhecido": false,
+    "nome": "MD5"
+  },
+  {
+    "conhecido": false,
+    "nome": "sha256"
+  },
+  {
+    "conhecido": false,
+    "nome": " SHA256"
+  }
+]

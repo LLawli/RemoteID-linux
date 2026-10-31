@@ -1,219 +1,70 @@
-# RemoteID-linux
+# RemoteID para o Âncora
 
-**Assine documentos com seu certificado em nuvem RemoteID/DesktopID (Certisign)
-no Linux.** A Certisign publica aplicativo só para macOS e Windows: em uma
-máquina Linux o seu certificado simplesmente não existe. Este projeto resolve
-isso.
+Faz o certificado em nuvem RemoteID da Certisign funcionar no Linux, onde a
+Certisign não publica aplicativo: no leitor de PDF, nos navegadores e nos
+assinadores que você já usa. É para quem tem certificado RemoteID e precisa
+assinar ou entrar com ele (PJe, e-SAJ, Receita) numa máquina Linux.
 
-Com ele o certificado aparece como um token de verdade para o sistema, então
-você assina:
-
-- **no visualizador de PDF** (GNOME Papers e qualquer coisa baseada em poppler);
-- **no Firefox e no Chromium**, para autenticar em portais que pedem
-  certificado digital;
-- **pela linha de comando**, inclusive gerando `.p7s` (CAdES-BES) que validador
-  ICP-Brasil aceita;
-- **em qualquer programa que fale PKCS#11**, porque é isso que o módulo é.
-
-O PIN e o código do autenticador são pedidos numa janela sua, no seu desktop, e
-a assinatura acontece no HSM da Certisign — a chave do certificado nunca esteve
-na sua máquina e continua não estando.
+É uma extensão do [Âncora](https://github.com/LLawli/flatpak-adv-br): instale o
+Âncora, depois esta extensão pela tela de extensões dele. Você entra na conta
+uma vez; a senha fica no chaveiro do sistema e, ao assinar, só o código do
+autenticador é pedido, numa janela no seu desktop. A assinatura acontece no
+HSM da Certisign: a chave do certificado nunca esteve na sua máquina.
 
 > **Não é um produto oficial da Certisign.** O protocolo foi reconstruído por
 > engenharia reversa do aplicativo oficial de macOS e confirmado com uma conta
-> real. Software livre, GPLv3, sem qualquer vínculo com a empresa.
+> real. Software livre, GPLv3, sem vínculo com a empresa.
 
-## Antes de tudo: o que foi testado, e o que não foi
+Esta é a reescrita do zero do RemoteID-linux, que deixa de ter instalador
+próprio e passa a viver dentro do Âncora. A versão anterior, até a v0.3.2, está
+no histórico e nas releases deste repositório.
 
-Isto importa mais que qualquer outra coisa neste README.
+## Instalar
 
-| caminho de autorização | situação |
-|---|---|
-| **PIN + OTP** (código do autenticador) | **funciona**, confirmado ponta a ponta com conta real: a assinatura devolvida pelo HSM foi verificada contra a chave pública do certificado do titular |
-| **push** (aprovar no celular) | **nunca foi testado com uma conta real** |
+Ainda não há versão publicada. Para construir e instalar a partir do código,
+com o Âncora já instalado:
 
-O caminho `push` existe no aplicativo oficial, foi lido no binário dele e está
-implementado aqui com paridade byte a byte com o construtor original — mas
-**nenhuma assinatura real jamais passou por ele**. Código que nunca rodou contra
-o servidor de verdade é hipótese, não funcionalidade, e é assim que ele deve ser
-tratado até que alguém prove o contrário.
-
-**Quer ajudar a tornar o push real?** Se você tem um certificado RemoteID com
-aprovação por celular e topa agir como testador, entre em contato:
-**contato@lukakuuhaku.dev**. É preciso alguém com uma conta que use esse método;
-sem isso o suporte a push continua não existindo na prática.
-
-## Instalação
-
-Precisa de Linux x86_64 ou aarch64.
-
-### Pacote pronto
-
-Baixe da [última release](https://github.com/LLawli/RemoteID-linux/releases/latest)
-o pacote da sua arquitetura, confira o checksum, extraia e instale:
-
-```sh
-sha256sum -c SHA256SUMS
-tar -xzf remoteid-linux-<versão>-x86_64-linux.tar.gz
-cd remoteid-linux-<versão>-x86_64-linux
-./instalar.sh
+```bash
+flatpak install flathub org.gnome.Sdk//51 org.freedesktop.Sdk.Extension.rust-stable//26.08
+scripts/construir.sh
 ```
 
-O `instalar.sh` não pede root: põe tudo em `~/.local`, registra o módulo
-PKCS#11 no p11-kit e instala o ícone e o lançador. Para desfazer,
-`./desinstalar.sh` — ele preserva o estado da sua conta.
+## Usar
 
-O pacote traz a linha de comando (`remoteid`), o aplicativo gráfico
-(`remoteid-app`), o módulo `libremoteid_pkcs11.so`, o ícone e o lançador.
+O RemoteID aparece no Âncora: entre na conta pela janela, e os navegadores e
+assinadores passam a ver o certificado como um token. O código do autenticador
+é pedido na hora de assinar.
 
-> O aplicativo gráfico precisa de **GTK4 e Libadwaita** instalados no sistema
-> (qualquer desktop GNOME atual já tem). A linha de comando e o módulo PKCS#11
-> não dependem de nada além do sistema base.
+Pelo terminal, um `.p7s` destacado de qualquer arquivo, na política AD-RB da
+ICP-Brasil:
 
-### Compilando
-
-Precisa de Rust 1.82+. A linha de comando e o módulo PKCS#11 não dependem de
-mais nada:
-
-```sh
-cargo build --release -p remoteid-cli -p remoteid-pkcs11
+```bash
+R="flatpak run --command=/app/extensoes/driver/RemoteID/bin/remoteid dev.lukakuuhaku.Ancora"
+$R assinar < contrato.pdf > contrato.pdf.p7s
 ```
 
-O aplicativo gráfico precisa de GTK4 e Libadwaita instalados
-(`libgtk-4-dev` e `libadwaita-1-dev` no Debian/Ubuntu; `gtk4-devel` e
-`libadwaita-devel` no Fedora):
+`--anexar` põe o documento dentro do `.p7s`, `--cru` devolve só a assinatura
+RSA, e `--hash <hex>` assina um SHA-256 pronto. O documento entra pela entrada
+padrão porque o Âncora não enxerga a pasta pessoal, e o código do autenticador
+é pedido na janela do RemoteID. `$R harness` testa o fluxo
+e grava um relatório para mandar a quem investiga um problema.
 
-```sh
-cargo build --release
-make instalar      # em ~/.local, sem root; `make desinstalar` desfaz
-```
+## Vindo da v0.3.2
 
-## Como usar
+A v0.3.2 se instalava sozinha, em `~/.local`, e registrava o próprio módulo no
+p11-kit. Com as duas instaladas, o certificado aparece duas vezes nos
+navegadores. Antes de instalar a extensão, desfaça a antiga com o
+`desinstalar.sh` que veio no pacote dela (ou `make desinstalar`, se você a
+compilou), e entre na conta de novo pela janela do RemoteID no Âncora: a
+v0.3.2 guardava a conta em outro lugar. O código e os pacotes da v0.3.2
+continuam na tag e na release `v0.3.2`.
 
-### Uma vez por máquina
+## Para quem vai mexer no código
 
-```sh
-remoteid preparar        # login no portal, registro do desktop e carteira
-```
-
-> **O PIN é o do CERTIFICADO**, definido na emissão ou ativação. Não é a senha
-> do portal (essa vai no login) nem o código do autenticador.
->
-> **O OTP é de uso único e vale poucos segundos.** Gere-o quando for pedido, não
-> antes.
-
-### Assinando pela linha de comando
-
-```sh
-remoteid assinar --arquivo contrato.pdf      # pergunta PIN e OTP, sem ecoar
-remoteid assinar --hash <base64 do SHA-256>  # se o digest já está pronto
-cat dados | remoteid assinar                 # ou pela entrada padrão
-```
-
-A saída é a assinatura em base64; com `--saida arquivo.sig` saem os 256 bytes
-crus.
-
-Para um envelope que um validador ICP-Brasil aceita:
-
-```sh
-remoteid assinar --arquivo contrato.pdf --pkcs7 contrato.p7s
-openssl cms -verify -inform DER -in contrato.p7s -content contrato.pdf
-```
-
-Sai um CAdES-BES destacado, com `signingCertificateV2` — é esse atributo que faz
-o validador aceitar. `--anexar` embute o documento no envelope.
-
-### Assinando no Papers, no Firefox e nos outros
-
-Registre o módulo PKCS#11 para o seu usuário (não precisa de root):
-
-```sh
-mkdir -p ~/.config/pkcs11/modules
-cat > ~/.config/pkcs11/modules/remoteid.module <<EOF
-module: /caminho/para/libremoteid_pkcs11.so
-EOF
-```
-
-Todo consumidor de NSS (Papers, Firefox, Chromium) passa a enxergar o
-certificado pelo p11-kit. Confira com:
-
-```sh
-p11-kit list-modules | grep -A2 remoteid
-```
-
-**O aplicativo precisa estar aberto na hora de assinar.** Quem conversa com a
-Certisign e mostra o diálogo de PIN/OTP é ele:
-
-```sh
-remoteid-app
-```
-
-Sem ele no ar o certificado até aparece na lista do programa (essa parte é lida
-do estado local), mas a assinatura falha — não há quem autorize.
-
-Fechar a janela não desliga o assinador: o app continua no ar em segundo plano,
-atendendo os pedidos de assinatura, e avisa isso por uma notificação na primeira
-vez. Abrir o app de novo traz a janela de volta. Para encerrar de verdade, use
-**Sair** no menu da janela (ou Ctrl+Q).
-
-## Onde ficam as suas coisas
-
-Em `~/.local/state/remoteid` (ou `$REMOTEID_HOME`), tudo com permissão 0600:
-
-- `installation-key.pem` — a chave privada desta instalação (não é a do
-  certificado; essa nunca sai do HSM)
-- `state.json` — registro do desktop, certificado do titular, preferências
-
-O diagnóstico fica em `~/.local/state/remoteid/diag/`: um arquivo JSONL por
-execução, os 20 últimos, mais o `modulo-pkcs11.jsonl`, onde o módulo registra os
-pedidos de assinatura que chegaram sem o app no ar. **Senha, PIN e OTP nunca são gravados**,
-nem os dados pessoais que o servidor devolve junto com o certificado (nome, CPF,
-RG, e-mail, data de nascimento e afins). Tokens, o serial do certificado e a
-assinatura aparecem só como impressão digital SHA-256. É o material para anexar
-a um relatório de bug:
-
-```sh
-remoteid diagnostico
-```
-
-## Ajudando a testar o protocolo
-
-O `harness` exercita cada passo do protocolo contra o servidor real, classifica
-a resposta e gera um relatório dizendo onde parou. Serve para confirmar
-comportamento com contas reais, não para o uso diário:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/LLawli/RemoteID-linux/main/install.sh | sh
-```
-
-O script pega o binário da última release; se não houver um para a sua máquina,
-compila do código-fonte (e, faltando o Rust, explica como instalar e se oferece
-para fazê-lo pelo rustup, sem mexer no sistema). Nada é instalado fora do seu
-`~/.cache`. Se você já clonou o repositório: `cargo run --release -- harness`.
-
-O relatório sai em `~/Downloads/remoteid-harness-<data>.txt`. **Senha, PIN e OTP
-não entram nele**, mas o arquivo identifica o titular do certificado — envie por
-canal privado.
-
-## Desenvolvimento
-
-```sh
-make check              # testes, clippy e build de release
-make teste-integracao   # gate ponta a ponta do módulo PKCS#11 (precisa de opensc)
-make teste-local        # servidor RemoteID falso + conta sintética em /tmp
-```
-
-O gate de integração carrega o módulo com o `pkcs11-tool` de verdade, assina
-contra um servidor falso e confere a assinatura com o `openssl` — inclusive que
-PIN e OTP saíram redigidos do diagnóstico. `tools/auditar-segredos.sh` reprova o
-repositório se algum segredo escapar para um arquivo versionado.
-
-Como o protocolo foi reconstruído, o que cada campo significa e por que várias
-decisões são contraintuitivas está em [docs/PROTOCOLO.md](docs/PROTOCOLO.md),
-[docs/PAYLOADS.md](docs/PAYLOADS.md) e
-[docs/escopo-migracao.md](docs/escopo-migracao.md). Os scripts de engenharia
-reversa estão em [tools/README.md](tools/README.md).
+[docs/arquitetura.md](docs/arquitetura.md) explica as peças e o plano, e
+[docs/desenvolvimento.md](docs/desenvolvimento.md) explica como construir e
+testar. `scripts/ci.sh` roda todos os gates, os mesmos da CI.
 
 ## Licença
 
-GPLv3-only. Ver [LICENSE](LICENSE).
+GPL-3.0-only. Veja [LICENSE](LICENSE).

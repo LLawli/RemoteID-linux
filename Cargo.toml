@@ -1,27 +1,65 @@
-[workspace]
-resolver = "2"
-members = ["crates/remoteid-tipos", "crates/remoteid-cripto", "crates/remoteid-autorizacao", "crates/remoteid-estado", "crates/remoteid-assinatura", "crates/remoteid-cadeia", "crates/remoteid-protocolo-servidor", "crates/remoteid-portas", "crates/remoteid-store-json", "crates/remoteid-chave-pem", "crates/remoteid-redacao", "crates/remoteid-diag-jsonl", "crates/remoteid-http", "crates/remoteid-relogio-sistema", "crates/remoteid-ambiente-sistema", "crates/remoteid-caminhos", "crates/remoteid-aplicacao", "crates/remoteid-cli", "crates/remoteid-pkcs11", "crates/remoteid-daemon", "crates/remoteid-protocolo", "crates/remoteid-gtk", "crates/remoteid-mock"]
-
-[workspace.package]
-version = "0.3.2"
-edition = "2021"
-rust-version = "1.82"
+[package]
+name = "remoteid"
+version = "0.4.0"
+edition = "2024"
+rust-version = "1.92"
+description = "Certificado em nuvem RemoteID (Certisign) no Linux, como extensão do Âncora"
 license = "GPL-3.0-only"
-repository = "https://github.com/LLawli/RemoteID-linux"
+publish = false
 
-[workspace.dependencies]
-base64 = "0.23"
-rand = "0.8"
-rsa = { version = "0.9", features = ["sha2"] }
-serde = { version = "1", features = ["derive"] }
+# A biblioteca é o módulo PKCS#11 (cdylib), carregado pelo p11-kit dentro do
+# sandbox do Âncora, e também o núcleo que o binário usa (rlib). O GTK é
+# dependência só do binário: medido em 2026-10-30, o .so sai ligado apenas a
+# libc, libgcc_s e ld-linux.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "remoteid"
+path = "src/main.rs"
+
+[dependencies]
+gtk = { package = "gtk4", version = "0.11", features = ["v4_18"] }
+adw = { package = "libadwaita", version = "0.9", features = ["v1_7"] }
 serde_json = "1"
 sha2 = "0.10"
-thiserror = "2"
+base64 = "0.23"
+rsa = { version = "0.9", features = ["sha2"] }
+serde = { version = "1", features = ["derive"] }
+rand = "0.8"
+ureq = "3"
+# A ABI do Cryptoki 2.40 (tipos e constantes, sem gerar nada no build) e a
+# leitura do X.509 do titular, de onde saem os atributos dos objetos do token.
 cryptoki-sys = "0.5"
+x509-cert = { version = "0.2", default-features = false, features = ["std"] }
 cms = { version = "0.2", default-features = false, features = ["alloc"] }
-der = "0.7"
-ureq = { version = "3", features = ["json"] }
-x509-cert = "0.2"
+# O `.p7s` (src/cades.rs) declara as estruturas da RFC 5035 com o derive do
+# der, que o x509-cert já traz.
+der = { version = "0.7", default-features = false, features = ["alloc", "derive", "oid"] }
+# Desligar o eco do terminal enquanto a pessoa digita o OTP e a senha.
+libc = "0.2"
+# O chaveiro do sistema, onde fica a senha da conta: o portal de segredos
+# dentro do Flatpak e, sem ele, o Secret Service pelo D-Bus. Com async-io em
+# vez de tokio, e o futures-lite só para esperar as chamadas.
+oo7 = { version = "0.6", default-features = false, features = ["async-std", "native_crypto"] }
+futures-lite = "2"
+async-io = "2"
+# Sem chaveiro, a senha da conta vai para um arquivo cifrado com um PIN
+# local (src/pin.rs): Argon2id para derivar a chave, ChaCha20-Poly1305 para
+# cifrar, e a senha aberta só em memória que se apaga.
+argon2 = "0.5"
+chacha20poly1305 = "0.10"
+zeroize = "1"
+
+# O Argon2id custa 64 MiB e três passadas por PIN: sem otimizar, cada teste
+# que abre o arquivo levaria segundos.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3
 
 [profile.release]
+lto = true
+codegen-units = 1
 strip = true

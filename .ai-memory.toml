@@ -1,0 +1,4 @@
+# Fixa o projeto da memória (ai-memory) em "remoteid", independente do nome
+# da pasta (certisigncloud-signer).
+workspace = "default"
+project = "remoteid"

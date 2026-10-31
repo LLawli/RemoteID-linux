@@ -1,0 +1,135 @@
+[
+  {
+    "bearer": "KXOGA0lrKpIEZuPAot5ffu8Re2KnpXkoA5YSpKC3NwSArtPnvQqLCJZAgnC30KHFVdWQunkx39NF5RcxzfdyJuAlA0yOp7A4yuEwllB/RSySMahl0+l/kOWcrmn4lQ4bfDQY/TsrGffiEz3Rd0VmH1OjrgaPxcQWYw3RDQJyNGNZIjkkbsLQn8oUHAb9ho8i8juNyWgmXixnFFFMdT6W5h2FlKn8faxViyYr7ZP9H5etPiNleKrKgqS0rwzTd1+GgMtrcR5bfCbKtTNufwdgoPrISgQ266XOJ+ki6ysGj2+D1LoW240+GCFGp381YHRGQ35onYCRbsr1hcSmFZtSjg==",
+    "canonica": "push",
+    "corpo": {
+      "push": true
+    }
+  },
+  {
+    "bearer": "M6sUrcuypUymbwovJazUtGvyuNzJ29KuS2IxD6AcY34xhcODKiwXX2BFSSPpN9D5qx7euSMZmytuNVPGSMio/48mOlPoZxLP0i7/+7R87f4fEZT5qr83m3vFAKWOhKtfrIm/kCSkWZm9pZd7heaCNf8TReT+WptVQ7v+hmmZLHSvGwoFaXn95bwviOGDUGpUW74IAsxLZcyYCvmcuTmNjEzRLP+QzbGI3LOO0UVkzEAyipjpMqZIwQGGYbtinNPrvG6fQMutvY2D1jP4v1h3RTgXAECAh3+LsmxEIRnyQ4/9s+nnhlDbwsaBU1XTN3y6e4J1CHTjIjjJnNdVyJr7Sg==",
+    "canonica": "",
+    "corpo": {
+      "otp": null,
+      "pin": "",
+      "push": false
+    }
+  },
+  {
+    "bearer": "Fbn8s9iD7AeqVc7CQDnWzNhDXUFHuPo4aZogwA75yo8qYZ7ZWiFc0ofCzaMEJwF99Nx4JwK/Wgb6dkWYNlH5b5KA5vLNJU0+SGmoGp1XbZ2osO+/PJ5wZrcdtCcDnD76EMe91smyptlyZHGK3BwiAZEV/pdio71/a5OiID7f/8sFeHYc+FDPoRSimUggZGXbz6AtOboE08MXu2WZGsw1I9Jv2hRJiHTn97mogu1HCYju0gPU5vb0oavGhLHnPAge2kyrs5V5GXix9/z3ZSY0NI4PsZ6nTL4coayudx8pYt4TF6R1qq7dGuKcrBTKc3gyrNIILjBuBTu+EsQdNif2zw==",
+    "canonica": "AMZ",
+    "corpo": {
+      "a": "A",
+      "m": "M",
+      "z": "Z"
+    }
+  },
+  {
+    "bearer": "lurLQLN16WGbshYKXtYmAVJtCy1gczeBwtq/OuEWbPSZpPxR4IH8WTNXK1wGYN1jUQxeRDkGIVQ4DSfDhMLxb+dgCKOApKpegUt+Gv/5tHvaXnpJwrL2uD//iz52KK82W4RmED8chdxrMIjydJOFjIbO0EamQMEDgJqcl0o11GA8kQls0kF4/Ed7FPII6DHJC57sz6BrwjNRERQ0Z+h4NGvGQ/GaQbdxA/doFDC7KfwBVTK7slbtZzZtky2q9uUaxcpT/09dxrt5C4MrQJ1/RELn/JnMSJ7Rw4lvqeYqd9graVNWNnxzQLAs8GOaih1BSFOlEd7XWCCQOzCzPAbiSw==",
+    "canonica": "DCCN=ACRemoteID-linuxpushSN",
+    "corpo": {
+      "desktopCode": "DC",
+      "issue": "CN=AC",
+      "nomeAplicacaoDesktop": "RemoteID-linux",
+      "otp": "",
+      "pin": "",
+      "push": true,
+      "serialNumber": "SN"
+    }
+  },
+  {
+    "bearer": "kvWO79Adc8vsNtoUxWh5E9vJLZiv4gJCtP2rAJdsuJYQ1kvy+Trt0nvwh1TJGrL6RFh5Y02kpNlqT8MfsmUJ0QwbfDgxSoiirvcFVNL/7Nx40+q9qoflnbbQPn+BQZXPeWSQ+MfaD2H96/jy969ElTbgz0CkX/DD38tglVsaJP32mb3+mwNcnmEhD+00+nSbU1I/+QLlgNHBkRdlg6DEM8PakHAIzDSQqrLtALWVK904Rk2cPUX4vmbRnM7rlYvnA1SuwMxrUiXKb+Y7+ytj7UJUD6rYeZSeV1d4u9UWXyGkcKLN5eANUZ5aYK1aDaTHKEHib6ELooZHNuAl4QuT6g==",
+    "canonica": "s1interno",
+    "corpo": {
+      "lista": [
+        true,
+        false,
+        null,
+        "s",
+        1,
+        {
+          "interno": true
+        }
+      ]
+    }
+  },
+  {
+    "bearer": "KN4vc9llCSlqnuF3SV89LNxojaJjBRlq0P7mq1XfkZ4IjYlYr9qWJASnjSFOR5A9B71MwJnzdldUWpNVpnm8SPBcz9Xp/QssJCndVt7HvF0tJyPOWLU2zti5+DWoeGG3O+SFvnF/ERmzU9NRROc4kODdTH8FfH5vLnTmwFnDrRYtpQuD390gdLWXsFly+zEHUYBRvSDAxNM0hz2Gmx85FRYJrNM6i/5l6uwzosz3fxkGeO+H3qHgN/2wCvI5Hd7x7oDzRwQvbNxeeTWULCIratPlI73tbwwY1tyZKqM+G5pcsnVwz4arn1wFVhPsLfMCplJzOnBllyu5qieUmGL7gQ==",
+    "canonica": "9223372036854775807184467440737095516150-421.5",
+    "corpo": {
+      "grande": 9223372036854775807,
+      "maior": 18446744073709551615,
+      "n": 0,
+      "negativo": -42,
+      "real": 1.5
+    }
+  },
+  {
+    "bearer": "J+RnSl48kytrel1bq5jVWBJL69oPfo/yMopqwVLCJmwfY5dcPtAgZfaPlEUE8Y1UPU3WyDk1ezdJSOcgb0Wx67ts2wh1SZVF6r7d+f1t7pB4FlMALd2S3zbcar9WBwU4TiImLUKu+fFgXd70U9BSwkacQIsZgvbfSLGKjt1fJRcHYa3pfKGVIYWFmwo3SS/kcli41RCb5J9Ib9O0AjaVcH/ilCVu7SlvtrWXfm/UVynH7CTBObuL6y0/EXZI0JrQBy6xp3ecgxXNZ/FhAnxHJuF0pzoEWRP1t9IgXrIP8A7cvuRjaWbHjYqRSu18b6NGDmfmMQJqOyUg7p3Sv3LV0g==",
+    "canonica": "númeromaiúsculasublinhadominúscula",
+    "corpo": {
+      "1": "número",
+      "Z": "maiúscula",
+      "_": "sublinhado",
+      "a": "minúscula"
+    }
+  },
+  {
+    "bearer": "YM+QT+QgvRmS6WxlMre7BxnX/AdHUK94LkSCDW2CfEVut9H/tUdWT0rvfUu4OTfLKubx5C4x2AKy4UoGgUWB6uiSbom8aaylHONayogDjKitGiuOJvIbSPLoKdjUsrdy2CilrJQJyE5GUMtlj0/hZiFKjJ5fX9TKHCJllKdNH9y0vftd4An7G/6Lc8BlbWBIxgad7cyNvpV1/Oo4W8H9AozVeyx7Z3RZ/8HwPA56EbOcQ6OkFfLFzO7/XF08CbZ/r14rTE86Xa4wPgBDCln1ChIysij9oA7entEoElED37ER11NeCWMJ/uaI0W0+ta8DP6y8LRmz500Yr7E5+b5n1g==",
+    "canonica": "semcedilhaacento",
+    "corpo": {
+      "e": "sem",
+      "ç": "cedilha",
+      "é": "acento"
+    }
+  },
+  {
+    "bearer": "ZuOAq0ZPAfdyduMZqE7MnT+87mSL9ochr2OLtkVdj7YuJ2c1dAy28afcge+aOYFyyCbCHpQp4FnXp6gmp+4IOzlsF8BsF87ncPQrV+W9k98jQZOJzP2JulNuRqWEKUv4dWgGZpOZHUR980gE4dHMmfu+jsELkriHXx7Fj+rgBNsKZMEmbaMxa8CHXNzREAwxajo2RPHNPcvKwEUotTWJmuF88x7AJ1h4mTGqy9Snc/RGSFSmWvEye1OB+rA3vvQkj6/rHuzpDUbZgtTvoHVsD+ZuSUQGgi9C1IwxHMkIY9MOPFVjKWCnzbaFaDl98Im4gDX3cACz2GdqU+amhF5svQ==",
+    "canonica": "fundoxc",
+    "corpo": {
+      "aninhado": {
+        "a": [
+          [
+            [
+              "fundo"
+            ]
+          ]
+        ],
+        "b": {
+          "a": "x",
+          "c": true
+        }
+      }
+    }
+  },
+  {
+    "bearer": "acvBkzD+J8OFRHlonbRm++S84JiS9vGeu+XSufCcRlOnJzbGBhIxHgw0RyM7fZiYPAQzfbnEVGUQBbo4Z55WLBtu/a1FDkBw9jD3TRhrERKQpBmyDfxczpOlVfy1aHn9Pvh/9T5ZmFLafEPHO6ES5dtrHKy7seCSIqDYuKTMpy4Wi34rpB4gVjEnp1c2si1uPBtQkGe3/Le9eTClWSHUTppI7NZMrkGZKYShNfEOFrk1KEaLVhSB05ezrSJEdZBs8TbrFNKgXVbe77t8UkJVB8Dl4ZLLFHD3iaI548l+mnnzmnf9OQYxaCAF9ASQhJ2R7zurRNOq6uvG92/IwYx/4Q==",
+    "canonica": "topok",
+    "corpo": [
+      "topo",
+      true,
+      {
+        "k": true
+      }
+    ]
+  },
+  {
+    "bearer": "YYAXdcwM1ILRhuVM2fhBIp33ZDgS8gcVGdeOz0Ddd17W13NjZdtjDx86SoEgeKbAfT0k/WMZtY+9+6F4Q+nzmfltogE3Q1jQKBVkqqxfF7jYaumiTTOKWHWbax65X4+HgWlwtl3VDi18F/evX3q5WnAR6OqphluH1qL4acXCcO+Lsdhyx8C1bK1rU1qQcBj8IhZH45gaTVTPgYBwW/F6hFi8SkTVaI6qLWF06+GeB0oKTh3AwGLFki+c0/73ge9s8fjFKlEfsYGgqVfB+8KQwVI2qSR1smAWT+3eJ6WTP2xKQte+GBRAwnEhVkez5ndlfuzaVRg5ygcrfcRttfzSig==",
+    "canonica": "só uma string",
+    "corpo": "só uma string"
+  },
+  {
+    "bearer": "M6sUrcuypUymbwovJazUtGvyuNzJ29KuS2IxD6AcY34xhcODKiwXX2BFSSPpN9D5qx7euSMZmytuNVPGSMio/48mOlPoZxLP0i7/+7R87f4fEZT5qr83m3vFAKWOhKtfrIm/kCSkWZm9pZd7heaCNf8TReT+WptVQ7v+hmmZLHSvGwoFaXn95bwviOGDUGpUW74IAsxLZcyYCvmcuTmNjEzRLP+QzbGI3LOO0UVkzEAyipjpMqZIwQGGYbtinNPrvG6fQMutvY2D1jP4v1h3RTgXAECAh3+LsmxEIRnyQ4/9s+nnhlDbwsaBU1XTN3y6e4J1CHTjIjjJnNdVyJr7Sg==",
+    "canonica": "",
+    "corpo": null
+  },
+  {
+    "bearer": "gldpy15qZFmifreSL9sLvX5TilWLfrtKYEfxnMXKVNyIJj210j/jwOSc2QIwHWV1PhMOKcuHR2DOULK8hBddTO9PtJ6y40NkTPcLBdrSpwSKVCT6LJZL1EuvC21KglvJnyaith6hiezaIdZ4X9gkrveekD1itfRAHl5Zf1t6OzbRkX6fSHNtt+BZ52QtUyTq9VuwGvOoTaMFRuUC4fHuJS61HDP0/e1bDeeJY52MoNP3e3Lh/dJp3bHHb9qXvBdAYuw8VWgOMVbLE/cFrSgLsaGsh0xVll1N0hwEdACf3wAG0zwVSAFzliWnd1Mq6lVSEhznHl+AgFc0/PzRpQBGlQ==",
+    "canonica": "\"aspas\" \\ \n",
+    "corpo": {
+      "lista_vazia": [],
+      "texto": "\"aspas\" \\ \n",
+      "vazio": {}
+    }
+  }
+]

@@ -1,0 +1,555 @@
+[
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "senha inv",
+    "origem": "Usuario",
+    "regra": "senha inv"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "SENHA INV",
+    "origem": "Usuario",
+    "regra": "senha inv"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes senha inv depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Usuario",
+    "regra": "senha inv"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "usuariosenhainvalido",
+    "origem": "Usuario",
+    "regra": "usuariosenhainvalido"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "USUARIOSENHAINVALIDO",
+    "origem": "Usuario",
+    "regra": "usuariosenhainvalido"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes usuariosenhainvalido depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Usuario",
+    "regra": "usuariosenhainvalido"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "pin ou e-token incorreto",
+    "origem": "Usuario",
+    "regra": "pin ou e-token incorreto"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "PIN OU E-TOKEN INCORRETO",
+    "origem": "Usuario",
+    "regra": "pin ou e-token incorreto"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes pin ou e-token incorreto depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Usuario",
+    "regra": "pin ou e-token incorreto"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "informe o pin",
+    "origem": "Usuario",
+    "regra": "informe o pin"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "INFORME O PIN",
+    "origem": "Usuario",
+    "regra": "informe o pin"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes informe o pin depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Usuario",
+    "regra": "informe o pin"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "e-token",
+    "origem": "Usuario",
+    "regra": "e-token"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "E-TOKEN",
+    "origem": "Usuario",
+    "regra": "e-token"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes e-token depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Usuario",
+    "regra": "e-token"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": true,
+    "mensagem": "não existe autorização válida",
+    "origem": "Usuario",
+    "regra": "não existe autorização válida"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": true,
+    "mensagem": "NÃO EXISTE AUTORIZAÇÃO VÁLIDA",
+    "origem": "Usuario",
+    "regra": "não existe autorização válida"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes não existe autorização válida depois\"}",
+    "falha_de_sessao": true,
+    "mensagem": "",
+    "origem": "Usuario",
+    "regra": "não existe autorização válida"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "código de autorização inválida",
+    "origem": "Usuario",
+    "regra": "código de autorização inválida"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "CÓDIGO DE AUTORIZAÇÃO INVÁLIDA",
+    "origem": "Usuario",
+    "regra": "código de autorização inválida"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes código de autorização inválida depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Usuario",
+    "regra": "código de autorização inválida"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "tempo esgotado",
+    "origem": "Usuario",
+    "regra": "tempo esgotado"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "TEMPO ESGOTADO",
+    "origem": "Usuario",
+    "regra": "tempo esgotado"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes tempo esgotado depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Usuario",
+    "regra": "tempo esgotado"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "sem chave pública",
+    "origem": "Cliente",
+    "regra": "sem chave pública"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "SEM CHAVE PÚBLICA",
+    "origem": "Cliente",
+    "regra": "sem chave pública"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes sem chave pública depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Cliente",
+    "regra": "sem chave pública"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "domainnameleftblank",
+    "origem": "Cliente",
+    "regra": "domainnameleftblank"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "DOMAINNAMELEFTBLANK",
+    "origem": "Cliente",
+    "regra": "domainnameleftblank"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes domainnameleftblank depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Cliente",
+    "regra": "domainnameleftblank"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "não suportado",
+    "origem": "Cliente",
+    "regra": "não suportado"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "NÃO SUPORTADO",
+    "origem": "Cliente",
+    "regra": "não suportado"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes não suportado depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Cliente",
+    "regra": "não suportado"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "constraintviolation",
+    "origem": "Cliente",
+    "regra": "constraintviolation"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "CONSTRAINTVIOLATION",
+    "origem": "Cliente",
+    "regra": "constraintviolation"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes constraintviolation depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Cliente",
+    "regra": "constraintviolation"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "could not execute statement",
+    "origem": "Cliente",
+    "regra": "could not execute statement"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "COULD NOT EXECUTE STATEMENT",
+    "origem": "Cliente",
+    "regra": "could not execute statement"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes could not execute statement depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Cliente",
+    "regra": "could not execute statement"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "dataintegrityviolation",
+    "origem": "Cliente",
+    "regra": "dataintegrityviolation"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "DATAINTEGRITYVIOLATION",
+    "origem": "Cliente",
+    "regra": "dataintegrityviolation"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes dataintegrityviolation depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Cliente",
+    "regra": "dataintegrityviolation"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "illegal base64",
+    "origem": "Cliente",
+    "regra": "illegal base64"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "ILLEGAL BASE64",
+    "origem": "Cliente",
+    "regra": "illegal base64"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes illegal base64 depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Cliente",
+    "regra": "illegal base64"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "apns",
+    "origem": "Servidor",
+    "regra": "apns"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "APNS",
+    "origem": "Servidor",
+    "regra": "apns"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes apns depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Servidor",
+    "regra": "apns"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "erro ao enviar push",
+    "origem": "Servidor",
+    "regra": "erro ao enviar push"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "ERRO AO ENVIAR PUSH",
+    "origem": "Servidor",
+    "regra": "erro ao enviar push"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes erro ao enviar push depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Servidor",
+    "regra": "erro ao enviar push"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "offline",
+    "origem": "Servidor",
+    "regra": "offline"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "OFFLINE",
+    "origem": "Servidor",
+    "regra": "offline"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes offline depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Servidor",
+    "regra": "offline"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "internal server error",
+    "origem": "Servidor",
+    "regra": "internal server error"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "INTERNAL SERVER ERROR",
+    "origem": "Servidor",
+    "regra": "internal server error"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes internal server error depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Servidor",
+    "regra": "internal server error"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "problema ao criar",
+    "origem": "Servidor",
+    "regra": "problema ao criar"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "PROBLEMA AO CRIAR",
+    "origem": "Servidor",
+    "regra": "problema ao criar"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes problema ao criar depois\"}",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Servidor",
+    "regra": "problema ao criar"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": true,
+    "mensagem": "abertura de sessão não realizada",
+    "origem": "Servidor",
+    "regra": "abertura de sessão não realizada"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": true,
+    "mensagem": "ABERTURA DE SESSÃO NÃO REALIZADA",
+    "origem": "Servidor",
+    "regra": "abertura de sessão não realizada"
+  },
+  {
+    "corpo": "{\"detalhe\":\"antes abertura de sessão não realizada depois\"}",
+    "falha_de_sessao": true,
+    "mensagem": "",
+    "origem": "Servidor",
+    "regra": "abertura de sessão não realizada"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "PIN ou e-Token incorreto",
+    "origem": "Usuario",
+    "regra": "pin ou e-token incorreto"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "Informe o e-Token(Otp)",
+    "origem": "Usuario",
+    "regra": "e-token"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": true,
+    "mensagem": "Não existe autorização válida para este token",
+    "origem": "Usuario",
+    "regra": "não existe autorização válida"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": true,
+    "mensagem": "Token expirado",
+    "origem": "Desconhecida",
+    "regra": null
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": true,
+    "mensagem": "Sessão inválida",
+    "origem": "Desconhecida",
+    "regra": null
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": true,
+    "mensagem": "session timeout",
+    "origem": "Desconhecida",
+    "regra": null
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "Erro ao gerar assinatura RSA.",
+    "origem": "Desconhecida",
+    "regra": null
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "Erro ao gerar assinatura RSA.Invalid input data size.(1011)",
+    "origem": "Desconhecida",
+    "regra": null
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "Error sending apns server",
+    "origem": "Servidor",
+    "regra": "apns"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "bloop",
+    "origem": "Desconhecida",
+    "regra": null
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": false,
+    "mensagem": "",
+    "origem": "Desconhecida",
+    "regra": null
+  },
+  {
+    "corpo": "{\"session\":\"x\"}",
+    "falha_de_sessao": true,
+    "mensagem": "Senha inválida",
+    "origem": "Usuario",
+    "regra": "senha inv"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": true,
+    "mensagem": "ÁÉÍ não existe autorização válida",
+    "origem": "Usuario",
+    "regra": "não existe autorização válida"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": true,
+    "mensagem": "NÃO EXISTE AUTORIZAÇÃO VÁLIDA",
+    "origem": "Usuario",
+    "regra": "não existe autorização válida"
+  },
+  {
+    "corpo": "",
+    "falha_de_sessao": true,
+    "mensagem": "token inválido",
+    "origem": "Desconhecida",
+    "regra": null
+  },
+  {
+    "corpo": "<html>Internal Server Error</html>",
+    "falha_de_sessao": false,
+    "mensagem": "HTTP 500",
+    "origem": "Servidor",
+    "regra": "internal server error"
+  }
+]

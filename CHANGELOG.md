@@ -1,16 +1,60 @@
 # Changelog
 
-Todas as mudanças relevantes deste projeto são registradas aqui.
+Todas as mudanças visíveis para quem usa ficam aqui. O formato segue o
+[Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e o projeto usa
+[versionamento semântico](https://semver.org/lang/pt-BR/).
 
-O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
-e a numeração segue o [Versionamento Semântico](https://semver.org/lang/pt-BR/).
+## [Unreleased]
 
-O fluxo de release lê deste arquivo: ao empurrar uma tag `vX.Y.Z`, a seção
-`[X.Y.Z]` daqui vira o corpo da release no GitHub. Uma tag sem a seção
-correspondente faz o release falhar de propósito — release sem nota é release
-que ninguém sabe o que mudou.
+### Adicionado
 
-## [Não publicado]
+- A extensão `dev.lukakuuhaku.Ancora.Driver.RemoteID` do Âncora, com a janela
+  do RemoteID e o módulo PKCS#11.
+- O módulo PKCS#11 assina sozinho, com só o serviço do Âncora no ar: mostra o
+  certificado da carteira como token e, quando a sessão em cache não vale
+  mais, abre uma janela que pede o código do autenticador.
+- O token traz a cadeia de autoridades do certificado, baixada do
+  `caIssuers`, para os assinadores que montam a cadeia pelo token.
+- Um navegador aberto vê o certificado quando a conta é preparada ou trocada,
+  sem precisar ser reiniciado.
+- `remoteid entrar <email>` entra na conta, registra a máquina e baixa a
+  carteira, com a senha pelo stdin.
+- `remoteid assinar` assina o que chega pela entrada padrão e devolve um
+  `.p7s` na política AD-RB da ICP-Brasil (destacado, ou com `--anexar` o
+  documento dentro), ou com `--cru` só a assinatura RSA. O código do
+  autenticador é pedido na mesma janela do módulo, ou no terminal quando o
+  programa roda fora do Flatpak.
+- `remoteid harness` testa o fluxo com a conta entrada e grava um relatório
+  sem senha, PIN, OTP nem o titular.
+- A janela do RemoteID: entrar na conta, o certificado que assina como um
+  cartão com o estado da sessão (aberta até que horas, ou pedindo o código),
+  trocar de certificado passando o cartão, detalhes com a cadeia e a conta,
+  reautorizar e sair, com "Desfazer". Acompanha as assinaturas feitas com ela
+  aberta.
+- A senha da conta fica no chaveiro do sistema: a assinatura pede só o código
+  do autenticador. Sem chaveiro, a senha fica cifrada no computador com um PIN
+  de 4 a 6 dígitos, criado ao entrar e pedido uma vez por aplicativo aberto;
+  cinco PINs errados seguidos apagam a senha e saem da conta.
+
+### Mudado
+
+- O RemoteID deixa de ter instalador próprio: é uma extensão do Âncora, e o
+  módulo PKCS#11 é publicado pelo Âncora para os navegadores e aplicativos.
+  Quem tem a v0.3.2 instalada a desfaz antes (ver o README); a conta é
+  entrada de novo.
+- O `.p7s` passa a seguir a política AD-RB v2.4 da ICP-Brasil, com o
+  identificador da política que a v0.3.2 não punha.
+- O "PIN" que a assinatura pedia era a senha da conta: agora ela fica guardada,
+  e só o código do autenticador é pedido.
+
+### Removido
+
+- O instalador (`install.sh`, `instalar.sh`, `desinstalar.sh`), o daemon e os
+  comandos `remoteid estado`, `conectividade`, `login`, `registrar`,
+  `carteira`, `celular`, `preparar`, `modo`, `chave-publica` e `diagnostico`:
+  a janela e o `remoteid entrar` fazem a preparação, e o diagnóstico fica no
+  `remoteid harness`.
+- A aprovação pelo celular (push), que nunca passou por uma conta real.
 
 ## [0.3.2] - 2026-10-08
 

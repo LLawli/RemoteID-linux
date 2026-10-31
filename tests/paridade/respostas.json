@@ -1,0 +1,1875 @@
+[
+  {
+    "caso": "completo",
+    "corpo": "{\"cpf\":\"00000000000\",\"id\":327989,\"nome\":\"Titular Sintético\",\"organizacaoId\":7,\"token\":\"jwt.a.b\"}",
+    "endpoint": "login",
+    "esperado": {
+      "ok": {
+        "cpf": "00000000000",
+        "id": 327989,
+        "nome": "Titular Sintético",
+        "organizacao_id": 7,
+        "token": "jwt.a.b"
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "sem organização nem nome",
+    "corpo": "{\"token\":\"t\",\"id\":1}",
+    "endpoint": "login",
+    "esperado": {
+      "ok": {
+        "cpf": null,
+        "id": 1,
+        "nome": null,
+        "organizacao_id": null,
+        "token": "t"
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "id como string",
+    "corpo": "{\"token\":\"t\",\"id\":\"327989\",\"organizacaoId\":\"7\"}",
+    "endpoint": "login",
+    "esperado": {
+      "ok": {
+        "cpf": null,
+        "id": null,
+        "nome": null,
+        "organizacao_id": null,
+        "token": "t"
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "nome e cpf nulos",
+    "corpo": "{\"token\":\"t\",\"id\":1,\"nome\":null,\"cpf\":null}",
+    "endpoint": "login",
+    "esperado": {
+      "ok": {
+        "cpf": null,
+        "id": 1,
+        "nome": null,
+        "organizacao_id": null,
+        "token": "t"
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "sem token",
+    "corpo": "{\"id\":1}",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "login sem o campo `token` na resposta"
+    },
+    "http": 200
+  },
+  {
+    "caso": "token número",
+    "corpo": "{\"token\":5,\"id\":1}",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "login sem o campo `token` na resposta"
+    },
+    "http": 200
+  },
+  {
+    "caso": "token vazio",
+    "corpo": "{\"token\":\"\",\"id\":1}",
+    "endpoint": "login",
+    "esperado": {
+      "ok": {
+        "cpf": null,
+        "id": 1,
+        "nome": null,
+        "organizacao_id": null,
+        "token": ""
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "erro de senha",
+    "corpo": "{\"message\":\"Usuário ou senha inválidos\"}",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "servidor",
+      "http": 401,
+      "mensagem": "Usuário ou senha inválidos",
+      "origem": "Usuario",
+      "regra": "senha inv"
+    },
+    "http": 401
+  },
+  {
+    "caso": "com código",
+    "corpo": "{\"codigoDesktop\":\"4d1f71d2-c20b\"}",
+    "endpoint": "registrar",
+    "esperado": {
+      "ok": {
+        "codigo_desktop": "4d1f71d2-c20b"
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "sem código",
+    "corpo": "{\"id\":3}",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "registro sem `codigoDesktop` na resposta"
+    },
+    "http": 200
+  },
+  {
+    "caso": "código número",
+    "corpo": "{\"codigoDesktop\":12}",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "registro sem `codigoDesktop` na resposta"
+    },
+    "http": 200
+  },
+  {
+    "caso": "constraint",
+    "corpo": "{\"message\":\"could not execute statement; ConstraintViolation\"}",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "servidor",
+      "http": 500,
+      "mensagem": "could not execute statement; ConstraintViolation",
+      "origem": "Cliente",
+      "regra": "constraintviolation"
+    },
+    "http": 500
+  },
+  {
+    "caso": "true",
+    "corpo": "{\"usuarioPossuiCodigoPush\":true}",
+    "endpoint": "status_celular",
+    "esperado": {
+      "ok": {
+        "usuario_possui_codigo_push": true
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "false",
+    "corpo": "{\"status\":true,\"usuarioPossuiCodigoPush\":false}",
+    "endpoint": "status_celular",
+    "esperado": {
+      "ok": {
+        "usuario_possui_codigo_push": false
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "ausente",
+    "corpo": "{\"status\":true}",
+    "endpoint": "status_celular",
+    "esperado": {
+      "ok": {
+        "usuario_possui_codigo_push": false
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "string true",
+    "corpo": "{\"usuarioPossuiCodigoPush\":\"true\"}",
+    "endpoint": "status_celular",
+    "esperado": {
+      "ok": {
+        "usuario_possui_codigo_push": false
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "dois certificados",
+    "corpo": "{\"certificados\":[{\"base64\":\"MIIBsintetico\",\"keyName\":\"1A2B3C4D5E6F;CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR\"},{\"base64\":null,\"keyName\":\"FF00;CN=Outra AC\"}],\"status\":true}",
+    "endpoint": "carteira",
+    "esperado": {
+      "ok": {
+        "certificados": [
+          {
+            "base64": "MIIBsintetico",
+            "issue": "CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR",
+            "key_name": "1A2B3C4D5E6F;CN=AC Teste Sintética G5,OU=Autoridade,O=ICP-Brasil,C=BR",
+            "serial_number": "1A2B3C4D5E6F"
+          },
+          {
+            "base64": null,
+            "issue": "CN=Outra AC",
+            "key_name": "FF00;CN=Outra AC",
+            "serial_number": "FF00"
+          }
+        ]
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "item sem keyName é pulado",
+    "corpo": "{\"certificados\":[{\"base64\":\"x\"},{\"keyName\":\"A;B\"}]}",
+    "endpoint": "carteira",
+    "esperado": {
+      "ok": {
+        "certificados": [
+          {
+            "base64": null,
+            "issue": "B",
+            "key_name": "A;B",
+            "serial_number": "A"
+          }
+        ]
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "nenhum utilizável",
+    "corpo": "{\"certificados\":[{\"base64\":\"x\"}]}",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "a carteira veio sem nenhum certificado utilizável (sem `keyName`)"
+    },
+    "http": 200
+  },
+  {
+    "caso": "vazia",
+    "corpo": "{\"certificados\":[]}",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "a carteira veio sem nenhum certificado utilizável (sem `keyName`)"
+    },
+    "http": 200
+  },
+  {
+    "caso": "keyName sem ponto e vírgula",
+    "corpo": "{\"certificados\":[{\"keyName\":\"semseparador\"}]}",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "keyName sem ';' (esperado '<serial>;<issuer>'): semseparador"
+    },
+    "http": 200
+  },
+  {
+    "caso": "keyName com vários",
+    "corpo": "{\"certificados\":[{\"keyName\":\"S;CN=A;OU=b\"}]}",
+    "endpoint": "carteira",
+    "esperado": {
+      "ok": {
+        "certificados": [
+          {
+            "base64": null,
+            "issue": "CN=A;OU=b",
+            "key_name": "S;CN=A;OU=b",
+            "serial_number": "S"
+          }
+        ]
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "keyName número",
+    "corpo": "{\"certificados\":[{\"keyName\":1},{\"keyName\":\"A;B\"}]}",
+    "endpoint": "carteira",
+    "esperado": {
+      "ok": {
+        "certificados": [
+          {
+            "base64": null,
+            "issue": "B",
+            "key_name": "A;B",
+            "serial_number": "A"
+          }
+        ]
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "certificados não é lista",
+    "corpo": "{\"certificados\":{}}",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "carteira sem a lista `certificados`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "sem certificados",
+    "corpo": "{\"status\":true}",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "carteira sem a lista `certificados`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "base64 número",
+    "corpo": "{\"certificados\":[{\"keyName\":\"A;B\",\"base64\":3}]}",
+    "endpoint": "carteira",
+    "esperado": {
+      "ok": {
+        "certificados": [
+          {
+            "base64": null,
+            "issue": "B",
+            "key_name": "A;B",
+            "serial_number": "A"
+          }
+        ]
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "com token",
+    "corpo": "{\"status\":true,\"message\":\"ok\",\"token\":\"sessaoAssinatura;1;2\"}",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "ok": {
+        "token": "sessaoAssinatura;1;2"
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "token vazio",
+    "corpo": "{\"status\":true,\"token\":\"\"}",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "tokensessao respondeu sucesso mas sem `token`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "token nulo",
+    "corpo": "{\"status\":true,\"token\":null}",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "tokensessao respondeu sucesso mas sem `token`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "sem token",
+    "corpo": "{\"status\":true}",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "tokensessao respondeu sucesso mas sem `token`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "não existe autorização",
+    "corpo": "{\"status\":false,\"message\":\"Não existe autorização válida para este token\"}",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Não existe autorização válida para este token",
+      "origem": "Usuario",
+      "regra": "não existe autorização válida"
+    },
+    "http": 200
+  },
+  {
+    "caso": "assinado",
+    "corpo": "{\"status\":true,\"idArray\":[{\"id\":\"0\",\"status\":true,\"signatureBase64\":\"c2luYXR1cmE=\"}]}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "ok": {
+        "assinatura_b64": "c2luYXR1cmE="
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "base64 com espaços",
+    "corpo": "{\"idArray\":[{\"id\":\"0\",\"signatureBase64\":\"  c2luYXR1cmE=\\n\"}]}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "ok": {
+        "assinatura_b64": "c2luYXR1cmE="
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "base64 inválido",
+    "corpo": "{\"idArray\":[{\"signatureBase64\":\"@@@\"}]}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "cripto"
+    },
+    "http": 200
+  },
+  {
+    "caso": "item recusado",
+    "corpo": "{\"status\":true,\"idArray\":[{\"id\":\"0\",\"status\":false,\"message\":\"Erro no HSM\"}]}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "o HSM recusou o hash: Erro no HSM"
+    },
+    "http": 200
+  },
+  {
+    "caso": "item recusado sem mensagem",
+    "corpo": "{\"idArray\":[{\"status\":false}]}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "o HSM recusou o hash: sem detalhe"
+    },
+    "http": 200
+  },
+  {
+    "caso": "item com status string",
+    "corpo": "{\"idArray\":[{\"status\":\"false\",\"signatureBase64\":\"AAAA\"}]}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "ok": {
+        "assinatura_b64": "AAAA"
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "sem signatureBase64",
+    "corpo": "{\"idArray\":[{\"status\":true}]}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "requestHash sem `signatureBase64`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "idArray vazio",
+    "corpo": "{\"status\":true,\"idArray\":[]}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "requestHash sem `idArray`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "idArray nulo",
+    "corpo": "{\"status\":true,\"idArray\":null}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "requestHash sem `idArray`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "vários itens usa o primeiro",
+    "corpo": "{\"idArray\":[{\"signatureBase64\":\"AQID\"},{\"signatureBase64\":\"BAUG\"}]}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "ok": {
+        "assinatura_b64": "AQID"
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "recusa do topo com nulos",
+    "corpo": "{\"certificate\":null,\"idArray\":null,\"message\":\"Erro ao gerar assinatura RSA.\",\"status\":false}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Erro ao gerar assinatura RSA.",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 200
+  },
+  {
+    "caso": "200 com status false",
+    "corpo": "{\"status\":false,\"message\":\"Informe o Pin\",\"token\":null}",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Informe o Pin",
+      "origem": "Usuario",
+      "regra": "informe o pin"
+    },
+    "http": 200
+  },
+  {
+    "caso": "status como string false",
+    "corpo": "{\"status\":\"false\",\"message\":\"Informe o e-Token(Otp)\"}",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Informe o e-Token(Otp)",
+      "origem": "Usuario",
+      "regra": "e-token"
+    },
+    "http": 200
+  },
+  {
+    "caso": "status FALSE maiúsculo",
+    "corpo": "{\"status\":\"FALSE\",\"message\":\"x\"}",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "x",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 200
+  },
+  {
+    "caso": "mensagem em mensagem",
+    "corpo": "{\"status\":false,\"mensagem\":\"Tempo esgotado\"}",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Tempo esgotado",
+      "origem": "Usuario",
+      "regra": "tempo esgotado"
+    },
+    "http": 200
+  },
+  {
+    "caso": "mensagem em error",
+    "corpo": "{\"status\":false,\"error\":\"Service OFFLINE\"}",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Service OFFLINE",
+      "origem": "Servidor",
+      "regra": "offline"
+    },
+    "http": 200
+  },
+  {
+    "caso": "mensagem em exception",
+    "corpo": "{\"exception\":\"UsuarioSenhaInvalidoException\"}",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "servidor",
+      "http": 500,
+      "mensagem": "UsuarioSenhaInvalidoException",
+      "origem": "Usuario",
+      "regra": "usuariosenhainvalido"
+    },
+    "http": 500
+  },
+  {
+    "caso": "message vazia cai em HTTP",
+    "corpo": "{\"status\":false,\"message\":\"\"}",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "HTTP 200",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 200
+  },
+  {
+    "caso": "message tem prioridade",
+    "corpo": "{\"message\":\"m\",\"mensagem\":\"n\",\"error\":\"e\"}",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "servidor",
+      "http": 400,
+      "mensagem": "m",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 400
+  },
+  {
+    "caso": "HTTP 401 sem corpo",
+    "corpo": "",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "servidor",
+      "http": 401,
+      "mensagem": "HTTP 401",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 401
+  },
+  {
+    "caso": "HTTP 500 com corpo conhecido",
+    "corpo": "{\"message\":\"Internal Server Error\"}",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "servidor",
+      "http": 500,
+      "mensagem": "Internal Server Error",
+      "origem": "Servidor",
+      "regra": "internal server error"
+    },
+    "http": 500
+  },
+  {
+    "caso": "HTML do gateway",
+    "corpo": "<html><body>Bad Gateway</body></html>",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "nao_json",
+      "http": 502,
+      "trecho": "<html><body>Bad Gateway</body></html>"
+    },
+    "http": 502
+  },
+  {
+    "caso": "corpo vazio com 200",
+    "corpo": "",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "login sem o campo `token` na resposta"
+    },
+    "http": 200
+  },
+  {
+    "caso": "corpo só espaços",
+    "corpo": "   \n",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "login sem o campo `token` na resposta"
+    },
+    "http": 200
+  },
+  {
+    "caso": "JSON truncado",
+    "corpo": "{\"status\":tr",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "nao_json",
+      "http": 200,
+      "trecho": "{\"status\":tr"
+    },
+    "http": 200
+  },
+  {
+    "caso": "recusa de fator de campo",
+    "corpo": "{\"message\":\"PIN ou e-Token incorreto\",\"status\":false,\"token\":null}",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "PIN ou e-Token incorreto",
+      "origem": "Usuario",
+      "regra": "pin ou e-token incorreto"
+    },
+    "http": 200
+  },
+  {
+    "caso": "corpo longo não-JSON",
+    "corpo": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "nao_json",
+      "http": 503,
+      "trecho": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    "http": 503
+  },
+  {
+    "caso": "status null passa",
+    "corpo": "{\"status\":null}",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "login sem o campo `token` na resposta"
+    },
+    "http": 200
+  },
+  {
+    "caso": "status número passa",
+    "corpo": "{\"status\":0}",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "login sem o campo `token` na resposta"
+    },
+    "http": 200
+  },
+  {
+    "caso": "array no topo",
+    "corpo": "[]",
+    "endpoint": "login",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "login sem o campo `token` na resposta"
+    },
+    "http": 200
+  },
+  {
+    "caso": "200 com status false",
+    "corpo": "{\"status\":false,\"message\":\"Informe o Pin\",\"token\":null}",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Informe o Pin",
+      "origem": "Usuario",
+      "regra": "informe o pin"
+    },
+    "http": 200
+  },
+  {
+    "caso": "status como string false",
+    "corpo": "{\"status\":\"false\",\"message\":\"Informe o e-Token(Otp)\"}",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Informe o e-Token(Otp)",
+      "origem": "Usuario",
+      "regra": "e-token"
+    },
+    "http": 200
+  },
+  {
+    "caso": "status FALSE maiúsculo",
+    "corpo": "{\"status\":\"FALSE\",\"message\":\"x\"}",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "x",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 200
+  },
+  {
+    "caso": "mensagem em mensagem",
+    "corpo": "{\"status\":false,\"mensagem\":\"Tempo esgotado\"}",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Tempo esgotado",
+      "origem": "Usuario",
+      "regra": "tempo esgotado"
+    },
+    "http": 200
+  },
+  {
+    "caso": "mensagem em error",
+    "corpo": "{\"status\":false,\"error\":\"Service OFFLINE\"}",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Service OFFLINE",
+      "origem": "Servidor",
+      "regra": "offline"
+    },
+    "http": 200
+  },
+  {
+    "caso": "mensagem em exception",
+    "corpo": "{\"exception\":\"UsuarioSenhaInvalidoException\"}",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "servidor",
+      "http": 500,
+      "mensagem": "UsuarioSenhaInvalidoException",
+      "origem": "Usuario",
+      "regra": "usuariosenhainvalido"
+    },
+    "http": 500
+  },
+  {
+    "caso": "message vazia cai em HTTP",
+    "corpo": "{\"status\":false,\"message\":\"\"}",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "HTTP 200",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 200
+  },
+  {
+    "caso": "message tem prioridade",
+    "corpo": "{\"message\":\"m\",\"mensagem\":\"n\",\"error\":\"e\"}",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "servidor",
+      "http": 400,
+      "mensagem": "m",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 400
+  },
+  {
+    "caso": "HTTP 401 sem corpo",
+    "corpo": "",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "servidor",
+      "http": 401,
+      "mensagem": "HTTP 401",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 401
+  },
+  {
+    "caso": "HTTP 500 com corpo conhecido",
+    "corpo": "{\"message\":\"Internal Server Error\"}",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "servidor",
+      "http": 500,
+      "mensagem": "Internal Server Error",
+      "origem": "Servidor",
+      "regra": "internal server error"
+    },
+    "http": 500
+  },
+  {
+    "caso": "HTML do gateway",
+    "corpo": "<html><body>Bad Gateway</body></html>",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "nao_json",
+      "http": 502,
+      "trecho": "<html><body>Bad Gateway</body></html>"
+    },
+    "http": 502
+  },
+  {
+    "caso": "corpo vazio com 200",
+    "corpo": "",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "registro sem `codigoDesktop` na resposta"
+    },
+    "http": 200
+  },
+  {
+    "caso": "corpo só espaços",
+    "corpo": "   \n",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "registro sem `codigoDesktop` na resposta"
+    },
+    "http": 200
+  },
+  {
+    "caso": "JSON truncado",
+    "corpo": "{\"status\":tr",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "nao_json",
+      "http": 200,
+      "trecho": "{\"status\":tr"
+    },
+    "http": 200
+  },
+  {
+    "caso": "recusa de fator de campo",
+    "corpo": "{\"message\":\"PIN ou e-Token incorreto\",\"status\":false,\"token\":null}",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "PIN ou e-Token incorreto",
+      "origem": "Usuario",
+      "regra": "pin ou e-token incorreto"
+    },
+    "http": 200
+  },
+  {
+    "caso": "corpo longo não-JSON",
+    "corpo": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "nao_json",
+      "http": 503,
+      "trecho": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    "http": 503
+  },
+  {
+    "caso": "status null passa",
+    "corpo": "{\"status\":null}",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "registro sem `codigoDesktop` na resposta"
+    },
+    "http": 200
+  },
+  {
+    "caso": "status número passa",
+    "corpo": "{\"status\":0}",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "registro sem `codigoDesktop` na resposta"
+    },
+    "http": 200
+  },
+  {
+    "caso": "array no topo",
+    "corpo": "[]",
+    "endpoint": "registrar",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "registro sem `codigoDesktop` na resposta"
+    },
+    "http": 200
+  },
+  {
+    "caso": "200 com status false",
+    "corpo": "{\"status\":false,\"message\":\"Informe o Pin\",\"token\":null}",
+    "endpoint": "status_celular",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Informe o Pin",
+      "origem": "Usuario",
+      "regra": "informe o pin"
+    },
+    "http": 200
+  },
+  {
+    "caso": "status como string false",
+    "corpo": "{\"status\":\"false\",\"message\":\"Informe o e-Token(Otp)\"}",
+    "endpoint": "status_celular",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Informe o e-Token(Otp)",
+      "origem": "Usuario",
+      "regra": "e-token"
+    },
+    "http": 200
+  },
+  {
+    "caso": "status FALSE maiúsculo",
+    "corpo": "{\"status\":\"FALSE\",\"message\":\"x\"}",
+    "endpoint": "status_celular",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "x",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 200
+  },
+  {
+    "caso": "mensagem em mensagem",
+    "corpo": "{\"status\":false,\"mensagem\":\"Tempo esgotado\"}",
+    "endpoint": "status_celular",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Tempo esgotado",
+      "origem": "Usuario",
+      "regra": "tempo esgotado"
+    },
+    "http": 200
+  },
+  {
+    "caso": "mensagem em error",
+    "corpo": "{\"status\":false,\"error\":\"Service OFFLINE\"}",
+    "endpoint": "status_celular",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Service OFFLINE",
+      "origem": "Servidor",
+      "regra": "offline"
+    },
+    "http": 200
+  },
+  {
+    "caso": "mensagem em exception",
+    "corpo": "{\"exception\":\"UsuarioSenhaInvalidoException\"}",
+    "endpoint": "status_celular",
+    "esperado": {
+      "erro": "servidor",
+      "http": 500,
+      "mensagem": "UsuarioSenhaInvalidoException",
+      "origem": "Usuario",
+      "regra": "usuariosenhainvalido"
+    },
+    "http": 500
+  },
+  {
+    "caso": "message vazia cai em HTTP",
+    "corpo": "{\"status\":false,\"message\":\"\"}",
+    "endpoint": "status_celular",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "HTTP 200",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 200
+  },
+  {
+    "caso": "message tem prioridade",
+    "corpo": "{\"message\":\"m\",\"mensagem\":\"n\",\"error\":\"e\"}",
+    "endpoint": "status_celular",
+    "esperado": {
+      "erro": "servidor",
+      "http": 400,
+      "mensagem": "m",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 400
+  },
+  {
+    "caso": "HTTP 401 sem corpo",
+    "corpo": "",
+    "endpoint": "status_celular",
+    "esperado": {
+      "erro": "servidor",
+      "http": 401,
+      "mensagem": "HTTP 401",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 401
+  },
+  {
+    "caso": "HTTP 500 com corpo conhecido",
+    "corpo": "{\"message\":\"Internal Server Error\"}",
+    "endpoint": "status_celular",
+    "esperado": {
+      "erro": "servidor",
+      "http": 500,
+      "mensagem": "Internal Server Error",
+      "origem": "Servidor",
+      "regra": "internal server error"
+    },
+    "http": 500
+  },
+  {
+    "caso": "HTML do gateway",
+    "corpo": "<html><body>Bad Gateway</body></html>",
+    "endpoint": "status_celular",
+    "esperado": {
+      "erro": "nao_json",
+      "http": 502,
+      "trecho": "<html><body>Bad Gateway</body></html>"
+    },
+    "http": 502
+  },
+  {
+    "caso": "corpo vazio com 200",
+    "corpo": "",
+    "endpoint": "status_celular",
+    "esperado": {
+      "ok": {
+        "usuario_possui_codigo_push": false
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "corpo só espaços",
+    "corpo": "   \n",
+    "endpoint": "status_celular",
+    "esperado": {
+      "ok": {
+        "usuario_possui_codigo_push": false
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "JSON truncado",
+    "corpo": "{\"status\":tr",
+    "endpoint": "status_celular",
+    "esperado": {
+      "erro": "nao_json",
+      "http": 200,
+      "trecho": "{\"status\":tr"
+    },
+    "http": 200
+  },
+  {
+    "caso": "recusa de fator de campo",
+    "corpo": "{\"message\":\"PIN ou e-Token incorreto\",\"status\":false,\"token\":null}",
+    "endpoint": "status_celular",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "PIN ou e-Token incorreto",
+      "origem": "Usuario",
+      "regra": "pin ou e-token incorreto"
+    },
+    "http": 200
+  },
+  {
+    "caso": "corpo longo não-JSON",
+    "corpo": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "endpoint": "status_celular",
+    "esperado": {
+      "erro": "nao_json",
+      "http": 503,
+      "trecho": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    "http": 503
+  },
+  {
+    "caso": "status null passa",
+    "corpo": "{\"status\":null}",
+    "endpoint": "status_celular",
+    "esperado": {
+      "ok": {
+        "usuario_possui_codigo_push": false
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "status número passa",
+    "corpo": "{\"status\":0}",
+    "endpoint": "status_celular",
+    "esperado": {
+      "ok": {
+        "usuario_possui_codigo_push": false
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "array no topo",
+    "corpo": "[]",
+    "endpoint": "status_celular",
+    "esperado": {
+      "ok": {
+        "usuario_possui_codigo_push": false
+      }
+    },
+    "http": 200
+  },
+  {
+    "caso": "200 com status false",
+    "corpo": "{\"status\":false,\"message\":\"Informe o Pin\",\"token\":null}",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Informe o Pin",
+      "origem": "Usuario",
+      "regra": "informe o pin"
+    },
+    "http": 200
+  },
+  {
+    "caso": "status como string false",
+    "corpo": "{\"status\":\"false\",\"message\":\"Informe o e-Token(Otp)\"}",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Informe o e-Token(Otp)",
+      "origem": "Usuario",
+      "regra": "e-token"
+    },
+    "http": 200
+  },
+  {
+    "caso": "status FALSE maiúsculo",
+    "corpo": "{\"status\":\"FALSE\",\"message\":\"x\"}",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "x",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 200
+  },
+  {
+    "caso": "mensagem em mensagem",
+    "corpo": "{\"status\":false,\"mensagem\":\"Tempo esgotado\"}",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Tempo esgotado",
+      "origem": "Usuario",
+      "regra": "tempo esgotado"
+    },
+    "http": 200
+  },
+  {
+    "caso": "mensagem em error",
+    "corpo": "{\"status\":false,\"error\":\"Service OFFLINE\"}",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Service OFFLINE",
+      "origem": "Servidor",
+      "regra": "offline"
+    },
+    "http": 200
+  },
+  {
+    "caso": "mensagem em exception",
+    "corpo": "{\"exception\":\"UsuarioSenhaInvalidoException\"}",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "servidor",
+      "http": 500,
+      "mensagem": "UsuarioSenhaInvalidoException",
+      "origem": "Usuario",
+      "regra": "usuariosenhainvalido"
+    },
+    "http": 500
+  },
+  {
+    "caso": "message vazia cai em HTTP",
+    "corpo": "{\"status\":false,\"message\":\"\"}",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "HTTP 200",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 200
+  },
+  {
+    "caso": "message tem prioridade",
+    "corpo": "{\"message\":\"m\",\"mensagem\":\"n\",\"error\":\"e\"}",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "servidor",
+      "http": 400,
+      "mensagem": "m",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 400
+  },
+  {
+    "caso": "HTTP 401 sem corpo",
+    "corpo": "",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "servidor",
+      "http": 401,
+      "mensagem": "HTTP 401",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 401
+  },
+  {
+    "caso": "HTTP 500 com corpo conhecido",
+    "corpo": "{\"message\":\"Internal Server Error\"}",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "servidor",
+      "http": 500,
+      "mensagem": "Internal Server Error",
+      "origem": "Servidor",
+      "regra": "internal server error"
+    },
+    "http": 500
+  },
+  {
+    "caso": "HTML do gateway",
+    "corpo": "<html><body>Bad Gateway</body></html>",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "nao_json",
+      "http": 502,
+      "trecho": "<html><body>Bad Gateway</body></html>"
+    },
+    "http": 502
+  },
+  {
+    "caso": "corpo vazio com 200",
+    "corpo": "",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "carteira sem a lista `certificados`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "corpo só espaços",
+    "corpo": "   \n",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "carteira sem a lista `certificados`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "JSON truncado",
+    "corpo": "{\"status\":tr",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "nao_json",
+      "http": 200,
+      "trecho": "{\"status\":tr"
+    },
+    "http": 200
+  },
+  {
+    "caso": "recusa de fator de campo",
+    "corpo": "{\"message\":\"PIN ou e-Token incorreto\",\"status\":false,\"token\":null}",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "PIN ou e-Token incorreto",
+      "origem": "Usuario",
+      "regra": "pin ou e-token incorreto"
+    },
+    "http": 200
+  },
+  {
+    "caso": "corpo longo não-JSON",
+    "corpo": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "nao_json",
+      "http": 503,
+      "trecho": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    "http": 503
+  },
+  {
+    "caso": "status null passa",
+    "corpo": "{\"status\":null}",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "carteira sem a lista `certificados`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "status número passa",
+    "corpo": "{\"status\":0}",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "carteira sem a lista `certificados`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "array no topo",
+    "corpo": "[]",
+    "endpoint": "carteira",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "carteira sem a lista `certificados`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "200 com status false",
+    "corpo": "{\"status\":false,\"message\":\"Informe o Pin\",\"token\":null}",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Informe o Pin",
+      "origem": "Usuario",
+      "regra": "informe o pin"
+    },
+    "http": 200
+  },
+  {
+    "caso": "status como string false",
+    "corpo": "{\"status\":\"false\",\"message\":\"Informe o e-Token(Otp)\"}",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Informe o e-Token(Otp)",
+      "origem": "Usuario",
+      "regra": "e-token"
+    },
+    "http": 200
+  },
+  {
+    "caso": "status FALSE maiúsculo",
+    "corpo": "{\"status\":\"FALSE\",\"message\":\"x\"}",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "x",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 200
+  },
+  {
+    "caso": "mensagem em mensagem",
+    "corpo": "{\"status\":false,\"mensagem\":\"Tempo esgotado\"}",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Tempo esgotado",
+      "origem": "Usuario",
+      "regra": "tempo esgotado"
+    },
+    "http": 200
+  },
+  {
+    "caso": "mensagem em error",
+    "corpo": "{\"status\":false,\"error\":\"Service OFFLINE\"}",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Service OFFLINE",
+      "origem": "Servidor",
+      "regra": "offline"
+    },
+    "http": 200
+  },
+  {
+    "caso": "mensagem em exception",
+    "corpo": "{\"exception\":\"UsuarioSenhaInvalidoException\"}",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "servidor",
+      "http": 500,
+      "mensagem": "UsuarioSenhaInvalidoException",
+      "origem": "Usuario",
+      "regra": "usuariosenhainvalido"
+    },
+    "http": 500
+  },
+  {
+    "caso": "message vazia cai em HTTP",
+    "corpo": "{\"status\":false,\"message\":\"\"}",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "HTTP 200",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 200
+  },
+  {
+    "caso": "message tem prioridade",
+    "corpo": "{\"message\":\"m\",\"mensagem\":\"n\",\"error\":\"e\"}",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "servidor",
+      "http": 400,
+      "mensagem": "m",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 400
+  },
+  {
+    "caso": "HTTP 401 sem corpo",
+    "corpo": "",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "servidor",
+      "http": 401,
+      "mensagem": "HTTP 401",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 401
+  },
+  {
+    "caso": "HTTP 500 com corpo conhecido",
+    "corpo": "{\"message\":\"Internal Server Error\"}",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "servidor",
+      "http": 500,
+      "mensagem": "Internal Server Error",
+      "origem": "Servidor",
+      "regra": "internal server error"
+    },
+    "http": 500
+  },
+  {
+    "caso": "HTML do gateway",
+    "corpo": "<html><body>Bad Gateway</body></html>",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "nao_json",
+      "http": 502,
+      "trecho": "<html><body>Bad Gateway</body></html>"
+    },
+    "http": 502
+  },
+  {
+    "caso": "corpo vazio com 200",
+    "corpo": "",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "tokensessao respondeu sucesso mas sem `token`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "corpo só espaços",
+    "corpo": "   \n",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "tokensessao respondeu sucesso mas sem `token`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "JSON truncado",
+    "corpo": "{\"status\":tr",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "nao_json",
+      "http": 200,
+      "trecho": "{\"status\":tr"
+    },
+    "http": 200
+  },
+  {
+    "caso": "recusa de fator de campo",
+    "corpo": "{\"message\":\"PIN ou e-Token incorreto\",\"status\":false,\"token\":null}",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "PIN ou e-Token incorreto",
+      "origem": "Usuario",
+      "regra": "pin ou e-token incorreto"
+    },
+    "http": 200
+  },
+  {
+    "caso": "corpo longo não-JSON",
+    "corpo": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "nao_json",
+      "http": 503,
+      "trecho": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    "http": 503
+  },
+  {
+    "caso": "status null passa",
+    "corpo": "{\"status\":null}",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "tokensessao respondeu sucesso mas sem `token`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "status número passa",
+    "corpo": "{\"status\":0}",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "tokensessao respondeu sucesso mas sem `token`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "array no topo",
+    "corpo": "[]",
+    "endpoint": "tokensessao",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "tokensessao respondeu sucesso mas sem `token`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "200 com status false",
+    "corpo": "{\"status\":false,\"message\":\"Informe o Pin\",\"token\":null}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Informe o Pin",
+      "origem": "Usuario",
+      "regra": "informe o pin"
+    },
+    "http": 200
+  },
+  {
+    "caso": "status como string false",
+    "corpo": "{\"status\":\"false\",\"message\":\"Informe o e-Token(Otp)\"}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Informe o e-Token(Otp)",
+      "origem": "Usuario",
+      "regra": "e-token"
+    },
+    "http": 200
+  },
+  {
+    "caso": "status FALSE maiúsculo",
+    "corpo": "{\"status\":\"FALSE\",\"message\":\"x\"}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "x",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 200
+  },
+  {
+    "caso": "mensagem em mensagem",
+    "corpo": "{\"status\":false,\"mensagem\":\"Tempo esgotado\"}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Tempo esgotado",
+      "origem": "Usuario",
+      "regra": "tempo esgotado"
+    },
+    "http": 200
+  },
+  {
+    "caso": "mensagem em error",
+    "corpo": "{\"status\":false,\"error\":\"Service OFFLINE\"}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "Service OFFLINE",
+      "origem": "Servidor",
+      "regra": "offline"
+    },
+    "http": 200
+  },
+  {
+    "caso": "mensagem em exception",
+    "corpo": "{\"exception\":\"UsuarioSenhaInvalidoException\"}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "servidor",
+      "http": 500,
+      "mensagem": "UsuarioSenhaInvalidoException",
+      "origem": "Usuario",
+      "regra": "usuariosenhainvalido"
+    },
+    "http": 500
+  },
+  {
+    "caso": "message vazia cai em HTTP",
+    "corpo": "{\"status\":false,\"message\":\"\"}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "HTTP 200",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 200
+  },
+  {
+    "caso": "message tem prioridade",
+    "corpo": "{\"message\":\"m\",\"mensagem\":\"n\",\"error\":\"e\"}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "servidor",
+      "http": 400,
+      "mensagem": "m",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 400
+  },
+  {
+    "caso": "HTTP 401 sem corpo",
+    "corpo": "",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "servidor",
+      "http": 401,
+      "mensagem": "HTTP 401",
+      "origem": "Desconhecida",
+      "regra": null
+    },
+    "http": 401
+  },
+  {
+    "caso": "HTTP 500 com corpo conhecido",
+    "corpo": "{\"message\":\"Internal Server Error\"}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "servidor",
+      "http": 500,
+      "mensagem": "Internal Server Error",
+      "origem": "Servidor",
+      "regra": "internal server error"
+    },
+    "http": 500
+  },
+  {
+    "caso": "HTML do gateway",
+    "corpo": "<html><body>Bad Gateway</body></html>",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "nao_json",
+      "http": 502,
+      "trecho": "<html><body>Bad Gateway</body></html>"
+    },
+    "http": 502
+  },
+  {
+    "caso": "corpo vazio com 200",
+    "corpo": "",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "requestHash sem `idArray`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "corpo só espaços",
+    "corpo": "   \n",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "requestHash sem `idArray`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "JSON truncado",
+    "corpo": "{\"status\":tr",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "nao_json",
+      "http": 200,
+      "trecho": "{\"status\":tr"
+    },
+    "http": 200
+  },
+  {
+    "caso": "recusa de fator de campo",
+    "corpo": "{\"message\":\"PIN ou e-Token incorreto\",\"status\":false,\"token\":null}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "servidor",
+      "http": 200,
+      "mensagem": "PIN ou e-Token incorreto",
+      "origem": "Usuario",
+      "regra": "pin ou e-token incorreto"
+    },
+    "http": 200
+  },
+  {
+    "caso": "corpo longo não-JSON",
+    "corpo": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "nao_json",
+      "http": 503,
+      "trecho": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    "http": 503
+  },
+  {
+    "caso": "status null passa",
+    "corpo": "{\"status\":null}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "requestHash sem `idArray`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "status número passa",
+    "corpo": "{\"status\":0}",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "requestHash sem `idArray`"
+    },
+    "http": 200
+  },
+  {
+    "caso": "array no topo",
+    "corpo": "[]",
+    "endpoint": "request_hash",
+    "esperado": {
+      "erro": "estado",
+      "mensagem": "requestHash sem `idArray`"
+    },
+    "http": 200
+  }
+]
