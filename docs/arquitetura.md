@@ -197,7 +197,9 @@ documentação, e o diagnóstico só grava o que já passou pela redação.
    da ICP-Brasil) e o harness de diagnóstico, testados na VM
    dentro do sandbox do Âncora.
 7. **Publicação**: no remote do Âncora, no lugar da extensão RemoteID do
-   flatpak-adv-br.
+   flatpak-adv-br. A reescrita está na `main`, na versão 0.4.0; a extensão sobe
+   com o `bin/publicar` do Âncora, na migração dele, e a tag `v0.4.0` sai
+   depois disso.
 
 Fora da primeira versão: a aprovação por celular (push). Está implementada no
 RemoteID-linux e nunca passou por uma conta real.
@@ -280,7 +282,8 @@ falso agora exige nele a senha da conta.
 ## O repositório
 
 O código vive no repositório do RemoteID-linux (`LLawli/RemoteID-linux`), que
-ele substitui. Até a publicação, a reescrita fica no branch `reescrita-ancora`,
-com histórico próprio; a `main` continua sendo a v0.3.2. Na etapa 7 ela entra na
-`main` por pull request, num commit que troca a árvore inteira, e o histórico,
-as tags e as releases da versão anterior ficam onde estão.
+ele substitui. A reescrita entrou na `main` em 2026-10-31 (PR #34) por um merge
+com dois pais, a v0.3.2 e a história própria da reescrita, com a árvore da
+reescrita inteira. O código, as tags e as releases da v0.3.2 ficam onde
+estavam; o flatpak-adv-br compila a v0.3.2 pelo commit fixado e não lê a
+`main`.
