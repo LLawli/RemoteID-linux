@@ -20,8 +20,8 @@ Todas as mudanças visíveis para quem usa ficam aqui. O formato segue o
 - `remoteid entrar <email>` entra na conta, registra a máquina e baixa a
   carteira, com a senha pelo stdin.
 - `remoteid assinar` assina o que chega pela entrada padrão e devolve um
-  `.p7s` CAdES-BES (destacado, ou com `--anexar` o documento dentro), igual
-  ao do RemoteID-linux, ou com `--cru` só a assinatura RSA. O código do
+  `.p7s` na política AD-RB da ICP-Brasil (destacado, ou com `--anexar` o
+  documento dentro), ou com `--cru` só a assinatura RSA. O código do
   autenticador é pedido na mesma janela do módulo, ou no terminal quando o
   programa roda fora do Flatpak.
 - `remoteid harness` testa o fluxo com a conta entrada e grava um relatório

@@ -30,7 +30,7 @@ pub const HARNESS: &str = "harness";
 const USO_ASSINAR: &str = "\
 uso: remoteid assinar [--anexar | --cru] [--hash <hex>] < documento > saída
 
-  sem opção     .p7s CAdES-BES destacado do documento
+  sem opção     .p7s destacado do documento, na política AD-RB da ICP-Brasil
   --anexar      .p7s com o documento dentro
   --cru         a assinatura RSA (PKCS#1 v1.5, SHA-256) sem envelope
   --hash <hex>  assina este SHA-256 em vez de ler o documento

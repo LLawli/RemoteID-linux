@@ -400,7 +400,7 @@ fn o_p7s_sai_byte_a_byte_igual_ao_do_antigo() {
         let momento = caso["momento"].as_u64().unwrap();
         let assinatura = de_b64(&s(caso, "assinatura")).unwrap();
         match (
-            Montador::novo(certificado, &digest, momento, anexar),
+            Montador::novo(certificado, &digest, momento, anexar, None),
             caso.get("erro"),
         ) {
             (Ok(m), None) => {

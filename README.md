@@ -35,7 +35,8 @@ O RemoteID aparece no Âncora: entre na conta pela janela, e os navegadores e
 assinadores passam a ver o certificado como um token. O código do autenticador
 é pedido na hora de assinar.
 
-Pelo terminal, um `.p7s` (CAdES-BES, destacado) de qualquer arquivo:
+Pelo terminal, um `.p7s` destacado de qualquer arquivo, na política AD-RB da
+ICP-Brasil:
 
 ```bash
 R="flatpak run --command=/app/extensoes/driver/RemoteID/bin/remoteid dev.lukakuuhaku.Ancora"

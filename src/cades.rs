@@ -1,5 +1,5 @@
-//! O `.p7s`: um CMS SignedData CAdES-BES em volta da assinatura que o HSM da
-//! Certisign devolve.
+//! O `.p7s`: um CMS SignedData em volta da assinatura que o HSM da Certisign
+//! devolve, na política AD-RB da ICP-Brasil (CAdES-EPES).
 //!
 //! # Não se assina o digest do documento
 //!
@@ -10,7 +10,8 @@
 //! ```text
 //! documento ──SHA-256──> messageDigest ─┐
 //!                                       ├─> signedAttrs ──SHA-256──> ao HSM
-//! contentType, signingTime, signingCert ┘
+//! contentType, signingTime, signingCert, ┘
+//! sigPolicyId
 //! ```
 //!
 //! Mandar ao HSM o digest do documento dá um `.p7s` cuja assinatura não fecha
@@ -24,15 +25,18 @@
 //! | `contentType` | obrigatório com atributos assinados (RFC 5652 §5.3) |
 //! | `messageDigest` | idem; é onde mora o digest do documento |
 //! | `signingTime` | a hora alegada pelo signatário |
-//! | `signingCertificateV2` | amarra a assinatura a este certificado |
+//! | `signingCertificateV2` | amarra a assinatura a este certificado (RFC 5035) |
+//! | `sigPolicyId` | a política de assinatura ICP-Brasil ([`AD_RB`]) |
 //!
-//! Sem o `signingCertificateV2` (RFC 5035) a assinatura não é CAdES-BES, e o
-//! Verificador de Conformidade do ITI a recusa.
+//! A tabela A.2 do DOC-ICP-15.03 v9.0 e a própria AD-RB v2.4 exigem
+//! `contentType`, `messageDigest`, `signingCertificateV2` e `sigPolicyId`, e
+//! só o certificado do titular no envelope (`signerOnly`). O `signingTime` não
+//! é exigido nem proibido no CAdES (o ND da tabela é do PAdES).
 //!
-//! O envelope sai byte a byte igual ao do RemoteID-linux v0.3.2
-//! (`tests/paridade/cades.json`). Destacado por padrão, sem `eContent`, como
-//! o `openssl cms -sign` sem `-nodetach`; anexar serve a arquivo pequeno que
-//! deva viajar junto.
+//! Sem política, o envelope sai byte a byte igual ao do RemoteID-linux v0.3.2
+//! (`tests/paridade/cades.json`), que não tinha o `sigPolicyId`. Destacado
+//! por padrão, sem `eContent`, como o `openssl cms -sign` sem `-nodetach`;
+//! anexar serve a arquivo pequeno que deva viajar junto.
 
 use cms::cert::{CertificateChoices, IssuerAndSerialNumber};
 use cms::content_info::{CmsVersion, ContentInfo};
@@ -40,7 +44,7 @@ use cms::signed_data::{
     CertificateSet, EncapsulatedContentInfo, SignatureValue, SignedAttributes, SignedData,
     SignerIdentifier, SignerInfo, SignerInfos,
 };
-use der::asn1::{Any, ObjectIdentifier, OctetString, SetOfVec, UtcTime};
+use der::asn1::{Any, Ia5String, ObjectIdentifier, OctetString, SetOfVec, UtcTime};
 use der::{Decode, Encode, Sequence};
 use x509_cert::Certificate;
 use x509_cert::attr::{Attribute, AttributeValue};
@@ -66,11 +70,41 @@ const OID_SIGNING_TIME: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840
 /// id-aa-signingCertificateV2, RFC 5035 §3
 const OID_SIGNING_CERT_V2: ObjectIdentifier =
     ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.16.2.47");
+/// id-aa-ets-sigPolicyId, RFC 5126 §5.8.1
+const OID_SIG_POLICY_ID: ObjectIdentifier =
+    ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.16.2.15");
+/// id-spq-ets-uri, RFC 5126 §5.8.1
+const OID_SPQ_URI: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.16.5.1");
 /// id-sha256, RFC 5754
 const OID_SHA256: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.2.1");
 /// rsaEncryption: a RFC 5754 §3.2 manda este, e não sha256WithRSAEncryption,
 /// no `signatureAlgorithm` de um SignerInfo.
 const OID_RSA: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.1.1");
+
+/// Uma política de assinatura da ICP-Brasil, como o `sigPolicyId` a cita.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Politica {
+    pub oid: ObjectIdentifier,
+    /// O hash interno da política (o `signPolicyHash`, o último campo do
+    /// arquivo), em SHA-256. A Nota 2 do DOC-ICP-15.03 manda este, e não o
+    /// hash do arquivo publicado na LPA.
+    pub hash: [u8; 32],
+    /// Onde baixar a política, no único `spuri` que a Nota 1 permite.
+    pub uri: &'static str,
+}
+
+/// A AD-RB v2.4, vigente de 2025-06-12 a 2037-10-22 pela LPA, que aceita as
+/// cadeias até a AC Raiz v5 e a v12. A cópia em `tests/icp-brasil/` prova o
+/// hash.
+pub const AD_RB: Politica = Politica {
+    oid: ObjectIdentifier::new_unwrap("2.16.76.1.7.1.1.2.4"),
+    hash: [
+        0x1f, 0x3c, 0x90, 0x4c, 0x44, 0xc3, 0x92, 0xfe, 0xef, 0x44, 0x7e, 0x21, 0xfa, 0xa7, 0xa0,
+        0x4e, 0x85, 0xd9, 0xc0, 0x15, 0x33, 0x46, 0x32, 0x0f, 0x55, 0x7b, 0x70, 0x42, 0xaf, 0x5d,
+        0xcf, 0x13,
+    ],
+    uri: "http://politicas.icpbrasil.gov.br/PA_AD_RB_v2_4.der",
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Erro {
@@ -120,6 +154,29 @@ struct SigningCertificateV2 {
     certs: Vec<EssCertIdV2>,
 }
 
+/// `OtherHashAlgAndValue`, RFC 5126 §5.8.1
+#[derive(Clone, Debug, Eq, PartialEq, Sequence)]
+struct OtherHashAlgAndValue {
+    hash_algorithm: AlgorithmIdentifierOwned,
+    hash_value: OctetString,
+}
+
+/// `SigPolicyQualifierInfo`, RFC 5126 §5.8.1
+#[derive(Clone, Debug, Eq, PartialEq, Sequence)]
+struct SigPolicyQualifierInfo {
+    sig_policy_qualifier_id: ObjectIdentifier,
+    sig_qualifier: Any,
+}
+
+/// `SignaturePolicyId`, RFC 5126 §5.8.1: a escolha explícita do
+/// `SignaturePolicyIdentifier`.
+#[derive(Clone, Debug, Eq, PartialEq, Sequence)]
+struct SignaturePolicyId {
+    sig_policy_id: ObjectIdentifier,
+    sig_policy_hash: OtherHashAlgAndValue,
+    sig_policy_qualifiers: Option<Vec<SigPolicyQualifierInfo>>,
+}
+
 /// Monta o CMS em duas fases, com a ida ao HSM no meio.
 pub struct Montador {
     certificado: Certificate,
@@ -132,12 +189,13 @@ pub struct Montador {
 impl Montador {
     /// Prepara o envelope de um documento cujo SHA-256 é `digest`. `momento`
     /// é o `signingTime`, em segundos desde 1970; `anexar` leva o conteúdo
-    /// para dentro.
+    /// para dentro; `politica` acrescenta o `sigPolicyId`.
     pub fn novo(
         certificado: &[u8],
         digest: &[u8],
         momento: u64,
         anexar: Option<Vec<u8>>,
+        politica: Option<&Politica>,
     ) -> Result<Montador, Erro> {
         if digest.len() != 32 {
             return Err(Erro::Digest(digest.len()));
@@ -149,7 +207,7 @@ impl Montador {
         if anexar.as_ref().is_some_and(|c| sha256(c) != digest) {
             return Err(Erro::ConteudoDiverge);
         }
-        let atributos = atributos(&certificado, digest, momento)?;
+        let atributos = atributos(&certificado, digest, momento, politica)?;
         let a_assinar = sha256(&atributos.to_der().map_err(der)?);
         Ok(Montador {
             certificado,
@@ -209,7 +267,7 @@ impl Montador {
 }
 
 /// Assina o documento de SHA-256 `digest` com o certificado ativo e devolve o
-/// `.p7s`. A sessão em cache vale como numa assinatura pelo token.
+/// `.p7s` na [`AD_RB`]. A sessão em cache vale como numa assinatura pelo token.
 pub fn assinar(
     motor: &mut Motor,
     digest: &[u8],
@@ -230,7 +288,7 @@ pub fn assinar(
         .ok_or(motor::Erro::NaoPreparado(
             "a carteira não trouxe o certificado",
         ))?;
-    let montador = Montador::novo(&der, digest, momento, anexar).map_err(envelope)?;
+    let montador = Montador::novo(&der, digest, momento, anexar, Some(&AD_RB)).map_err(envelope)?;
     let assinatura = motor.assinar_com(
         &certificado,
         Algoritmo::Sha256,
@@ -244,15 +302,38 @@ fn atributos(
     certificado: &Certificate,
     digest: &[u8],
     momento: u64,
+    politica: Option<&Politica>,
 ) -> Result<SignedAttributes, Erro> {
     let hora = UtcTime::from_unix_duration(std::time::Duration::from_secs(momento)).map_err(der)?;
-    let atributos = vec![
+    let mut atributos = vec![
         atributo(OID_CONTENT_TYPE, &OID_DATA)?,
         atributo(OID_MESSAGE_DIGEST, &OctetString::new(digest).map_err(der)?)?,
         atributo(OID_SIGNING_TIME, &Time::UtcTime(hora))?,
         atributo(OID_SIGNING_CERT_V2, &signing_certificate_v2(certificado)?)?,
     ];
+    if let Some(politica) = politica {
+        atributos.push(atributo(
+            OID_SIG_POLICY_ID,
+            &signature_policy_id(politica)?,
+        )?);
+    }
     SignedAttributes::try_from(atributos).map_err(der)
+}
+
+fn signature_policy_id(politica: &Politica) -> Result<SignaturePolicyId, Erro> {
+    Ok(SignaturePolicyId {
+        sig_policy_id: politica.oid,
+        sig_policy_hash: OtherHashAlgAndValue {
+            // Sem parâmetros, pela Nota 3 do DOC-ICP-15.03.
+            hash_algorithm: alg_sha256(),
+            hash_value: OctetString::new(politica.hash).map_err(der)?,
+        },
+        sig_policy_qualifiers: Some(vec![SigPolicyQualifierInfo {
+            sig_policy_qualifier_id: OID_SPQ_URI,
+            sig_qualifier: Any::encode_from(&Ia5String::new(politica.uri).map_err(der)?)
+                .map_err(der)?,
+        }]),
+    })
 }
 
 /// O hash do certificado e o par emissor e série: trocar o certificado do

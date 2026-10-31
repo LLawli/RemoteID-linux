@@ -18,7 +18,7 @@ use std::time::Instant;
 use rsa::pkcs1v15::Pkcs1v15Sign;
 use sha2::Sha256;
 
-use crate::cades::Montador;
+use crate::cades::{AD_RB, Montador};
 use crate::cripto::{de_b64, sha256};
 use crate::estado::gravar_privado;
 use crate::motor::{Autorizador, Credencial, Fatores, Motor};
@@ -265,7 +265,7 @@ fn assinar(
     let Some(der) = certificado.base64.as_deref().and_then(de_b64) else {
         return (Err("a carteira não trouxe o certificado".into()), None);
     };
-    let montador = match Montador::novo(&der, &sha256(MENSAGEM), momento, None) {
+    let montador = match Montador::novo(&der, &sha256(MENSAGEM), momento, None, Some(&AD_RB)) {
         Ok(m) => m,
         Err(e) => return (Err(e.to_string()), None),
     };
@@ -328,7 +328,7 @@ fn assinar(
         .and_then(|p7s| {
             use der::Decode;
             cms::content_info::ContentInfo::from_der(&p7s)
-                .map(|_| format!("CAdES-BES destacado, {} bytes", p7s.len()))
+                .map(|_| format!("AD-RB destacado, {} bytes", p7s.len()))
                 .map_err(|e| format!("o envelope não relê: {e}"))
         });
     (Ok(detalhe), Some(p7s))

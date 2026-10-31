@@ -61,7 +61,7 @@ do sistema, ou um na memória).
 | `x509` | os campos do certificado que o token publica, e o nome do titular |
 | `cadeia` | as autoridades do certificado, do `caIssuers` até a raiz; puro, o download é do motor |
 | `diagnostico` | um JSONL por execução, com segredos e dados do titular redigidos |
-| `cades` | o `.p7s` CAdES-BES em duas fases, com a ida ao HSM no meio; igual byte a byte ao do antigo |
+| `cades` | o `.p7s` em duas fases, com a ida ao HSM no meio, na política AD-RB; sem política, igual byte a byte ao do antigo |
 | `harness` | o fluxo com a conta entrada, passo a passo, e o relatório para enviar |
 | `bin/remoteid-mock` | o servidor falso dos testes |
 
@@ -193,8 +193,8 @@ documentação, e o diagnóstico só grava o que já passou pela redação.
    chaveiro, ou cifrada com um PIN local; o diálogo pedindo só o código do
    autenticador. Testada na VM com a extensão instalada, dirigida pelo
    teclado.
-6. **Terminal** (feito): `remoteid assinar` (inclusive o `.p7s` CAdES-BES
-   com `signingCertificateV2`) e o harness de diagnóstico, testados na VM
+6. **Terminal** (feito): `remoteid assinar` (inclusive o `.p7s` na AD-RB
+   da ICP-Brasil) e o harness de diagnóstico, testados na VM
    dentro do sandbox do Âncora.
 7. **Publicação**: no remote do Âncora, no lugar da extensão RemoteID do
    flatpak-adv-br.
@@ -207,8 +207,19 @@ RemoteID-linux e nunca passou por uma conta real.
 `remoteid assinar` lê o documento do stdin e escreve a assinatura no stdout,
 porque o sandbox do Âncora não enxerga a pasta pessoal. O `.p7s` sai do
 montador do RemoteID-linux (`src/cades.rs`), igual byte a byte
-(`tests/paridade/cades.json`), e o `openssl cms -verify` o aceita com a cadeia
-de teste. A assinatura usa a sessão em cache como o token.
+(`tests/paridade/cades.json`), mais o `sigPolicyId` da AD-RB v2.4, que o
+antigo não tinha. O `openssl cms -verify` o aceita com a cadeia de teste. A
+assinatura usa a sessão em cache como o token.
+
+A AD-RB v2.4 (o arquivo da política, lido em 2026-10-31) e a tabela A.2 do
+DOC-ICP-15.03 v9.0 exigem `contentType`, `messageDigest`,
+`signingCertificateV2` e `sigPolicyId`, e só o certificado do titular no
+envelope (`signerOnly`): a cadeia não vai, embora a carteira a tenha. O hash
+no `sigPolicyId` é o interno da política (o SHA-256 do algoritmo mais o
+`signPolicyInfo`), não o do arquivo que a LPA publica (Nota 2); a cópia em
+`tests/icp-brasil/` o prova. O `signingTime` fica: no CAdES ele não é exigido
+nem proibido. A política aceita cadeias até a AC Raiz v5 e a v12, e só
+assinaturas RSA de 2048 bits ou mais.
 
 Os fatores são pedidos no `/dev/tty`, sem eco, e na janela do módulo quando o
 terminal não serve. Dentro do Flatpak ele quase nunca serve: medido na VM em
