@@ -64,6 +64,8 @@ continuam na tag e na release `v0.3.2`.
 [docs/arquitetura.md](docs/arquitetura.md) explica as peças e o plano, e
 [docs/desenvolvimento.md](docs/desenvolvimento.md) explica como construir e
 testar. `scripts/ci.sh` roda todos os gates, os mesmos da CI.
+[docs/engenharia-reversa/](docs/engenharia-reversa/README.md) tem o protocolo
+da Certisign como ele foi levantado dos aplicativos oficiais.
 
 ## Licença
 
