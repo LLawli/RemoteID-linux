@@ -49,6 +49,16 @@ padrão porque o Âncora não enxerga a pasta pessoal, e o código do autenticad
 é pedido na janela do RemoteID. `$R harness` testa o fluxo
 e grava um relatório para mandar a quem investiga um problema.
 
+## Vindo da v0.3.2
+
+A v0.3.2 se instalava sozinha, em `~/.local`, e registrava o próprio módulo no
+p11-kit. Com as duas instaladas, o certificado aparece duas vezes nos
+navegadores. Antes de instalar a extensão, desfaça a antiga com o
+`desinstalar.sh` que veio no pacote dela (ou `make desinstalar`, se você a
+compilou), e entre na conta de novo pela janela do RemoteID no Âncora: a
+v0.3.2 guardava a conta em outro lugar. O código e os pacotes da v0.3.2
+continuam na tag e na release `v0.3.2`.
+
 ## Para quem vai mexer no código
 
 [docs/arquitetura.md](docs/arquitetura.md) explica as peças e o plano, e

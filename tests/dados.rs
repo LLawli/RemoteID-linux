@@ -36,3 +36,14 @@ fn o_descritor_aponta_para_o_que_o_manifesto_instala() {
         );
     }
 }
+
+#[test]
+fn a_versao_mais_nova_do_metainfo_e_a_do_pacote() {
+    // As releases vão da mais nova para a mais antiga: a primeira é a atual.
+    let primeira = METAINFO
+        .split("<release version=\"")
+        .nth(1)
+        .and_then(|r| r.split('"').next())
+        .expect("o metainfo não tem release");
+    assert_eq!(primeira, env!("CARGO_PKG_VERSION"));
+}

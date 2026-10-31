@@ -12,9 +12,9 @@
   <url type="homepage">https://github.com/LLawli/RemoteID-linux</url>
   <url type="bugtracker">https://github.com/LLawli/RemoteID-linux/issues</url>
   <releases>
-    <release version="0.1.0" date="2026-10-30">
+    <release version="0.4.0" date="2026-10-31">
       <description>
-        <p>Primeira versão: a janela, ainda sem conta e sem assinatura.</p>
+        <p>O RemoteID passa a ser uma extensão do Âncora: o certificado aparece como token para os navegadores e assinadores, e a assinatura pede só o código do autenticador.</p>
       </description>
     </release>
   </releases>
