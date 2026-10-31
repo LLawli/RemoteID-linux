@@ -1,134 +1,50 @@
-# RemoteID-linux — instruções do projeto
+# RemoteID (extensão do Âncora)
 
-Cliente para o certificado em nuvem **RemoteID / DesktopID** (Certisign) no
-Linux, onde não há app oficial. O protocolo foi reconstruído por engenharia
-reversa do app de macOS e confirmado ao vivo. Este repositório é a reconstrução
-do antigo `DesktopID-linux` sob uma arquitetura de núcleo funcional e portas.
+Sucessor do `~/Personal/RemoteID-linux`, escrito do zero como extensão de
+driver do Âncora (`~/Personal/adv-central`). Arquitetura e plano de etapas em
+`docs/arquitetura.md`; construir e testar em `docs/desenvolvimento.md`.
 
-## Memória e handoff: ai-memory
+## Memória (ai-memory)
 
-Este projeto **usa o ai-memory** para memória e handoff (recall no início da
-sessão, salvar decisões e handoff no fim). Não versionar memória em arquivos.
-As páginas em `docs/PROTOCOLO.md`, `docs/PAYLOADS.md` e
-`docs/ARQUITETURA-SO.md` são **documentação de referência** da engenharia
-reversa (o que o servidor faz e por quê), não o sistema de memória.
+O `.ai-memory.toml` fixa o projeto em `remoteid`. Enquanto a migração não
+terminar, toda consulta à memória busca também no escopo do antigo, onde estão
+as armadilhas do protocolo e das contas de teste, e no do Âncora, dono do
+contrato de extensão:
 
-As notas de sessão que viviam em `docs/memoria/` saíram do repositório em
-04/09/2026, antes da publicação: elas citam caminhos da máquina e são raciocínio
-de trabalho, não documentação do projeto. Ficam em
-`../RemoteID-linux-memoria/`, fora do git. Comentários no código referenciam
-essas notas na forma `[[nome-da-nota]]`, que é uma chave do ai-memory, não um
-caminho de arquivo — não transforme em link.
+```
+memory_query(query=..., scopes=[
+  {workspace: "default", project: "remoteid"},
+  {workspace: "default", project: "RemoteID-linux"},
+  {workspace: "default", project: "ancora"},
+])
+```
 
-## Arquitetura (as regras desta reconstrução)
+Escritas vão só para `remoteid`. Armadilha encontrada na memória do antigo que
+afeta este projeto ganha página própria aqui, em `gotchas/`, com o fato medido,
+a etapa onde ela pega e o caminho da página de origem.
 
-**Functional Core, Imperative Shell + Portas e Adaptadores (hexagonal).**
+## Regras do projeto
 
-- **Um crate por domínio.** O núcleo é isolado fisicamente, não só por módulo.
-- **Núcleo puro:** funções que recebem valor e devolvem valor, sem I/O dentro
-  delas. Testáveis isoladamente, sem rede, sem disco, sem `std::env`, sem
-  relógio do sistema.
-- **Bordas imperativas:** os adaptadores cuidam de todo o I/O (disco, rede,
-  relógio, ambiente, UI, FFI).
-- **Contratos (traits/portas)** entre os dois, para trocar implementação sem
-  tocar no núcleo: `RepositorioEstado`, `CofreDeChave`, `TransporteRemoteId`,
-  `FonteDeCadeia`, `Diagnostico`, `Relogio`, `Ambiente`, `Prompter`.
-- **A chave privada nunca sai do cofre.** `CofreDeChave` expõe `assinar`, nunca
-  a chave crua. É o que viabiliza um adaptador Postgres/HSM sem vazar segredo
-  para o núcleo.
-- **Portas de estado e chave são endereçadas por identidade de instalação/conta**
-  (`IdInstalacao`), não por instalação global única. É o que deixa uma futura
-  versão central multi-conta (Postgres) cair fora sem mudança quebradora.
-- **Síncrono primeiro.** As portas são desenhadas neutras para não impedir async
-  depois; async só quando a versão central existir.
-
-O mapa completo, o grafo de crates e o plano faseado estão em
-[docs/escopo-migracao.md](docs/escopo-migracao.md).
-
-## O que NÃO pode mudar, e o que é livre
-
-- **Imutável: o protocolo de comunicação com o servidor RemoteID.** Não está sob
-  nosso controle. Paridade byte a byte: corpos das requisições, endpoints,
-  canonicalização, a assinatura do `Bearer` (cobre os bytes exatos do corpo
-  serializado, nunca reserializar), o `USER_AGENT` `desktopID/2.2.0.1` (imita o
-  app oficial), o formato opaco do `sessionToken`, e "HTTP 200 pode ser erro".
-  Esse domínio é **fechado**, coberto por testes de ouro.
-- **Livre para redesenhar:** o protocolo do socket interno (app ↔ módulo
-  PKCS#11), o CLI, os formatos de armazenamento, as traits, os nomes.
-
-## Fonte única (DRY)
-
-O que se repete tem de morar em UM lugar, para mudar em um ponto e não em vinte.
-O endereço do servidor já é fonte única (as constantes de URL e os templates de
-endpoint no domínio do protocolo). O mesmo vale para o nome do app e os caminhos
-de diretório: o núcleo é a fonte, e a borda referencia, nunca hardcoda de novo.
-
-## Convenções
-
-- **Idioma:** tudo em português do Brasil (comentários, docs, mensagens de erro,
-  nomes de teste). Identificadores de código e chaves de protocolo ficam na forma
-  original (`codigoDesktop`, `nomeAplicacaoDesktop`, `signatureBase64`).
-- **Comentários explicam o porquê**, principalmente quando o código parece errado
-  e não está (a maior parte deste protocolo é contraintuitiva).
-- **Formatação:** o estilo é o do `rustfmt` padrão, sem discussão e sem
-  `rustfmt.toml`. O repositório não briga com o formatador: `cargo fmt --all` é
-  a autoridade, e `cargo fmt --all --check` é gate no CI. Escreveu, formatou.
-- **Licença:** GPLv3-only.
-- **Commits:** assinados por SSH, sem co-autoria de IA, escopo por mudança
-  lógica. Só commitar quando o usuário pedir.
-- **Branches e PR, nunca push direto na `main`.** Desde 04/09/2026, todo
-  trabalho nasce em branch e entra por pull request — inclusive correção de uma
-  linha, inclusive quando o repositório é de uma pessoa só.
-
-  ```sh
-  git checkout -b <tipo>/<assunto-curto>   # feat/, fix/, docs/, ci/, style/…
-  # … commits assinados, escopados …
-  git push -u origin <a branch>
-  gh pr create --fill
-  ```
-
-  **Por quê:** a `main` é o que o `install.sh` do README baixa por
-  `curl | sh` e o que o `release.yml` transforma em release. Push direto
-  publica antes de qualquer gate rodar; num PR o CI (fmt, testes, clippy, gate
-  PKCS#11, auditoria de segredos, `cargo audit`) fecha antes de a `main` mudar.
-  O PR também é onde a mudança fica explicada para quem chegar depois — o
-  histórico de um projeto público é documentação.
-
-## Segurança, que aqui não é abstrata
-
-- **Nunca** gravar PIN, OTP ou senha em log, transcript, teste ou documentação.
-  O PIN do certificado é permanente. A forma canônica assinada contém PIN e OTP
-  concatenados: registre o hash dela, nunca o texto.
-- A redação de segredos é regra de **domínio** (pura e testável); o `Diagnostico`
-  só persiste o que já foi redigido.
-- **`.logs/` nunca é versionado.** Contém runs reais com token de sessão,
-  certificado, CPF, nome e e-mail. Nenhum valor real entra em teste versionado:
-  as fixtures são sintéticas (`remoteid-mock` tem cert/OTP/PIN falsos).
-- `vendor/` tem os instaladores oficiais. Fora do git, não redistribuir.
-
-## Validação: escope pelo cone de dependentes, nunca pelas dependências
-
-A dependência do workspace só aponta para BAIXO: domínio (`tipos`, `cripto`,
-`autorizacao`, `estado`, `assinatura`, `cadeia`, `protocolo-servidor`,
-`redacao`) ← portas ← adaptadores ← `aplicacao` ← borda (`cli`, `gtk`,
-`pkcs11`, `daemon`, `mock`).
-**Um componente de baixo nível NUNCA depende de um de alto nível.** Se você se
-pegar querendo importar `remoteid-aplicacao` de dentro de `remoteid-estado`, pare:
-a inversão está errada.
-
-Disso sai a regra de teste. Ao mexer numa crate, rode `cargo test`/`cargo clippy`
-**dela e de tudo que depende dela (o cone para CIMA), nunca das suas
-dependências (para baixo)**:
-
-- **Mudança de base** (ex.: `remoteid-estado`, `remoteid-tipos`, uma porta):
-  roda a suíte de TODOS os componentes de alto nível que a usam. Mexer em
-  `estado` roda `store-json`, `protocolo-servidor`, `aplicacao`, `daemon`,
-  `gtk`, `pkcs11`, `cli` — porque a mudança pode quebrá-los.
-- **Mudança de alto nível** (ex.: `remoteid-gtk`, folha): roda só a própria
-  crate. Um botão torto no GTK não muda o SHA-256 do domínio, então **não** roda
-  `estado` nem `aplicacao`. Ninguém depende do GTK; o cone para cima é ele mesmo.
-
-Na prática: `cargo test -p <crate-tocada> -p <dependente-1> -p <dependente-2> ...`.
-O gate completo (`make check` = `cargo test && cargo clippy --all-targets &&
-cargo build --release`) é quando a mudança toca uma base cujo cone é
-praticamente o workspace inteiro, ou antes de um commit que cruza várias crates.
+- **O protocolo com a Certisign não muda.** Payloads, endpoints,
+  canonicalização, `Bearer` sobre os bytes exatos do corpo, `USER_AGENT`.
+  Todo código de protocolo entra com teste de paridade 1:1 contra o
+  RemoteID-linux, para requisições e para a leitura das respostas
+  (`tests/paridade.rs`). As fixtures em `tests/paridade/` só mudam
+  regeneradas pelo `paridade/`, nunca à mão.
+- **PIN, OTP e senha nunca** vão para log, teste, fixture ou documentação.
+  Fixtures são sintéticas; nada de `.logs/` do antigo entra no repositório.
+- Gates: `scripts/ci.sh`, rodado com teto de CPU e memória nesta máquina.
+- Build só no SSD de dados (`target/`, `paridade/target/` e
+  `.flatpak-builder/` são symlinks para `/mnt/dados/builds/`), nunca em
+  `/tmp`. Artefato de debug, build do Flatpak e experimento são apagados
+  quando cumprem o propósito; no mínimo ao fechar cada etapa.
+- Depois de mudar o `Cargo.lock`, rode `scripts/cargo-sources.py`.
+- O ref `dev.lukakuuhaku.Ancora.Driver.RemoteID` é também o id do aplicativo e
+  não muda.
+- O `libremoteid.so` não pode depender de GTK: o GTK só entra pelo binário.
+- **Assinar não depende da janela aberta.** Só o `ancora servir` publicando o
+  driver tem de bastar: o motor mora no módulo, e o PIN e o OTP são pedidos
+  por um diálogo aberto sob demanda.
+- Testes de extensão instalada rodam na VM `ancora-fedora`
+  (`/mnt/dados/caches/vms/ancora-fedora`), não no Flatpak do host, onde
+  outras sessões testam o Âncora.

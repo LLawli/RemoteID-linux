@@ -1,28 +1,23 @@
-# Exceções do `cargo audit`, uma a uma, com o motivo e o gatilho de revisão.
-# Não é lugar para silenciar alerta incômodo: cada entrada aqui é uma decisão de
-# segurança que alguém precisa poder auditar depois.
+# Exceções do `cargo audit`, uma a uma, com o motivo e quando revisar.
 
 [advisories]
 ignore = [
-    # RUSTSEC-2023-0071 — "Marvin Attack" na crate `rsa` (CVE-2023-49092).
-    # Recuperação da chave privada por canal lateral de tempo.
+    # RUSTSEC-2023-0071, o "Marvin Attack" na crate `rsa` (CVE-2023-49092):
+    # recuperação da chave privada por canal lateral de tempo.
     #
-    # Por que fica ignorado, e não corrigido: NÃO EXISTE versão corrigida. O
-    # advisory lista `patched: []` desde 22/11/2023; a migração da RustCrypto
-    # para uma implementação de tempo constante ainda não saiu. Não há para onde
-    # atualizar.
+    # Não há versão corrigida (conferido em 2026-10-30: "No fixed upgrade is
+    # available", e a 0.10 ainda é release candidate).
     #
-    # Por que o risco aqui é baixo: o ataque precisa que o atacante ESCOLHA as
-    # entradas e MEÇA o tempo de muitas operações. Nesta aplicação a chave `rsa`
-    # é a da instalação, e ela só assina corpos de requisição que o próprio
-    # cliente monta, na máquina do usuário. Não há oráculo de assinatura exposto
-    # a terceiros, nem entrada escolhida por atacante. A chave do CERTIFICADO
-    # não passa por aqui: ela nunca sai do HSM da Certisign.
+    # O risco aqui é baixo. A chave `rsa` é a da instalação, não a do
+    # certificado (essa nunca sai do HSM da Certisign), e só assina o Bearer de
+    # corpos que o próprio cliente monta. O módulo PKCS#11 assina um Bearer a
+    # cada `C_Sign` de um aplicativo local, então um processo local influencia
+    # parte do corpo e pode medir o tempo; mas esse processo roda como o mesmo
+    # usuário, que já lê o arquivo da chave, e o tempo da operação RSA some
+    # dentro da ida e volta à Certisign.
     #
-    # O que revisar, e quando: assim que a `rsa` publicar versão com a correção
-    # de tempo constante, remover esta linha e atualizar. Reabrir antes disso se
-    # o projeto passar a assinar dado escolhido por terceiro (por exemplo, se o
-    # módulo PKCS#11 vier a usar a chave da instalação para atender `C_Sign` de
-    # um hospedeiro remoto — hoje ele não usa).
+    # Revisar quando a `rsa` publicar a correção de tempo constante (remover
+    # esta linha e atualizar), ou antes, se a chave passar a assinar pedidos de
+    # quem não é o próprio usuário.
     "RUSTSEC-2023-0071",
 ]

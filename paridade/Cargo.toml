@@ -1,0 +1,24 @@
+[package]
+name = "paridade"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "Grava, a partir do RemoteID-linux v0.3.2, as fixtures de paridade do protocolo"
+
+# Fora do pacote principal de propósito: as dependências do antigo (ureq,
+# rustls, rsa...) levariam o Cargo.lock dele de 68 para 205 pacotes, todos no
+# build offline do Flatpak. Medido em 2026-10-30.
+[workspace]
+
+[dependencies]
+remoteid-aplicacao = { git = "https://github.com/LLawli/RemoteID-linux", tag = "v0.3.2" }
+remoteid-assinatura = { git = "https://github.com/LLawli/RemoteID-linux", tag = "v0.3.2" }
+remoteid-autorizacao = { git = "https://github.com/LLawli/RemoteID-linux", tag = "v0.3.2" }
+remoteid-cripto = { git = "https://github.com/LLawli/RemoteID-linux", tag = "v0.3.2" }
+remoteid-diag-jsonl = { git = "https://github.com/LLawli/RemoteID-linux", tag = "v0.3.2" }
+remoteid-estado = { git = "https://github.com/LLawli/RemoteID-linux", tag = "v0.3.2" }
+remoteid-http = { git = "https://github.com/LLawli/RemoteID-linux", tag = "v0.3.2" }
+remoteid-portas = { git = "https://github.com/LLawli/RemoteID-linux", tag = "v0.3.2" }
+remoteid-protocolo-servidor = { git = "https://github.com/LLawli/RemoteID-linux", tag = "v0.3.2" }
+remoteid-tipos = { git = "https://github.com/LLawli/RemoteID-linux", tag = "v0.3.2" }
+serde_json = "1"

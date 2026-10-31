@@ -1,0 +1,4 @@
+# O RemoteID-linux v0.3.2 vem do GitHub, e o repositório está privado: o git
+# do sistema usa a credencial do gh, a biblioteca embutida no cargo não.
+[net]
+git-fetch-with-cli = true

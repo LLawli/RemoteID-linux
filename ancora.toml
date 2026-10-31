@@ -1,0 +1,14 @@
+# O descritor que o Âncora lê na raiz da extensão (contrato em
+# ~/Personal/adv-central/docs/extensoes.md). Caminhos relativos à extensão.
+contrato = 1
+nome = "RemoteID"
+fabricante = "Certisign"
+descricao = "Certificado em nuvem"
+
+[[pkcs11]]
+modulo = "lib/libremoteid.so"
+
+[[ferramenta]]
+nome = "RemoteID"
+executavel = "bin/remoteid"
+atalho = true
