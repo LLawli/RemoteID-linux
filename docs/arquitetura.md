@@ -78,8 +78,11 @@ não a pega.
 ## O módulo dentro do `p11-kit server`
 
 O `p11-kit server` do Âncora abre um `p11-kit-remote` por conexão, e cada um
-carrega o módulo do zero: o navegador tem o seu, o leitor de PDF o dele, e a
-sonda da supervisão abre um novo a cada 10 s. Daí as regras do módulo:
+carrega o módulo do zero: o navegador tem o seu, o leitor de PDF o dele. A
+sonda da supervisão é um processo à parte, o `ancora vigiar`, que carrega o
+módulo uma vez (`C_Initialize` com `CKF_OS_LOCKING_OK`) e consulta
+`C_GetSlotList` e `C_GetTokenInfo` a cada 10 s, a vida inteira do serviço.
+Daí as regras do módulo:
 
 - **Listar não custa nada.** O `C_Initialize` só lê o `estado.json`: não gera a
   chave da instalação, não cria arquivo de diagnóstico, não vai à rede. O motor
@@ -107,7 +110,10 @@ sonda da supervisão abre um novo a cada 10 s. Daí as regras do módulo:
   parou o driver em três sondas e levou a carga a 16. O Âncora corrigiu a
   sonda (`bbfbfaf`, lista os slots pela chamada crua), e o token não
   inicializado fica: protege qualquer outro hospedeiro que use o `cryptoki`
-  pelo RPC do p11-kit.
+  pelo RPC do p11-kit. Desde 2026-11-03 o Âncora tira da publicação o driver
+  que responde com zero tokens, até um aparecer; com o token sempre presente,
+  o RemoteID fica publicado mesmo sem conta, e o navegador que já o carregou
+  vê o certificado assim que a conta entra.
 - **O diálogo é outro processo.** `remoteid pedir`, achado ao lado do `.so`
   (`../bin/remoteid`, pelo `/proc/self/maps`), recebe o nome do titular pelo
   stdin e devolve o OTP (e, quando pedidos, a senha da conta ou o PIN local)
@@ -267,9 +273,11 @@ falso agora exige nele a senha da conta.
 ## Em aberto
 
 - **O chaveiro num desktop sem portal de segredos.** No Hyprland medido nesta
-  máquina, o portal não atende `org.freedesktop.portal.Secret`, e o Âncora não
-  tem `--talk-name=org.freedesktop.secrets`: o RemoteID cai no PIN local. Com
-  a permissão no Âncora, o Secret Service do host (o `gnome-keyring`) atende.
+  máquina, o portal não atende `org.freedesktop.portal.Secret`, e sem
+  `--talk-name=org.freedesktop.secrets` no Âncora o RemoteID cai no PIN local.
+  O Âncora ganhou a permissão em 2026-11-03 (medido lá: de dentro do sandbox,
+  o `gnome-keyring` do host passou a responder), mas a versão com ela ainda
+  não foi publicada; até lá, quem usa Hyprland fica com o PIN local.
 - **Configurações.** A janela tem reautorizar, sair e sobre; não há tela de
   configurações, porque nada mais é configurável hoje.
 - **`cargo audit`**: o `zvariant`, o `zvariant_derive` e o `zbus_names`, que
