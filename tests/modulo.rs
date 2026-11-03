@@ -454,7 +454,19 @@ fn o_modulo_assina_pelo_motor_e_pede_os_fatores_so_quando_precisa() {
         // Sem conta, o token existe, não inicializado e sem objetos: um slot
         // sem token deixa em laço quem usa o p11-kit (ver C_GetTokenInfo).
         std::env::set_var("REMOTEID_HOME", raiz.join("sem-conta"));
-        assert_eq!(f.C_Initialize.unwrap()(ptr::null_mut()), CKR_OK);
+        // Como o `ancora vigiar` inicializa: travas do sistema, sem callbacks.
+        let mut args = CK_C_INITIALIZE_ARGS {
+            CreateMutex: None,
+            DestroyMutex: None,
+            LockMutex: None,
+            UnlockMutex: None,
+            flags: CKF_OS_LOCKING_OK,
+            pReserved: ptr::null_mut(),
+        };
+        assert_eq!(
+            f.C_Initialize.unwrap()(&mut args as *mut _ as *mut _),
+            CKR_OK
+        );
         let mut n = 4;
         let rv = f.C_GetSlotList.unwrap()(CK_TRUE, slots.as_mut_ptr(), &mut n);
         assert_eq!(rv, CKR_OK);
