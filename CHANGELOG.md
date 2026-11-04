@@ -6,6 +6,8 @@ Todas as mudanças visíveis para quem usa ficam aqui. O formato segue o
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-04
+
 ### Adicionado
 
 - A extensão `dev.lukakuuhaku.Ancora.Driver.RemoteID` do Âncora, com a janela
