@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Solta uma versão: põe o número no pacote, data o CHANGELOG, roda os gates,
+# commita, empurra a main e cria a tag assinada. A tag dispara o
+# .github/workflows/release.yml.
+#
+#   bin/release 0.5.0              faz tudo
+#   bin/release 0.5.0 --sem-push   para no commit local (jj undo desfaz)
+#
+# A extensão chega a quem usa pelo bin/publicar do Âncora, não por aqui: a
+# release do GitHub leva só o código e as notas. A entrada da versão no
+# metainfo é escrita à mão, porque é texto para quem usa; ela pode estar no
+# working copy, e entra no commit da versão.
+set -euo pipefail
+
+METAINFO=dev.lukakuuhaku.Ancora.Driver.RemoteID.metainfo.xml
+
+erro() {
+    echo "release: $*" >&2
+    exit 1
+}
+
+VERSAO=''
+EMPURRAR=sim
+for argumento in "$@"; do
+    case $argumento in
+        --sem-push) EMPURRAR=nao ;;
+        -*) erro "opção desconhecida: $argumento" ;;
+        *) [ -z "$VERSAO" ] || erro "uma versão só"; VERSAO=$argumento ;;
+    esac
+done
+[[ $VERSAO =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || erro "uso: bin/release X.Y.Z [--sem-push]"
+TAG="v$VERSAO"
+
+cd "$(dirname "$0")/.."
+
+alheios=$(jj diff --name-only -r @ | grep -vx "$METAINFO" || true)
+[ -z "$alheios" ] || erro "o working copy tem mudanças além do metainfo:
+$alheios"
+! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null || erro "a tag $TAG já existe"
+[ -z "$(git ls-remote --tags origin "refs/tags/$TAG")" ] || erro "a tag $TAG já está no GitHub"
+grep -q "<release version=\"$VERSAO\"" "$METAINFO" ||
+    erro "falta a entrada da versão $VERSAO no $METAINFO"
+
+entradas=$(awk '
+    index($0, "## [Unreleased]") == 1 { dentro = 1; next }
+    dentro && index($0, "## [") == 1 { exit }
+    dentro && NF { print }
+' CHANGELOG.md)
+[ -n "$entradas" ] || erro "o CHANGELOG.md não tem nada em [Unreleased]"
+
+echo "==> Versão $VERSAO"
+sed -i "0,/^version = \".*\"$/s//version = \"$VERSAO\"/" Cargo.toml
+cargo update --workspace --offline --quiet
+
+echo "==> CHANGELOG"
+hoje=$(date +%Y-%m-%d)
+sed -i "s/^## \[Unreleased\]$/## [Unreleased]\n\n## [$VERSAO] - $hoje/" CHANGELOG.md
+
+echo "==> Gates"
+# Com teto, para não derrubar o resto da máquina.
+systemd-run --user --scope -q -p CPUQuota=600% -p MemoryMax=6G -- scripts/ci.sh
+
+echo "==> Commit"
+jj commit -m "chore: release $TAG" Cargo.toml Cargo.lock CHANGELOG.md "$METAINFO"
+jj bookmark set main -r @-
+
+if [ "$EMPURRAR" = nao ]; then
+    echo "$TAG commitada localmente, sem empurrar (--sem-push)."
+    exit 0
+fi
+
+echo "==> Push da main (cada commit que sai pede um toque na YubiKey)"
+jj git push --bookmark main
+
+# O sign-on-push reescreve os commits: uma tag criada antes do push apontaria
+# para um commit que nunca chega ao GitHub.
+commit=$(jj log --no-graph -r main@origin -T commit_id)
+git cat-file -p "$commit" | grep -q '^gpgsig ' || erro "o commit $commit chegou sem assinatura"
+
+echo "==> Tag $TAG em ${commit:0:12} (mais um toque)"
+git tag -s "$TAG" -m "$TAG" "$commit"
+git push origin "$TAG"
+
+echo "$TAG no GitHub. O workflow de release segue dali."

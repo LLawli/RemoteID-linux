@@ -207,10 +207,11 @@ documentação, e o diagnóstico só grava o que já passou pela redação.
 6. **Terminal** (feito): `remoteid assinar` (inclusive o `.p7s` na AD-RB
    da ICP-Brasil) e o harness de diagnóstico, testados na VM
    dentro do sandbox do Âncora.
-7. **Publicação**: no remote do Âncora, no lugar da extensão RemoteID do
-   flatpak-adv-br. A reescrita está na `main`, na versão 0.4.0; a extensão sobe
-   com o `bin/publicar` do Âncora, na migração dele, e a tag `v0.4.0` sai
-   depois disso.
+7. **Publicação** (feito): no remote do Âncora, no lugar da extensão RemoteID
+   do flatpak-adv-br. A 0.4.0 subiu em 2026-11-04 com o `bin/publicar` do
+   Âncora; instalada de lá na VM, passou o ciclo inteiro com o servidor falso
+   (publicação sem conta, chaveiro, navegador e assinatura). Só falta passar
+   por uma conta real.
 
 Fora da primeira versão: a aprovação por celular (push). Está implementada no
 RemoteID-linux e nunca passou por uma conta real.
@@ -263,7 +264,11 @@ falso agora exige nele a senha da conta.
   OTP. O `oo7` 0.6 promete essa queda para o D-Bus e não a faz (devolve o erro
   do portal antes); a queda está em `cofre.rs`. Medido na VM em 2026-10-30:
   com o portal (sessão GNOME) e com o D-Bus (sessão sem portal, com a
-  permissão), as duas assinaturas pediram só o OTP.
+  permissão), as duas assinaturas pediram só o OTP. Num Hyprland, o portal não
+  atende `org.freedesktop.portal.Secret`, e quem resolve é o
+  `--talk-name=org.freedesktop.secrets` do Âncora: sem essa permissão, o
+  RemoteID cai no PIN local. Medido em 2026-11-04 no Âncora publicado: a senha
+  vai para o `gnome-keyring` do host.
 - **Sem chaveiro**, a senha vai cifrada para `senha.cifrada` com um PIN de 4 a
   6 dígitos que a pessoa cria logo depois de entrar (Argon2id de 64 MiB e três
   passadas, ChaCha20-Poly1305 com o e-mail como dado associado). O PIN é
@@ -277,12 +282,6 @@ falso agora exige nele a senha da conta.
 
 ## Em aberto
 
-- **O chaveiro num desktop sem portal de segredos.** No Hyprland medido nesta
-  máquina, o portal não atende `org.freedesktop.portal.Secret`, e sem
-  `--talk-name=org.freedesktop.secrets` no Âncora o RemoteID cai no PIN local.
-  O Âncora ganhou a permissão em 2026-11-03 (medido lá: de dentro do sandbox,
-  o `gnome-keyring` do host passou a responder), mas a versão com ela ainda
-  não foi publicada; até lá, quem usa Hyprland fica com o PIN local.
 - **Configurações.** A janela tem reautorizar, sair e sobre; não há tela de
   configurações, porque nada mais é configurável hoje.
 - **`cargo audit`**: o `zvariant`, o `zvariant_derive` e o `zbus_names`, que

@@ -106,3 +106,19 @@ O `construir.sh` exporta para `repo/` e instala de lá, por um remote
 exporta. O build mora em `.flatpak-builder/`, um link para o SSD de dados. O
 segundo comando confere que o Âncora leu o `ancora.toml`; o terceiro abre a
 janela dentro do sandbox do Âncora, como o atalho fará.
+
+## Soltar uma versão
+
+A extensão chega a quem usa pelo `bin/publicar` do Âncora, que compila a pasta
+`extensoes/`, não a `main`: publique a partir da `main` já com tudo o que a
+versão leva. A entrada da versão no metainfo é escrita à mão, e pode estar no
+working copy. Depois:
+
+```bash
+bin/release 0.5.0              # versão, CHANGELOG, gates, push da main e tag
+bin/release 0.5.0 --sem-push   # para no commit local; jj undo desfaz
+```
+
+A tag dispara o `.github/workflows/release.yml`, que confere a versão e cria a
+release com as notas do CHANGELOG e o código, sem binário. Para refazer a
+release de uma tag que já existe: `gh workflow run release.yml -f tag=v0.5.0`.

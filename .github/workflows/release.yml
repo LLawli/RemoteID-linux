@@ -1,0 +1,88 @@
+# Dispara por tag, e só por tag: a versão é um ato deliberado, feito pelo
+# bin/release. O workflow_dispatch refaz a release de uma tag que já existe.
+#
+# Não há binário aqui: a extensão chega a quem usa pelo remote do Âncora, e a
+# release leva o código, com sha256, e as notas do CHANGELOG.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag que já existe, como v0.4.0
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: A tag, o pacote e o metainfo dizem a mesma versão
+        run: |
+          versao="${TAG#v}"
+          echo "VERSAO=$versao" >> "$GITHUB_ENV"
+          pacote=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+          [ "$pacote" = "$versao" ] || {
+              echo "a tag $TAG não bate com o Cargo.toml ($pacote)" >&2
+              exit 1
+          }
+          metainfo=$(sed -n 's/.*<release version="\([^"]*\)".*/\1/p' \
+              dev.lukakuuhaku.Ancora.Driver.RemoteID.metainfo.xml | head -n 1)
+          [ "$metainfo" = "$versao" ] || {
+              echo "a tag $TAG não bate com o metainfo ($metainfo)" >&2
+              exit 1
+          }
+
+      - name: Notas, da seção desta versão no CHANGELOG
+        run: |
+          awk -v cabecalho="## [$VERSAO]" '
+              index($0, cabecalho) == 1 { dentro = 1; next }
+              dentro && index($0, "## [") == 1 { exit }
+              dentro { print }
+          ' CHANGELOG.md > notas.md
+          # Uma release com corpo vazio some para quem acompanha pelo feed.
+          grep -q '[^[:space:]]' notas.md || {
+              echo "o CHANGELOG não tem a seção $VERSAO" >&2
+              exit 1
+          }
+          cat >> notas.md <<'FIM'
+
+          ## Instalar
+
+          O RemoteID é uma extensão do Âncora: instale pela tela de extensões dele, ou pelo terminal:
+
+          ```bash
+          flatpak remote-add --user --if-not-exists ancora https://flatpak.lukakuuhaku.dev/ancora.flatpakrepo
+          flatpak install --user ancora dev.lukakuuhaku.Ancora dev.lukakuuhaku.Ancora.Driver.RemoteID
+          ```
+          FIM
+
+      - name: Código, com checksum
+        run: |
+          nome="remoteid-$VERSAO"
+          git archive --format=tar.gz --prefix="$nome/" -o "$nome.tar.gz" HEAD
+          sha256sum "$nome.tar.gz" > "$nome.tar.gz.sha256"
+          cat "$nome.tar.gz.sha256"
+
+      - name: Publica
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          arquivos=("remoteid-$VERSAO.tar.gz" "remoteid-$VERSAO.tar.gz.sha256")
+          if gh release view "$TAG" >/dev/null 2>&1; then
+              gh release edit "$TAG" --title "$VERSAO" --notes-file notas.md
+              gh release upload "$TAG" --clobber "${arquivos[@]}"
+          else
+              gh release create "$TAG" --title "$VERSAO" --notes-file notas.md "${arquivos[@]}"
+          fi

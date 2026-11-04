@@ -21,8 +21,14 @@ no histórico e nas releases deste repositório.
 
 ## Instalar
 
-Ainda não há versão publicada. Para construir e instalar a partir do código,
-com o Âncora já instalado:
+Instale pela tela de extensões do Âncora, ou pelo terminal:
+
+```bash
+flatpak remote-add --user --if-not-exists ancora https://flatpak.lukakuuhaku.dev/ancora.flatpakrepo
+flatpak install --user ancora dev.lukakuuhaku.Ancora dev.lukakuuhaku.Ancora.Driver.RemoteID
+```
+
+Para construir e instalar a partir do código, com o Âncora já instalado:
 
 ```bash
 flatpak install flathub org.gnome.Sdk//51 org.freedesktop.Sdk.Extension.rust-stable//26.08
