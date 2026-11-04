@@ -101,19 +101,24 @@ Daí as regras do módulo:
   permissões, e o Âncora tem `--share=network` para isso desde `bbfbfaf`. Na
   VM, com o servidor falso numa instância separada, entrar, baixar a cadeia
   (3 certificados no token) e assinar passaram.
-- **Sempre há token.** Sem conta, o slot tem um token não inicializado e sem
-  objetos, como o slot livre do SoftHSM. Um slot sem token faz o
+- **Sempre há token, e inicializado.** Sem conta, o slot tem um token
+  inicializado e sem objetos. Um slot sem token faz o
   `C_GetSlotList(CK_TRUE)` devolver a lista vazia, e pelo RPC do p11-kit
   0.26 a segunda passada com zero itens volta `CKR_BUFFER_TOO_SMALL`: quem
   repete enquanto o buffer é pequeno, como o `get_slots_with_token` do crate
-  `cryptoki` que a sonda do Âncora usa, fica em laço para sempre. Na VM, isso
+  `cryptoki` que a sonda do Âncora usava, fica em laço para sempre. Na VM, isso
   parou o driver em três sondas e levou a carga a 16. O Âncora corrigiu a
-  sonda (`bbfbfaf`, lista os slots pela chamada crua), e o token não
-  inicializado fica: protege qualquer outro hospedeiro que use o `cryptoki`
-  pelo RPC do p11-kit. Desde 2026-11-03 o Âncora tira da publicação o driver
-  que responde com zero tokens, até um aparecer; com o token sempre presente,
-  o RemoteID fica publicado mesmo sem conta, e o navegador que já o carregou
-  vê o certificado assim que a conta entra.
+  sonda (`bbfbfaf`, lista os slots pela chamada crua), e o token sempre
+  presente fica: protege qualquer outro hospedeiro que use o `cryptoki` pelo
+  RPC do p11-kit.
+  Desde 2026-11-03 o Âncora tira da publicação o driver com zero tokens, e só
+  conta o token marcado como inicializado (o slot livre do SoftHSM não é). Antes
+  de 2026-11-04, o RemoteID sem conta deixava o token sem essa marca e saía da
+  publicação. O p11-kit-proxy do Firefox lê os módulos uma vez, ao abrir, então
+  um Firefox aberto antes do login nunca via o RemoteID (medido na VM: 50 s
+  sem token depois de a conta entrar). Com o token sempre inicializado, o
+  Âncora publica o RemoteID ainda sem conta, e o Firefox aberto antes vê os
+  certificados cerca de 2 s depois do login e os perde ao sair.
 - **O diálogo é outro processo.** `remoteid pedir`, achado ao lado do `.so`
   (`../bin/remoteid`, pelo `/proc/self/maps`), recebe o nome do titular pelo
   stdin e devolve o OTP (e, quando pedidos, a senha da conta ou o PIN local)
