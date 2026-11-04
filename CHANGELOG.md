@@ -16,7 +16,8 @@ Todas as mudanças visíveis para quem usa ficam aqui. O formato segue o
 - O token traz a cadeia de autoridades do certificado, baixada do
   `caIssuers`, para os assinadores que montam a cadeia pelo token.
 - Um navegador aberto vê o certificado quando a conta é preparada ou trocada,
-  sem precisar ser reiniciado.
+  sem precisar ser reiniciado, mesmo que tenha sido aberto antes de entrar na
+  conta: sem conta, o Âncora já publica o RemoteID, com o token vazio.
 - `remoteid entrar <email>` entra na conta, registra a máquina e baixa a
   carteira, com a senha pelo stdin.
 - `remoteid assinar` assina o que chega pela entrada padrão e devolve um

@@ -432,9 +432,16 @@ fn o_modulo_assina_pelo_motor_e_pede_os_fatores_so_quando_precisa() {
             f.C_GetSessionInfo.unwrap()(sessao, &mut sessao_info),
             CKR_SESSION_HANDLE_INVALID
         );
+        // O token continua inicializado, para o Âncora não tirar o driver da
+        // publicação, mas sem objetos.
         assert_eq!(f.C_GetTokenInfo.unwrap()(slot, &mut info), CKR_OK);
-        assert_eq!(info.flags & CKF_TOKEN_INITIALIZED, 0);
-        // Entrar de novo traz o token, numa sessão nova.
+        assert_ne!(info.flags & CKF_TOKEN_INITIALIZED, 0);
+        let mut vazio = 0;
+        let rv =
+            f.C_OpenSession.unwrap()(slot, CKF_SERIAL_SESSION, ptr::null_mut(), None, &mut vazio);
+        assert_eq!(rv, CKR_OK);
+        assert!(buscar(f, vazio, CKO_CERTIFICATE).is_empty());
+        // Entrar de novo traz os certificados, numa sessão nova.
         Estado::alterar(&estado, |e| e.certificados = carteira).unwrap();
         assert_eq!(f.C_GetTokenInfo.unwrap()(slot, &mut info), CKR_OK);
         assert_ne!(info.flags & CKF_TOKEN_INITIALIZED, 0);
@@ -451,8 +458,9 @@ fn o_modulo_assina_pelo_motor_e_pede_os_fatores_so_quando_precisa() {
 
         assert_eq!(f.C_Finalize.unwrap()(ptr::null_mut()), CKR_OK);
 
-        // Sem conta, o token existe, não inicializado e sem objetos: um slot
-        // sem token deixa em laço quem usa o p11-kit (ver C_GetTokenInfo).
+        // Sem conta, o token existe, inicializado e sem objetos: um slot sem
+        // token deixa em laço quem usa o p11-kit, e um token não inicializado
+        // o Âncora não publica (ver C_GetTokenInfo).
         std::env::set_var("REMOTEID_HOME", raiz.join("sem-conta"));
         // Como o `ancora vigiar` inicializa: travas do sistema, sem callbacks.
         let mut args = CK_C_INITIALIZE_ARGS {
@@ -472,7 +480,8 @@ fn o_modulo_assina_pelo_motor_e_pede_os_fatores_so_quando_precisa() {
         assert_eq!(rv, CKR_OK);
         assert_eq!(n, 1);
         assert_eq!(f.C_GetTokenInfo.unwrap()(slot, &mut info), CKR_OK);
-        assert_eq!(info.flags & CKF_TOKEN_INITIALIZED, 0);
+        assert_ne!(info.flags & CKF_TOKEN_INITIALIZED, 0);
+        assert!(info.label.starts_with(b"RemoteID Certisign "));
         let mut vazia = 0;
         let rv =
             f.C_OpenSession.unwrap()(slot, CKF_SERIAL_SESSION, ptr::null_mut(), None, &mut vazia);

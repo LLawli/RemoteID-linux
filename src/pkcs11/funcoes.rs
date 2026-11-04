@@ -213,23 +213,22 @@ pub(super) unsafe extern "C" fn C_GetTokenInfo(
             &mut info.serialNumber,
             &serie[serie.len().saturating_sub(16)..],
         );
-        // Sem conta, o token existe sem estar inicializado, como o slot livre
-        // do SoftHSM, e não tem objeto nenhum. Um slot sem token faria o
-        // `C_GetSlotList(CK_TRUE)` devolver a lista vazia, e pelo RPC do
-        // p11-kit a segunda passada com zero itens volta
+        // Sem conta, o token existe, inicializado e sem objeto nenhum. Um slot
+        // sem token faria o `C_GetSlotList(CK_TRUE)` devolver a lista vazia, e
+        // pelo RPC do p11-kit a segunda passada com zero itens volta
         // `CKR_BUFFER_TOO_SMALL`: quem repete enquanto o buffer é pequeno (o
         // crate `cryptoki`, que a sonda do Âncora usava até `bbfbfaf`) fica
         // em laço para sempre. Medido no p11-kit 0.26 do runtime GNOME 51.
+        // E um token não inicializado o Âncora não conta (é o slot livre do
+        // SoftHSM): o driver sairia da publicação, e o navegador aberto antes
+        // de entrar na conta, que só lê os módulos ao abrir, nunca o veria.
         //
         // Sem CKF_LOGIN_REQUIRED e sem CKF_USER_PIN_INITIALIZED, de propósito:
         // o token não tem PIN próprio, o do certificado é pedido no C_Sign.
         // Anunciar login fazia o NSS e o poppler pedirem uma senha ao
         // hospedeiro e recusá-la em laço antes de assinar (o Papers pedia o
         // PIN seis vezes no RemoteID-linux).
-        info.flags = CKF_WRITE_PROTECTED;
-        if modulo.token.is_some() {
-            info.flags |= CKF_TOKEN_INITIALIZED;
-        }
+        info.flags = CKF_WRITE_PROTECTED | CKF_TOKEN_INITIALIZED;
         info.ulMaxSessionCount = CK_EFFECTIVELY_INFINITE;
         info.ulSessionCount = modulo.sessoes.len() as CK_ULONG;
         info.ulMaxRwSessionCount = 0;
