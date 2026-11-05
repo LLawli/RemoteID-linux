@@ -55,6 +55,20 @@ padrão porque o Âncora não enxerga a pasta pessoal, e o código do autenticad
 é pedido na janela do RemoteID. `$R harness` testa o fluxo
 e grava um relatório para mandar a quem investiga um problema.
 
+## Sites que usam TLS 1.3
+
+Entrar num site com o certificado só funciona em TLS 1.2. O TLS 1.3 exige uma
+assinatura RSA-PSS, e o HSM da Certisign só assina em PKCS#1 v1.5: o limite é
+do serviço, e o aplicativo oficial de Windows esbarra nele também. Assinar
+documentos não é afetado.
+
+No Firefox, a página de erro mostra `SSL_ERROR_RX_CERTIFICATE_REQUIRED_ALERT`,
+mesmo em site que também aceita TLS 1.2, porque o Firefox não recua sozinho.
+Para esses sites, abra `about:config` e mude `security.tls.version.max` para
+`3`. A opção vale para todos os sites do perfil, então use um perfil só para
+isso (`firefox -P`). Em site que só aceita TLS 1.3 não há contorno: o erro
+passa a ser `SSL_ERROR_PROTOCOL_VERSION_ALERT`.
+
 ## Vindo da v0.3.2
 
 A v0.3.2 se instalava sozinha, em `~/.local`, e registrava o próprio módulo no
