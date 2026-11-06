@@ -15,7 +15,7 @@ use gtk::glib;
 use remoteid::carteira;
 use remoteid::motor::Fatores;
 use remoteid::pedido::Pedido;
-use remoteid::{APP_ID, NOME};
+use remoteid::{NOME, id_do_aplicativo};
 
 use super::{cartao, estilo};
 
@@ -23,7 +23,7 @@ pub fn executar() -> glib::ExitCode {
     let pedido: Pedido = serde_json::from_reader(std::io::stdin()).unwrap_or_default();
     // Outra instância do id (a janela aberta) não pode receber esta pergunta.
     let app = adw::Application::builder()
-        .application_id(APP_ID)
+        .application_id(id_do_aplicativo())
         .flags(gtk::gio::ApplicationFlags::NON_UNIQUE)
         .build();
     let respondido = Rc::new(Cell::new(false));

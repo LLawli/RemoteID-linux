@@ -16,7 +16,7 @@ use std::time::Duration;
 
 use futures_lite::future;
 
-use crate::APP_ID;
+use crate::id_do_aplicativo;
 
 /// Troca o chaveiro: [`SEM_COFRE`] não guarda nada. Os testes usam, para não
 /// gravar no chaveiro de quem os roda.
@@ -87,7 +87,7 @@ impl Cofre for NaMemoria {
 pub struct Chaveiro;
 
 fn atributos(email: &str) -> [(&'static str, &str); 2] {
-    [("aplicativo", APP_ID), ("conta", email)]
+    [("aplicativo", id_do_aplicativo()), ("conta", email)]
 }
 
 /// Roda uma chamada ao chaveiro até o fim ou até o [`LIMITE`].

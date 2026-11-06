@@ -25,7 +25,7 @@ use remoteid::motor::{Erro, Motor};
 use remoteid::pin;
 use remoteid::protocolo::requisicao::Maquina;
 use remoteid::transporte::{Http, TEMPO_LIMITE};
-use remoteid::{APP_ID, NOME};
+use remoteid::{NOME, id_do_aplicativo};
 
 use zeroize::Zeroizing;
 
@@ -438,7 +438,7 @@ fn construir(app: &adw::Application) -> Rc<Janela> {
     let janela = adw::ApplicationWindow::builder()
         .application(app)
         .title(NOME)
-        .icon_name(APP_ID)
+        .icon_name(id_do_aplicativo())
         .default_width(460)
         .default_height(740)
         .content(&toasts)
@@ -1022,7 +1022,7 @@ fn ligar(app: &adw::Application, j: &Rc<Janela>) {
     w.add_action(&acao(j, "sobre", |j| {
         adw::AboutDialog::builder()
             .application_name(NOME)
-            .application_icon(APP_ID)
+            .application_icon(id_do_aplicativo())
             .developer_name("Âncora")
             .version(env!("CARGO_PKG_VERSION"))
             .license_type(gtk::License::Gpl30Only)

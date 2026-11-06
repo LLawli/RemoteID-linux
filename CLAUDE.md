@@ -39,8 +39,9 @@ a etapa onde ela pega e o caminho da página de origem.
   `/tmp`. Artefato de debug, build do Flatpak e experimento são apagados
   quando cumprem o propósito; no mínimo ao fechar cada etapa.
 - Depois de mudar o `Cargo.lock`, rode `scripts/cargo-sources.py`.
-- O ref `dev.lukakuuhaku.Ancora.Driver.RemoteID` é também o id do aplicativo e
-  não muda.
+- O ref `dev.lukakuuhaku.Ancora.Driver.RemoteID` é também o id do aplicativo no
+  Âncora e não muda. Em outro hospedeiro, o id sai do `FLATPAK_ID`
+  (`remoteid::id_do_aplicativo`).
 - O `libremoteid.so` não pode depender de GTK: o GTK só entra pelo binário.
 - **Assinar não depende da janela aberta.** Só o `ancora servir` publicando o
   driver tem de bastar: o motor mora no módulo, e o PIN e o OTP são pedidos

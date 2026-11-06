@@ -145,6 +145,20 @@ Daí as regras do módulo:
   SunPKCS11 montar a cadeia pelo `CKA_SUBJECT` sem ir à rede (o assinador do
   Projudi precisa). Uma AC fora do ar não impede a carteira: fica a cadeia que
   o certificado já tinha, ou nenhuma.
+- **Autenticar em TLS vai só até o 1.2.** O RFC 8446 exige RSA-PSS no
+  `CertificateVerify`, e o HSM da Certisign só faz PKCS#1 v1.5, então o token
+  anuncia só `CKM_RSA_PKCS` e `CKM_SHA256_RSA_PKCS`. Sem mecanismo para assinar,
+  o NSS responde ao pedido de certificado do TLS 1.3 com um certificado vazio:
+  o módulo nem recebe o pedido de assinatura, e o servidor registra `peer did
+  not return a certificate`. Medido em 2026-11-05 com Firefox 159 e `tstclnt` (Fedora 44),
+  contra o `openssl s_server` exigindo certificado, no Âncora 0.4.0 e no Tessera
+  com o mesmo resultado: servidor só 1.2 entra (`rsa_pkcs1_sha256`); servidor
+  com 1.2 e 1.3 recusa, porque o cliente não recua, e entra com
+  `security.tls.version.max=3`; servidor só 1.3 recusa nos dois casos. Um
+  certificado em software entrou em TLS 1.3 com o mesmo cliente
+  (`rsa_pss_rsae_sha256`), o que isola o PSS como causa. Não medidos: Chromium,
+  Firefox em Flatpak, o handshake esperando a pessoa digitar o código, e um
+  site real.
 
 Do RemoteID-linux vêm, com o motivo em comentário no código, as escolhas que
 os hospedeiros exigem: o token não anuncia login (o NSS pedia o PIN em laço), o
