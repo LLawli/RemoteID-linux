@@ -11,6 +11,7 @@ fn main() -> gtk::glib::ExitCode {
         Some(terminal::ENTRAR) => terminal::entrar(&args[1..]),
         Some(terminal::ASSINAR) => terminal::assinar(&args[1..]),
         Some(terminal::HARNESS) => terminal::harness(&args[1..]),
+        Some(terminal::DIAGNOSTICO) => terminal::diagnostico(&args[1..]),
         _ => janela(),
     }
 }

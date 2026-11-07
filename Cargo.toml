@@ -50,6 +50,10 @@ async-io = "2"
 argon2 = "0.5"
 chacha20poly1305 = "0.10"
 zeroize = "1"
+# `remoteid diagnostico` empacota os registros num .tar.gz para anexar a um
+# relato. O flate2 já vinha pelo ureq.
+tar = { version = "0.4", default-features = false }
+flate2 = "1"
 
 # O Argon2id custa 64 MiB e três passadas por PIN: sem otimizar, cada teste
 # que abre o arquivo levaria segundos.

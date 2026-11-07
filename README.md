@@ -55,6 +55,11 @@ padrão porque o Âncora não enxerga a pasta pessoal, e o código do autenticad
 é pedido na janela do RemoteID. `$R harness` testa o fluxo
 e grava um relatório para mandar a quem investiga um problema.
 
+Quando algo dá errado, `$R diagnostico > remoteid-diagnostico.tar.gz` junta os
+registros dos últimos 30 dias num arquivo para anexar ao relato. Ele não traz
+senha, PIN, OTP nem os dados do titular, mas identifica a conta: envie por um
+canal privado.
+
 ## Sites que usam TLS 1.3
 
 Entrar num site com o certificado só funciona em TLS 1.2. O TLS 1.3 exige uma

@@ -1,17 +1,20 @@
 //! Os subcomandos de terminal.
 
 use std::cell::Cell;
-use std::fs::File;
-use std::io::{BufRead, BufReader, IsTerminal, Read, Write};
+use std::fs::{self, File};
+use std::io::{self, BufRead, BufReader, IsTerminal, Read, Write};
 use std::os::fd::AsRawFd;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+use flate2::Compression;
+use flate2::write::GzEncoder;
 
 use gtk::glib::ExitCode;
 use remoteid::cades;
 use remoteid::caminhos::{self, Caminhos};
 use remoteid::cofre;
 use remoteid::cripto::de_b64;
-use remoteid::diagnostico::Diagnostico;
+use remoteid::diagnostico::{self, Diagnostico};
 use remoteid::harness;
 use remoteid::motor::{Autorizador, Credencial, Erro, Fatores, Motor};
 use remoteid::pedido::Dialogo;
@@ -26,6 +29,12 @@ use zeroize::Zeroizing;
 pub const ENTRAR: &str = "entrar";
 pub const ASSINAR: &str = "assinar";
 pub const HARNESS: &str = "harness";
+pub const DIAGNOSTICO: &str = "diagnostico";
+
+const USO_DIAGNOSTICO: &str = "uso: remoteid diagnostico > remoteid-diagnostico.tar.gz";
+
+/// A pasta dentro do pacote, para o pacote não se espalhar ao ser aberto.
+const PASTA_DO_PACOTE: &str = "remoteid-diagnostico";
 
 const USO_ASSINAR: &str = "\
 uso: remoteid assinar [--anexar | --cru] [--hash <hex>] < documento > saída
@@ -39,9 +48,9 @@ O código do autenticador é pedido no terminal ou, sem terminal, numa janela.";
 
 /// O motor de quem roda no terminal, com o chaveiro e o diagnóstico. Devolve
 /// também o arquivo de diagnóstico desta execução.
-fn abrir_motor() -> Result<(Motor, Caminhos, Option<PathBuf>), Erro> {
+fn abrir_motor(comando: &str) -> Result<(Motor, Caminhos, Option<PathBuf>), Erro> {
     let caminhos = Caminhos::do_ambiente();
-    let diagnostico = Diagnostico::abrir(&caminhos.diagnostico());
+    let diagnostico = Diagnostico::abrir(&caminhos.diagnostico(), &format!("terminal {comando}"));
     let arquivo = diagnostico.caminho().map(PathBuf::from);
     let motor = Motor::abrir(
         caminhos.clone(),
@@ -84,7 +93,7 @@ pub fn entrar(args: &[String]) -> ExitCode {
         usuario_local: &usuario,
         dominio_rede: &maquina_nome,
     };
-    let (mut motor, _, diagnostico) = match abrir_motor() {
+    let (mut motor, _, diagnostico) = match abrir_motor(ENTRAR) {
         Ok(m) => m,
         Err(e) => return falhar(e, None),
     };
@@ -188,7 +197,7 @@ pub fn assinar(args: &[String]) -> ExitCode {
             None,
         );
     };
-    let (mut motor, _, diagnostico) = match abrir_motor() {
+    let (mut motor, _, diagnostico) = match abrir_motor(ASSINAR) {
         Ok(m) => m,
         Err(e) => return falhar(e, None),
     };
@@ -241,7 +250,7 @@ pub fn harness(args: &[String]) -> ExitCode {
             None,
         );
     };
-    let (mut motor, caminhos, diagnostico) = match abrir_motor() {
+    let (mut motor, caminhos, diagnostico) = match abrir_motor(HARNESS) {
         Ok(m) => m,
         Err(e) => return falhar(e, None),
     };
@@ -265,6 +274,88 @@ pub fn harness(args: &[String]) -> ExitCode {
     } else {
         ExitCode::SUCCESS
     }
+}
+
+/// `remoteid diagnostico > arquivo.tar.gz`: os registros desta conta e o
+/// ambiente, num pacote para anexar a um relato de erro. Sai pela saída
+/// padrão porque o hospedeiro não enxerga a pasta pessoal.
+pub fn diagnostico(args: &[String]) -> ExitCode {
+    if !args.is_empty() {
+        eprintln!("{USO_DIAGNOSTICO}");
+        return ExitCode::FAILURE;
+    }
+    let saida = io::stdout();
+    if saida.is_terminal() {
+        eprintln!("remoteid: o pacote é binário, mande a saída para um arquivo\n{USO_DIAGNOSTICO}");
+        return ExitCode::FAILURE;
+    }
+    match empacotar(&Caminhos::do_ambiente().diagnostico(), saida.lock()) {
+        Ok(n) => {
+            eprintln!(
+                "{n} registros no pacote. Envie por um canal privado: não traz senha, PIN,\n\
+                 OTP nem o titular, mas identifica a conta."
+            );
+            ExitCode::SUCCESS
+        }
+        Err(e) => falhar(format!("não montou o pacote: {e}"), None),
+    }
+}
+
+/// Grava em `saida` o `.tar.gz` com o ambiente e cada arquivo de `pasta`.
+/// Devolve quantos arquivos foram.
+fn empacotar(pasta: &Path, saida: impl Write) -> io::Result<usize> {
+    let mut arquivos: Vec<PathBuf> = match fs::read_dir(pasta) {
+        Ok(entradas) => entradas
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.is_file())
+            .collect(),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Vec::new(),
+        Err(e) => return Err(e),
+    };
+    arquivos.sort();
+    let nome = |p: &Path| {
+        p.file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned()
+    };
+
+    let mut ambiente = diagnostico::ambiente();
+    ambiente["gerado"] = agora().into();
+    ambiente["arquivos"] = arquivos
+        .iter()
+        .map(|p| serde_json::json!({"nome": nome(p), "bytes": p.metadata().map_or(0, |m| m.len())}))
+        .collect();
+    let mut pacote = tar::Builder::new(GzEncoder::new(saida, Compression::default()));
+    let texto = serde_json::to_vec_pretty(&ambiente).map_err(io::Error::other)?;
+    acrescentar(&mut pacote, "ambiente.json", &texto, agora())?;
+    for arquivo in &arquivos {
+        // Um navegador aberto pode estar gravando: entra o que havia agora.
+        let dados = fs::read(arquivo)?;
+        let quando = fs::metadata(arquivo)
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(0, |d| d.as_secs());
+        acrescentar(&mut pacote, &nome(arquivo), &dados, quando)?;
+    }
+    pacote.into_inner()?.finish()?.flush()?;
+    Ok(arquivos.len())
+}
+
+fn acrescentar<W: Write>(
+    pacote: &mut tar::Builder<W>,
+    nome: &str,
+    dados: &[u8],
+    quando: u64,
+) -> io::Result<()> {
+    let mut cabecalho = tar::Header::new_gnu();
+    cabecalho.set_size(dados.len() as u64);
+    cabecalho.set_mode(0o600);
+    cabecalho.set_mtime(quando);
+    cabecalho.set_cksum();
+    pacote.append_data(&mut cabecalho, format!("{PASTA_DO_PACOTE}/{nome}"), dados)
 }
 
 /// Quem pergunta os fatores: o terminal, ou, sem ele, o diálogo do módulo.

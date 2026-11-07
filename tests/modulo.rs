@@ -235,7 +235,21 @@ fn o_modulo_assina_pelo_motor_e_pede_os_fatores_so_quando_precisa() {
     }
 
     let f = lista();
+    let diagnostico = conta.join("diagnostico");
     unsafe {
+        // A sonda do Âncora, a cada 10 s: tudo de rotina, nada no disco.
+        assert_eq!(f.C_Initialize.unwrap()(ptr::null_mut()), CKR_OK);
+        let mut n = 0;
+        let rv = f.C_GetSlotList.unwrap()(CK_TRUE, ptr::null_mut(), &mut n);
+        assert_eq!(rv, CKR_OK);
+        let mut slot = 0;
+        let rv = f.C_GetSlotList.unwrap()(CK_TRUE, &mut slot, &mut n);
+        assert_eq!(rv, CKR_OK);
+        let mut info: CK_TOKEN_INFO = std::mem::zeroed();
+        assert_eq!(f.C_GetTokenInfo.unwrap()(slot, &mut info), CKR_OK);
+        assert_eq!(f.C_Finalize.unwrap()(ptr::null_mut()), CKR_OK);
+        assert!(!diagnostico.exists(), "a sonda não deixa registro");
+
         assert_eq!(f.C_Initialize.unwrap()(ptr::null_mut()), CKR_OK);
         assert_eq!(
             f.C_Initialize.unwrap()(ptr::null_mut()),
@@ -490,4 +504,86 @@ fn o_modulo_assina_pelo_motor_e_pede_os_fatores_so_quando_precisa() {
         assert_eq!(f.C_Finalize.unwrap()(ptr::null_mut()), CKR_OK);
     }
     assert!(!raiz.join("sem-conta").exists(), "listar não cria nada");
+    conferir_registro(&diagnostico);
+}
+
+/// O módulo e o motor que ele abriu gravam num arquivo só, com as chamadas
+/// e sem segredo.
+fn conferir_registro(diagnostico: &Path) {
+    let arquivos: Vec<PathBuf> = std::fs::read_dir(diagnostico)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    let [arquivo] = &arquivos[..] else {
+        panic!("um arquivo por processo: {arquivos:?}");
+    };
+    let registro = std::fs::read_to_string(arquivo).unwrap();
+    let linhas: Vec<serde_json::Value> = registro
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    assert_eq!(linhas[0]["evento"], "inicio");
+    assert_eq!(linhas[0]["processo"], "modulo");
+    let chamadas = |funcao: &str, rv: &str| {
+        linhas
+            .iter()
+            .filter(|l| l["funcao"] == funcao && l["rv"] == rv)
+            .count()
+    };
+    // A primeira coisa que importou foi o C_Initialize repetido, e o anel o
+    // precede: a sonda inteira, e o C_Initialize que deu certo.
+    let primeiras: Vec<&str> = linhas[1..9]
+        .iter()
+        .map(|l| l["funcao"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        primeiras,
+        [
+            "C_GetFunctionList",
+            "C_Initialize",
+            "C_GetSlotList",
+            "C_GetSlotList",
+            "C_GetTokenInfo",
+            "C_Finalize",
+            "C_Initialize",
+            "C_Initialize",
+        ],
+        "{registro}"
+    );
+    assert_eq!(linhas[8]["rv"], "CKR_CRYPTOKI_ALREADY_INITIALIZED");
+    assert_eq!(
+        chamadas("C_Initialize", "CKR_CRYPTOKI_ALREADY_INITIALIZED"),
+        1
+    );
+    assert_eq!(chamadas("C_Sign", "CKR_FUNCTION_CANCELED"), 1, "{registro}");
+    assert_eq!(chamadas("C_SignFinal", "CKR_OK"), 1, "{registro}");
+    assert_eq!(chamadas("C_SignUpdate", "CKR_OK"), 8, "o anel leva o fluxo");
+    assert_eq!(
+        chamadas("C_EncryptInit", "CKR_KEY_FUNCTION_NOT_PERMITTED"),
+        1
+    );
+    assert!(
+        registro.contains(r#""mecanismo":"CKM_SHA256_RSA_PKCS""#),
+        "{registro}"
+    );
+    assert!(
+        linhas
+            .iter()
+            .any(|l| l["evento"] == "falha" && l["etapa"] == "assinar" && l["erro"] == "cancelado"),
+        "{registro}"
+    );
+    // O motor grava no mesmo arquivo.
+    assert!(registro.contains(r#""evento":"requisicao""#), "{registro}");
+    for segredo in [
+        "teste-1234",           // senha
+        "\"123456\"",           // OTP
+        "teste@remoteid.local", // e-mail
+        "\"TESTE DESKTOPID\"",  // nome do titular
+        "16C3F7EFA6CCE55817FA", // serial
+        "contrato de teste",    // o que foi assinado
+        "devagar",
+        "segredo", // o que foi cifrado
+    ] {
+        assert!(!registro.contains(segredo), "{segredo} vazou:\n{registro}");
+    }
 }

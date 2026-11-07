@@ -6,7 +6,8 @@
 //! de outro (o `p11-kit-remote` de cada conexão ao `p11-kit server` do Âncora):
 //!
 //! - **Nenhum `panic` atravessa a fronteira C.** Toda função exportada passa
-//!   por [`entrada`], que o converte em `CKR_GENERAL_ERROR`.
+//!   por [`entrada`], que o converte em `CKR_GENERAL_ERROR` e grava mensagem
+//!   e local no registro.
 //! - **Nada no stdout nem no stderr.** O stdout é o canal do protocolo.
 //! - **Nenhuma trava segura uma pergunta à pessoa.** O `C_Sign` solta a trava
 //!   do módulo antes de ir ao motor, para o diálogo de PIN e OTP não congelar
@@ -17,6 +18,7 @@
 
 mod funcoes;
 mod objetos;
+mod registro;
 mod stubs;
 mod token;
 
@@ -144,13 +146,11 @@ fn trava<T>(m: &'static Mutex<T>) -> MutexGuard<'static, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Envolve o corpo de uma função exportada.
+/// Envolve o corpo de uma função exportada: o nome e os argumentos vão para
+/// o [`registro`], que também segura o `panic`.
 macro_rules! entrada {
-    ($corpo:block) => {
-        match ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(|| $corpo)) {
-            Ok(rv) => rv,
-            Err(_) => ::cryptoki_sys::CKR_GENERAL_ERROR,
-        }
+    ($nome:literal, $campos:tt, $corpo:block) => {
+        $crate::pkcs11::registro::chamada($nome, ::serde_json::json!($campos), || $corpo)
     };
 }
 use entrada;
@@ -242,7 +242,7 @@ static LISTA: CK_FUNCTION_LIST = CK_FUNCTION_LIST {
 /// `ppFunctionList` é nulo ou aponta para um ponteiro gravável.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn C_GetFunctionList(ppFunctionList: *mut *mut CK_FUNCTION_LIST) -> CK_RV {
-    entrada!({
+    entrada!("C_GetFunctionList", {}, {
         if ppFunctionList.is_null() {
             return CKR_ARGUMENTS_BAD;
         }

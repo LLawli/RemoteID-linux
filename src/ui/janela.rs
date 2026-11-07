@@ -42,6 +42,8 @@ const DESFAZER_S: u32 = 8;
 
 struct Janela {
     caminhos: Caminhos,
+    /// Um registro para a janela inteira, dividido pelas operações.
+    diagnostico: Diagnostico,
     janela: adw::ApplicationWindow,
     toasts: adw::ToastOverlay,
     pilha: gtk::Stack,
@@ -117,18 +119,14 @@ pub fn abrir(app: &adw::Application) {
     focar(&j);
 }
 
-fn motor(caminhos: &Caminhos, diagnostico: bool) -> Result<Motor, Erro> {
+fn motor(caminhos: &Caminhos, diagnostico: Diagnostico) -> Result<Motor, Erro> {
     let m = Motor::abrir(
         caminhos.clone(),
         caminhos::servidor(),
         Box::new(Http::novo(TEMPO_LIMITE)),
     )?
     .com_cofre(cofre::do_ambiente());
-    Ok(if diagnostico {
-        m.com_diagnostico(Diagnostico::abrir(&caminhos.diagnostico()))
-    } else {
-        m
-    })
+    Ok(m.com_diagnostico(diagnostico))
 }
 
 /// O que vai à rede roda numa thread, com um motor próprio, e `depois` volta
@@ -139,7 +137,8 @@ fn em_segundo_plano<T: Send + 'static>(
     depois: impl FnOnce(&Rc<Janela>, Result<T, Erro>) + 'static,
 ) {
     let caminhos = j.caminhos.clone();
-    let tarefa = gio::spawn_blocking(move || op(&mut motor(&caminhos, true)?));
+    let diagnostico = j.diagnostico.clone();
+    let tarefa = gio::spawn_blocking(move || op(&mut motor(&caminhos, diagnostico)?));
     let j = j.clone();
     glib::spawn_future_local(async move {
         let resultado = tarefa
@@ -151,7 +150,7 @@ fn em_segundo_plano<T: Send + 'static>(
 
 /// O que só toca o disco roda aqui mesmo.
 fn no_disco(j: &Rc<Janela>, op: impl FnOnce(&mut Motor) -> Result<(), Erro>) {
-    if let Err(e) = motor(&j.caminhos, false).and_then(|mut m| op(&mut m)) {
+    if let Err(e) = motor(&j.caminhos, j.diagnostico.clone()).and_then(|mut m| op(&mut m)) {
         j.toasts.add_toast(adw::Toast::new(&e.to_string()));
     }
     recarregar(j);
@@ -444,8 +443,10 @@ fn construir(app: &adw::Application) -> Rc<Janela> {
         .content(&toasts)
         .build();
 
+    let caminhos = Caminhos::do_ambiente();
     Rc::new(Janela {
-        caminhos: Caminhos::do_ambiente(),
+        diagnostico: Diagnostico::abrir(&caminhos.diagnostico(), "janela"),
+        caminhos,
         janela,
         toasts,
         pilha,

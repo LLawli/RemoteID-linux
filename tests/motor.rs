@@ -321,7 +321,7 @@ fn o_diagnostico_registra_o_fluxo_sem_segredo_nem_dado_do_titular() {
     use remoteid::diagnostico::Diagnostico;
     let mock = Mock::subir();
     let caminhos = diretorio("diagnostico");
-    let diagnostico = Diagnostico::abrir(&caminhos.diagnostico());
+    let diagnostico = Diagnostico::abrir(&caminhos.diagnostico(), "teste");
     let arquivo = diagnostico.caminho().unwrap().to_path_buf();
     let mut m = motor(&mock, &caminhos).com_diagnostico(diagnostico);
     m.preparar("teste@remoteid.local", "teste-1234", &MAQUINA)
@@ -330,12 +330,12 @@ fn o_diagnostico_registra_o_fluxo_sem_segredo_nem_dado_do_titular() {
         .unwrap();
 
     let registro = std::fs::read_to_string(arquivo).unwrap();
-    // Uma linha por requisição e por resposta (login, registro, celular,
+    // A de início, uma por requisição e por resposta (login, registro, celular,
     // carteira, tokensessao e requestHash), duas pela cadeia (o download e o
     // resultado), uma pelo pedido de fatores e três pelo cofre (guardar a
     // senha do login, procurá-la antes do pedido, guardar a que abriu a
     // sessão).
-    assert_eq!(registro.lines().count(), 18, "{registro}");
+    assert_eq!(registro.lines().count(), 19, "{registro}");
     assert!(registro.contains(r#""credencial":"senha""#), "{registro}");
     assert!(registro.contains(r#""evento":"pedido""#), "{registro}");
     let token = &m.estado.sessoes.values().next().unwrap().token;
