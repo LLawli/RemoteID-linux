@@ -16,11 +16,15 @@ Todas as mudanças visíveis para quem usa ficam aqui. O formato segue o
   sistema, e um erro interno do módulo deixa a mensagem e o local.
 - `remoteid diagnostico > remoteid-diagnostico.tar.gz` empacota os registros e
   o ambiente para anexar a um relato de erro.
+- A release traz `remoteid-x86_64.tar.gz`, com o programa e o módulo PKCS#11
+  compilados no GNOME 51, para quem empacota o RemoteID fora do Âncora.
 
-### Mudado
+### Alterado
 
 - Os registros ficam 30 dias, até 64 MiB somados, em vez dos 20 mais novos, e
   a janela grava um registro só por vez que é aberta.
+- O id do aplicativo vem do hospedeiro: a janela do RemoteID abre em outro
+  hospedeiro de extensões, e no Âncora nada muda.
 
 ## [0.4.0] - 2026-11-04
 

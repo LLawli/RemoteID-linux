@@ -1,8 +1,8 @@
 # Dispara por tag, e só por tag: a versão é um ato deliberado, feito pelo
 # bin/release. O workflow_dispatch refaz a release de uma tag que já existe.
 #
-# Não há binário aqui: a extensão chega a quem usa pelo remote do Âncora, e a
-# release leva o código, com sha256, e as notas do CHANGELOG.
+# A extensão chega a quem usa pelo remote do Âncora. A release leva o código e
+# o binário compilado no GNOME 51, cada um com sha256, e as notas do CHANGELOG.
 name: Release
 
 on:
@@ -19,7 +19,35 @@ permissions:
   contents: write
 
 jobs:
+  binario:
+    runs-on: ubuntu-24.04
+    # O SDK do GNOME 51 já vem na imagem. O --privileged é para o bubblewrap
+    # do `flatpak run` dentro do container.
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Rust do SDK
+        run: >
+          flatpak install -y --noninteractive --system flathub
+          org.freedesktop.Sdk.Extension.rust-stable//26.08
+
+      - name: Compila e empacota
+        run: scripts/binario.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binario
+          path: target/sdk/remoteid-x86_64.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
   release:
+    needs: binario
     runs-on: ubuntu-24.04
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
@@ -75,11 +103,31 @@ jobs:
           sha256sum "$nome.tar.gz" > "$nome.tar.gz.sha256"
           cat "$nome.tar.gz.sha256"
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: binario
+
+      - name: Binário, com checksum
+        run: |
+          binario=remoteid-x86_64.tar.gz
+          # Menos que isso é um pacote sem um dos dois programas.
+          [ "$(tar tzf "$binario" | grep -cE '^(bin/remoteid|lib/libremoteid\.so)$')" = 2 ] || {
+              echo "o $binario não traz o programa e o módulo" >&2
+              exit 1
+          }
+          [ "$(stat -c %s "$binario")" -gt 1000000 ] || {
+              echo "o $binario é pequeno demais" >&2
+              exit 1
+          }
+          sha256sum "$binario" > "$binario.sha256"
+          cat "$binario.sha256"
+
       - name: Publica
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          arquivos=("remoteid-$VERSAO.tar.gz" "remoteid-$VERSAO.tar.gz.sha256")
+          arquivos=("remoteid-$VERSAO.tar.gz" "remoteid-$VERSAO.tar.gz.sha256"
+              remoteid-x86_64.tar.gz remoteid-x86_64.tar.gz.sha256)
           if gh release view "$TAG" >/dev/null 2>&1; then
               gh release edit "$TAG" --title "$VERSAO" --notes-file notas.md
               gh release upload "$TAG" --clobber "${arquivos[@]}"

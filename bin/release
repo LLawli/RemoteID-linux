@@ -7,7 +7,7 @@
 #   bin/release 0.5.0 --sem-push   para no commit local (jj undo desfaz)
 #
 # A extensão chega a quem usa pelo bin/publicar do Âncora, não por aqui: a
-# release do GitHub leva só o código e as notas. A entrada da versão no
+# release do GitHub leva o código, o binário e as notas. A entrada da versão no
 # metainfo é escrita à mão, porque é texto para quem usa; ela pode estar no
 # working copy, e entra no commit da versão.
 set -euo pipefail

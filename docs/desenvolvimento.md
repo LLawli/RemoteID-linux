@@ -135,5 +135,10 @@ bin/release 0.5.0 --sem-push   # para no commit local; jj undo desfaz
 ```
 
 A tag dispara o `.github/workflows/release.yml`, que confere a versão e cria a
-release com as notas do CHANGELOG e o código, sem binário. Para refazer a
-release de uma tag que já existe: `gh workflow run release.yml -f tag=v0.5.0`.
+release com as notas do CHANGELOG, o código e o `remoteid-x86_64.tar.gz`. Para
+refazer a release de uma tag que já existe:
+`gh workflow run release.yml -f tag=v0.5.0`.
+
+O tarball sai do `scripts/binario.sh`, que compila no SDK do GNOME 51 e guarda
+o resultado em `target/sdk/`. O arquivo tem `bin/remoteid` e
+`lib/libremoteid.so` na raiz, e o nome não muda entre versões.
