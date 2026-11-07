@@ -186,3 +186,59 @@ fn o_harness_pelo_terminal_grava_o_relatorio() {
         .count();
     assert_eq!(relatorio, 1);
 }
+
+#[test]
+fn o_diagnostico_empacota_registros_e_ambiente_sem_segredo() {
+    let mock = Mock::subir();
+    let conta = Conta::entrar(&mock, "diagnostico");
+    assert!(conta.rodar(&["harness"], b"").status.success());
+    assert!(conta.rodar(&["assinar"], DOCUMENTO).status.success());
+    let saida = conta.rodar(&["diagnostico"], b"");
+    assert!(
+        saida.status.success(),
+        "{}",
+        String::from_utf8_lossy(&saida.stderr)
+    );
+
+    let mut pacote = tar::Archive::new(flate2::read::GzDecoder::new(&saida.stdout[..]));
+    let mut conteudo = std::collections::BTreeMap::new();
+    for entrada in pacote.entries().unwrap() {
+        let mut entrada = entrada.unwrap();
+        let nome = entrada.path().unwrap().to_string_lossy().into_owned();
+        let mut texto = String::new();
+        std::io::Read::read_to_string(&mut entrada, &mut texto).unwrap();
+        conteudo.insert(nome, texto);
+    }
+    let nomes: Vec<&str> = conteudo.keys().map(String::as_str).collect();
+    // O ambiente, um JSONL por comando (entrar, harness, assinar) e o
+    // relatório do harness.
+    assert_eq!(nomes.len(), 5, "{nomes:?}");
+    assert!(nomes.iter().all(|n| n.starts_with("remoteid-diagnostico/")));
+    let ambiente: serde_json::Value =
+        serde_json::from_str(&conteudo["remoteid-diagnostico/ambiente.json"]).unwrap();
+    assert_eq!(ambiente["versao"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(ambiente["arquivos"].as_array().unwrap().len(), 4);
+    let processos: Vec<String> = conteudo
+        .iter()
+        .filter(|(n, _)| n.ends_with(".jsonl"))
+        .map(|(_, t)| {
+            let inicio: serde_json::Value =
+                serde_json::from_str(t.lines().next().unwrap()).unwrap();
+            inicio["processo"].as_str().unwrap().to_string()
+        })
+        .collect();
+    for comando in ["terminal entrar", "terminal harness", "terminal assinar"] {
+        assert!(processos.iter().any(|p| p == comando), "{processos:?}");
+    }
+    let tudo: String = conteudo.values().map(String::as_str).collect();
+    for segredo in [
+        "teste-1234",           // senha
+        "\"123456\"",           // OTP
+        "teste@remoteid.local", // e-mail
+        "\"TESTE DESKTOPID\"",  // nome do titular
+        "16C3F7EFA6CCE55817FA", // serial
+        "contrato de teste",    // o documento
+    ] {
+        assert!(!tudo.contains(segredo), "{segredo} vazou");
+    }
+}

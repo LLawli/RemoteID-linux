@@ -56,6 +56,29 @@ pub enum Erro {
     Envelope(String),
 }
 
+impl Erro {
+    /// O tipo da falha para o diagnóstico, sem texto livre: a mensagem do
+    /// servidor pode trazer o nome do titular.
+    pub fn tipo(&self) -> String {
+        match self {
+            Erro::Rede(_) => "rede".into(),
+            Erro::Protocolo(ErroProtocolo::Servidor { http, regra, .. }) => {
+                let regra = regra.map_or("sem regra", |r| r.fragmento);
+                format!("servidor http={http} regra={regra}")
+            }
+            Erro::Protocolo(ErroProtocolo::NaoJson { http, .. }) => format!("nao_json http={http}"),
+            Erro::Protocolo(ErroProtocolo::Malformada(o_que)) => format!("malformada: {o_que}"),
+            Erro::Protocolo(ErroProtocolo::HsmRecusou(_)) => "hsm_recusou".into(),
+            Erro::NaoPreparado(motivo) => format!("nao_preparado: {motivo}"),
+            Erro::Disco(e) => format!("disco: {:?}", e.kind()),
+            Erro::Cancelado => "cancelado".into(),
+            Erro::PinBloqueado => "pin_bloqueado".into(),
+            Erro::BlocoInvalido => "bloco_invalido".into(),
+            Erro::Envelope(_) => "envelope".into(),
+        }
+    }
+}
+
 /// O que a pessoa lê de cada falha, na janela e no terminal.
 impl std::fmt::Display for Erro {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

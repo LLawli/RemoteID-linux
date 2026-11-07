@@ -10,14 +10,14 @@ use std::ffi::c_void;
 
 use cryptoki_sys::*;
 use rsa::Pkcs1v15Encrypt;
+use serde_json::json;
 
 use super::objetos::Objeto;
 use super::token::{ID_SLOT, Token};
-use super::{MODULO, MOTOR, Modulo, Operacao, entrada, trava};
+use super::{MODULO, MOTOR, Modulo, Operacao, entrada, registro, trava};
 use crate::caminhos::{self, Caminhos};
 use crate::cofre;
 use crate::cripto::sha256;
-use crate::diagnostico::Diagnostico;
 use crate::motor::{Erro, Motor};
 use crate::pedido::Dialogo;
 use crate::protocolo::classificacao::Origem;
@@ -84,7 +84,7 @@ fn conferir_slot(slot: CK_SLOT_ID) -> Result<(), CK_RV> {
 // Ciclo de vida
 
 pub(super) unsafe extern "C" fn C_Initialize(pInitArgs: *mut c_void) -> CK_RV {
-    entrada!({
+    entrada!("C_Initialize", {}, {
         if !pInitArgs.is_null() {
             let args = &*(pInitArgs as *const CK_C_INITIALIZE_ARGS);
             if !args.pReserved.is_null() {
@@ -103,7 +103,7 @@ pub(super) unsafe extern "C" fn C_Initialize(pInitArgs: *mut c_void) -> CK_RV {
 }
 
 pub(super) unsafe extern "C" fn C_Finalize(pReserved: *mut c_void) -> CK_RV {
-    entrada!({
+    entrada!("C_Finalize", {}, {
         if !pReserved.is_null() {
             return CKR_ARGUMENTS_BAD;
         }
@@ -117,7 +117,7 @@ pub(super) unsafe extern "C" fn C_Finalize(pReserved: *mut c_void) -> CK_RV {
 }
 
 pub(super) unsafe extern "C" fn C_GetInfo(pInfo: *mut CK_INFO) -> CK_RV {
-    entrada!({
+    entrada!("C_GetInfo", {}, {
         if trava(&MODULO).is_none() {
             return CKR_CRYPTOKI_NOT_INITIALIZED;
         }
@@ -147,7 +147,7 @@ pub(super) unsafe extern "C" fn C_GetSlotList(
     pSlotList: *mut CK_SLOT_ID,
     pulCount: *mut CK_ULONG,
 ) -> CK_RV {
-    entrada!({
+    entrada!("C_GetSlotList", {"so_contagem": pSlotList.is_null()}, {
         let mut guarda = trava(&MODULO);
         modulo!(guarda).acompanhar();
         // O slot sempre tem token, mesmo sem conta: ver `C_GetTokenInfo`.
@@ -159,7 +159,7 @@ pub(super) unsafe extern "C" fn C_GetSlotInfo(
     slotID: CK_SLOT_ID,
     pInfo: *mut CK_SLOT_INFO,
 ) -> CK_RV {
-    entrada!({
+    entrada!("C_GetSlotInfo", {"slot": slotID}, {
         let mut guarda = trava(&MODULO);
         modulo!(guarda).acompanhar();
         if let Err(rv) = conferir_slot(slotID) {
@@ -189,7 +189,7 @@ pub(super) unsafe extern "C" fn C_GetTokenInfo(
     slotID: CK_SLOT_ID,
     pInfo: *mut CK_TOKEN_INFO,
 ) -> CK_RV {
-    entrada!({
+    entrada!("C_GetTokenInfo", {"slot": slotID}, {
         let mut guarda = trava(&MODULO);
         let modulo = modulo!(guarda);
         modulo.acompanhar();
@@ -253,7 +253,7 @@ pub(super) unsafe extern "C" fn C_GetMechanismList(
     pMechanismList: *mut CK_MECHANISM_TYPE,
     pulCount: *mut CK_ULONG,
 ) -> CK_RV {
-    entrada!({
+    entrada!("C_GetMechanismList", {"slot": slotID, "so_contagem": pMechanismList.is_null()}, {
         let mut guarda = trava(&MODULO);
         modulo!(guarda);
         if let Err(rv) = conferir_slot(slotID) {
@@ -268,7 +268,7 @@ pub(super) unsafe extern "C" fn C_GetMechanismInfo(
     type_: CK_MECHANISM_TYPE,
     pInfo: *mut CK_MECHANISM_INFO,
 ) -> CK_RV {
-    entrada!({
+    entrada!("C_GetMechanismInfo", {"slot": slotID, "mecanismo": registro::mecanismo(type_)}, {
         let mut guarda = trava(&MODULO);
         modulo!(guarda);
         if let Err(rv) = conferir_slot(slotID) {
@@ -310,7 +310,7 @@ pub(super) unsafe extern "C" fn C_OpenSession(
     _Notify: CK_NOTIFY,
     phSession: *mut CK_SESSION_HANDLE,
 ) -> CK_RV {
-    entrada!({
+    entrada!("C_OpenSession", {"slot": slotID, "flags": flags}, {
         let mut guarda = trava(&MODULO);
         let modulo = modulo!(guarda);
         modulo.acompanhar();
@@ -333,7 +333,7 @@ pub(super) unsafe extern "C" fn C_OpenSession(
 }
 
 pub(super) unsafe extern "C" fn C_CloseSession(hSession: CK_SESSION_HANDLE) -> CK_RV {
-    entrada!({
+    entrada!("C_CloseSession", {"sessao": hSession}, {
         let mut guarda = trava(&MODULO);
         match modulo!(guarda).sessoes.remove(&hSession) {
             Some(_) => CKR_OK,
@@ -343,7 +343,7 @@ pub(super) unsafe extern "C" fn C_CloseSession(hSession: CK_SESSION_HANDLE) -> C
 }
 
 pub(super) unsafe extern "C" fn C_CloseAllSessions(slotID: CK_SLOT_ID) -> CK_RV {
-    entrada!({
+    entrada!("C_CloseAllSessions", {"slot": slotID}, {
         let mut guarda = trava(&MODULO);
         let modulo = modulo!(guarda);
         if slotID != ID_SLOT {
@@ -358,7 +358,7 @@ pub(super) unsafe extern "C" fn C_GetSessionInfo(
     hSession: CK_SESSION_HANDLE,
     pInfo: *mut CK_SESSION_INFO,
 ) -> CK_RV {
-    entrada!({
+    entrada!("C_GetSessionInfo", {"sessao": hSession}, {
         let mut guarda = trava(&MODULO);
         let modulo = modulo!(guarda);
         let Some(sessao) = modulo.sessoes.get(&hSession) else {
@@ -414,7 +414,7 @@ pub(super) unsafe extern "C" fn C_FindObjectsInit(
     pTemplate: *mut CK_ATTRIBUTE,
     ulCount: CK_ULONG,
 ) -> CK_RV {
-    entrada!({
+    entrada!("C_FindObjectsInit", {"sessao": hSession, "atributos": registro::atributos(pTemplate, ulCount)}, {
         let mut guarda = trava(&MODULO);
         let modulo = modulo!(guarda);
         let gabarito = match ler_gabarito(pTemplate, ulCount) {
@@ -443,7 +443,7 @@ pub(super) unsafe extern "C" fn C_FindObjects(
     ulMaxObjectCount: CK_ULONG,
     pulObjectCount: *mut CK_ULONG,
 ) -> CK_RV {
-    entrada!({
+    entrada!("C_FindObjects", {"sessao": hSession, "maximo": ulMaxObjectCount}, {
         let mut guarda = trava(&MODULO);
         let Some(sessao) = modulo!(guarda).sessoes.get_mut(&hSession) else {
             return CKR_SESSION_HANDLE_INVALID;
@@ -464,7 +464,7 @@ pub(super) unsafe extern "C" fn C_FindObjects(
 }
 
 pub(super) unsafe extern "C" fn C_FindObjectsFinal(hSession: CK_SESSION_HANDLE) -> CK_RV {
-    entrada!({
+    entrada!("C_FindObjectsFinal", {"sessao": hSession}, {
         let mut guarda = trava(&MODULO);
         let Some(sessao) = modulo!(guarda).sessoes.get_mut(&hSession) else {
             return CKR_SESSION_HANDLE_INVALID;
@@ -486,7 +486,7 @@ pub(super) unsafe extern "C" fn C_GetAttributeValue(
     pTemplate: *mut CK_ATTRIBUTE,
     ulCount: CK_ULONG,
 ) -> CK_RV {
-    entrada!({
+    entrada!("C_GetAttributeValue", {"sessao": hSession, "objeto": hObject, "atributos": registro::atributos(pTemplate, ulCount)}, {
         let mut guarda = trava(&MODULO);
         let modulo = modulo!(guarda);
         if !modulo.sessoes.contains_key(&hSession) {
@@ -547,7 +547,7 @@ pub(super) unsafe extern "C" fn C_Login(
     _pPin: *mut CK_UTF8CHAR,
     _ulPinLen: CK_ULONG,
 ) -> CK_RV {
-    entrada!({
+    entrada!("C_Login", {"sessao": hSession, "usuario": userType}, {
         let mut guarda = trava(&MODULO);
         let modulo = modulo!(guarda);
         if !modulo.sessoes.contains_key(&hSession) {
@@ -565,7 +565,7 @@ pub(super) unsafe extern "C" fn C_Login(
 }
 
 pub(super) unsafe extern "C" fn C_Logout(hSession: CK_SESSION_HANDLE) -> CK_RV {
-    entrada!({
+    entrada!("C_Logout", {"sessao": hSession}, {
         let mut guarda = trava(&MODULO);
         let modulo = modulo!(guarda);
         if !modulo.sessoes.contains_key(&hSession) {
@@ -646,7 +646,7 @@ pub(super) unsafe extern "C" fn C_SignInit(
     pMechanism: *mut CK_MECHANISM,
     hKey: CK_OBJECT_HANDLE,
 ) -> CK_RV {
-    entrada!({
+    entrada!("C_SignInit", {"sessao": hSession, "mecanismo": registro::mecanismo_de(pMechanism), "chave": hKey}, {
         iniciar(
             hSession,
             pMechanism,
@@ -759,7 +759,7 @@ pub(super) unsafe extern "C" fn C_Sign(
     pSignature: *mut CK_BYTE,
     pulSignatureLen: *mut CK_ULONG,
 ) -> CK_RV {
-    entrada!({
+    entrada!("C_Sign", {"sessao": hSession, "bytes": ulDataLen, "so_tamanho": pSignature.is_null()}, {
         match bloco_do_host(pData, ulDataLen) {
             Ok(dados) => assinar_e_entregar(hSession, Some(dados), pSignature, pulSignatureLen),
             Err(rv) => rv,
@@ -772,7 +772,7 @@ pub(super) unsafe extern "C" fn C_SignUpdate(
     pPart: *mut CK_BYTE,
     ulPartLen: CK_ULONG,
 ) -> CK_RV {
-    entrada!({
+    entrada!("C_SignUpdate", {"sessao": hSession, "bytes": ulPartLen}, {
         let mut guarda = trava(&MODULO);
         let Some(sessao) = modulo!(guarda).sessoes.get_mut(&hSession) else {
             return CKR_SESSION_HANDLE_INVALID;
@@ -795,7 +795,7 @@ pub(super) unsafe extern "C" fn C_SignFinal(
     pSignature: *mut CK_BYTE,
     pulSignatureLen: *mut CK_ULONG,
 ) -> CK_RV {
-    entrada!({ assinar_e_entregar(hSession, None, pSignature, pulSignatureLen) })
+    entrada!("C_SignFinal", {"sessao": hSession, "so_tamanho": pSignature.is_null()}, { assinar_e_entregar(hSession, None, pSignature, pulSignatureLen) })
 }
 
 /// O que cada mecanismo faz com os bytes antes de irem ao HSM:
@@ -825,29 +825,42 @@ fn assinar(
     certificado: &Certificado,
     dados: &[u8],
 ) -> Result<Vec<u8>, CK_RV> {
+    let mut bloco_do_hospedeiro = registro::impressao(dados);
+    bloco_do_hospedeiro["mecanismo"] = registro::mecanismo(mecanismo).into();
+    registro::evento("bloco", bloco_do_hospedeiro);
     let (algoritmo, bloco) = preparar_bloco(mecanismo, dados)?;
-    let dialogo = Dialogo::do_ambiente().ok_or(CKR_FUNCTION_FAILED)?;
+    let Some(dialogo) = Dialogo::do_ambiente() else {
+        registro::evento(
+            "falha",
+            json!({ "etapa": "dialogo", "erro": "sem executável" }),
+        );
+        return Err(CKR_FUNCTION_FAILED);
+    };
+    let falhou = |etapa: &str, e: Erro| {
+        let rv = rv_do_erro(&e);
+        // O tipo do erro e não a mensagem: a do servidor é texto livre.
+        registro::evento("falha", json!({ "etapa": etapa, "erro": e.tipo() }));
+        rv
+    };
     let mut guarda = trava(&MOTOR);
     if guarda.is_none() {
-        let caminhos = Caminhos::do_ambiente();
-        let diagnostico = Diagnostico::abrir(&caminhos.diagnostico());
         let motor = Motor::abrir(
-            caminhos,
+            Caminhos::do_ambiente(),
             caminhos::servidor(),
             Box::new(Http::novo(TEMPO_LIMITE)),
         )
-        .map_err(|e| rv_do_erro(&e))?;
+        .map_err(|e| falhou("abrir", e))?;
         *guarda = Some(
             motor
-                .com_diagnostico(diagnostico)
+                .com_diagnostico(registro::diagnostico())
                 .com_cofre(cofre::do_ambiente()),
         );
     }
     let motor = guarda.as_mut().expect("aberto acima");
-    motor.recarregar().map_err(|e| rv_do_erro(&e))?;
+    motor.recarregar().map_err(|e| falhou("recarregar", e))?;
     motor
         .assinar_com(certificado, algoritmo, &bloco, &dialogo)
-        .map_err(|e| rv_do_erro(&e))
+        .map_err(|e| falhou("assinar", e))
 }
 
 /// O que o hospedeiro entende de cada falha. Ele não mostra a mensagem do
@@ -874,7 +887,7 @@ pub(super) unsafe extern "C" fn C_EncryptInit(
     pMechanism: *mut CK_MECHANISM,
     hKey: CK_OBJECT_HANDLE,
 ) -> CK_RV {
-    entrada!({
+    entrada!("C_EncryptInit", {"sessao": hSession, "mecanismo": registro::mecanismo_de(pMechanism), "chave": hKey}, {
         iniciar(
             hSession,
             pMechanism,
@@ -895,7 +908,7 @@ pub(super) unsafe extern "C" fn C_Encrypt(
     pEncryptedData: *mut CK_BYTE,
     pulEncryptedDataLen: *mut CK_ULONG,
 ) -> CK_RV {
-    entrada!({
+    entrada!("C_Encrypt", {"sessao": hSession, "bytes": ulDataLen, "so_tamanho": pEncryptedData.is_null()}, {
         let mut guarda = trava(&MODULO);
         let modulo = modulo!(guarda);
         let Some(token) = modulo.token.as_ref() else {

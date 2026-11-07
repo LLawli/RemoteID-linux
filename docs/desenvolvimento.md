@@ -82,10 +82,25 @@ linha da entrada, ou a senha é pedida a cada sessão.
 
 ## Diagnóstico
 
-Cada execução grava um JSONL em `<estado>/diagnostico/`, os 20 últimos, com
-senha, PIN, OTP e dados do titular fora e tokens como impressão digital.
+Cada processo grava um JSONL em `<estado>/diagnostico/`, com senha, PIN, OTP
+e dados do titular fora e tokens como impressão digital. O arquivo nasce na
+primeira linha, que é o evento `inicio` (versão, hospedeiro, runtime,
+sistema); quem não tem nada a registrar não deixa arquivo. Ficam 30 dias, até
+64 MiB somados (os mais velhos saem primeiro), e um arquivo para em 8 MiB.
+Medido nos testes: de 1 a 3 KB por comando de terminal, 13 KB pelo módulo
+numa sessão com quatro assinaturas.
 `REMOTEID_DIAG_CRU=1` mostra os tokens, para investigar o protocolo na própria
 máquina.
+
+No módulo PKCS#11, cada chamada vira um evento `pkcs11` (função, argumentos
+que não são segredo, `rv`, `ms`). As de rotina ficam num anel de 64 em memória
+e só vão ao disco antes de uma que importa: `C_Login`, `C_Sign*`,
+`C_Encrypt*`, qualquer retorno diferente de `CKR_OK` e `CKR_BUFFER_TOO_SMALL`,
+ou um `panic`, que vira `CKR_GENERAL_ERROR` com mensagem e local. A sonda do
+Âncora, que só lista slots e tokens, não deixa arquivo.
+
+`remoteid diagnostico > remoteid-diagnostico.tar.gz` empacota a pasta inteira
+(os JSONL e os relatórios do harness) com um `ambiente.json`.
 
 `remoteid harness` roda o fluxo com a conta já entrada (servidor, conta,
 carteira, cadeia e uma assinatura de teste, conferida contra a chave do

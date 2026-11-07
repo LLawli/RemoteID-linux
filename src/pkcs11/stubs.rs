@@ -8,7 +8,12 @@ macro_rules! nao_suportadas {
     ($($nome:ident($($tipo:ty),*);)*) => {
         $(
             pub(super) extern "C" fn $nome($(_: $tipo),*) -> CK_RV {
-                CKR_FUNCTION_NOT_SUPPORTED
+                // Vai ao registro: é o que diz o que o hospedeiro esperava.
+                super::registro::chamada(
+                    stringify!($nome),
+                    serde_json::json!({}),
+                    || CKR_FUNCTION_NOT_SUPPORTED,
+                )
             }
         )*
     };

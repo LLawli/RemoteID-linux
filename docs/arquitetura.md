@@ -54,13 +54,14 @@ do sistema, ou um na memória).
 | `caminhos` | onde fica cada arquivo, e o servidor (`REMOTEID_SERVIDOR` troca pelo falso) |
 | `motor` | o fluxo: preparar a conta e assinar, com a sessão em cache |
 | `pkcs11/` | o módulo Cryptoki: o token montado do estado, e o `C_Sign` pelo motor |
+| `pkcs11/registro` | cada chamada Cryptoki no diagnóstico; as de rotina num anel, levadas ao disco só antes de uma operação, um erro ou um `panic` |
 | `pedido` | o `Autorizador` do módulo: abre o `remoteid pedir` e lê os fatores por pipe |
 | `cofre` | a senha da conta no chaveiro do sistema (`oo7`: portal de segredos, ou Secret Service) |
 | `pin` | sem chaveiro, a senha cifrada no disco com um PIN local |
 | `carteira` | o que a janela mostra, montado do estado: cartões, sessão, validade, cadeia |
 | `x509` | os campos do certificado que o token publica, e o nome do titular |
 | `cadeia` | as autoridades do certificado, do `caIssuers` até a raiz; puro, o download é do motor |
-| `diagnostico` | um JSONL por execução, com segredos e dados do titular redigidos |
+| `diagnostico` | um JSONL por processo, criado na primeira linha, com segredos e dados do titular redigidos; 30 dias, até 64 MiB |
 | `cades` | o `.p7s` em duas fases, com a ida ao HSM no meio, na política AD-RB; sem política, igual byte a byte ao do antigo |
 | `harness` | o fluxo com a conta entrada, passo a passo, e o relatório para enviar |
 | `bin/remoteid-mock` | o servidor falso dos testes |

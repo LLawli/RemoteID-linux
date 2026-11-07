@@ -6,6 +6,22 @@ Todas as mudanças visíveis para quem usa ficam aqui. O formato segue o
 
 ## [Unreleased]
 
+### Adicionado
+
+- O módulo PKCS#11 registra as chamadas de navegadores e assinadores (função,
+  mecanismo, código de retorno e duração), sem o PIN nem os dados assinados.
+  As chamadas de rotina só vão ao disco junto de um erro ou de uma
+  assinatura, e o registro guarda as últimas 64 antes delas.
+- Cada registro começa com a versão, o aplicativo hospedeiro, o runtime e o
+  sistema, e um erro interno do módulo deixa a mensagem e o local.
+- `remoteid diagnostico > remoteid-diagnostico.tar.gz` empacota os registros e
+  o ambiente para anexar a um relato de erro.
+
+### Mudado
+
+- Os registros ficam 30 dias, até 64 MiB somados, em vez dos 20 mais novos, e
+  a janela grava um registro só por vez que é aberta.
+
 ## [0.4.0] - 2026-11-04
 
 ### Adicionado
