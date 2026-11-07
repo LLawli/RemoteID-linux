@@ -6,6 +6,8 @@ Todas as mudanças visíveis para quem usa ficam aqui. O formato segue o
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-07
+
 ### Adicionado
 
 - O módulo PKCS#11 registra as chamadas de navegadores e assinadores (função,
