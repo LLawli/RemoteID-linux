@@ -59,9 +59,22 @@ O botão RemoteID do Tessera abre a janela, onde você entra na conta.
 
 ### Sem Flatpak
 
-Cada release traz `remoteid-x86_64.tar.gz`, com `bin/remoteid` e
-`lib/libremoteid.so` compilados no GNOME 51 (precisa de GTK 4.18 e libadwaita
-1.7 no sistema). Ou compile:
+Cada release traz dois pacotes:
+
+- `remoteid-servidor-x86_64.tar.gz`, para servidores: o `bin/remoteid` sem a
+  janela, estático, que roda em qualquer Linux x86_64 sem depender de nada
+  instalado. Traz tudo menos a janela e o módulo PKCS#11; é o que serve o
+  `remoteid servir`.
+- `remoteid-x86_64.tar.gz`, para o desktop: `bin/remoteid` com a janela e
+  `lib/libremoteid.so`, compilados no GNOME 51 (precisa de GTK 4.18 e
+  libadwaita 1.7 no sistema).
+
+```bash
+curl -LO https://github.com/LLawli/RemoteID-linux/releases/latest/download/remoteid-servidor-x86_64.tar.gz
+tar xzf remoteid-servidor-x86_64.tar.gz && ./bin/remoteid ajuda
+```
+
+Ou compile:
 
 ```bash
 cargo build --release                        # com a janela: precisa do GTK 4.18 e da libadwaita 1.7

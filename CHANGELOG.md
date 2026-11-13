@@ -17,6 +17,8 @@ Todas as mudanças visíveis para quem usa ficam aqui. O formato segue o
   que não é o ativo.
 - O RemoteID compila sem GTK (`cargo build --no-default-features`): sem a
   janela e o diálogo, com todos os outros subcomandos.
+- A release traz `remoteid-servidor-x86_64.tar.gz`: o `remoteid` sem a
+  janela, estático, para servidores com qualquer Linux x86_64.
 
 ## [0.4.1] - 2026-11-07
 
