@@ -12,6 +12,11 @@
   <url type="homepage">https://github.com/LLawli/RemoteID-linux</url>
   <url type="bugtracker">https://github.com/LLawli/RemoteID-linux/issues</url>
   <releases>
+    <release version="0.5.1" date="2026-11-13">
+      <description>
+        <p>O comando remoteid servir entrega o certificado de cada conta e assina resumos de outros algoritmos além do SHA-256, para que outros programas possam apresentar o certificado como token.</p>
+      </description>
+    </release>
     <release version="0.5.0" date="2026-11-13">
       <description>
         <p>Tudo o que a janela faz também tem comando no terminal: ver a conta e os certificados, escolher o que assina, atualizar a carteira, pedir o código de novo na próxima assinatura e sair.</p>

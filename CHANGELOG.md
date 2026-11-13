@@ -6,6 +6,8 @@ Todas as mudanças visíveis para quem usa ficam aqui. O formato segue o
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-13
+
 ### Adicionado
 
 - `remoteid servir`: a visão traz o DER de cada certificado (`certificado`), e o
