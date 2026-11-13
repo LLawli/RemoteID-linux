@@ -142,6 +142,15 @@ release com as notas do CHANGELOG, o código, o `remoteid-x86_64.tar.gz` e o
 refazer a release de uma tag que já existe:
 `gh workflow run release.yml -f tag=v0.5.0`.
 
+No fim, o job `flatpark` avisa o FlatPark pela
+[publish-action](https://github.com/flatpark/publish-action). Ele confere a
+release, fixa o sha256 e o tamanho do `remoteid-x86_64.tar.gz` na entrada
+`io.github.pedrohqb.Tessera.Driver.RemoteID`, desempacota com o
+`apply_extra.sh` dela e publica, sem PR à mão. Se o pacote mudar de forma (um
+nome de arquivo, o layout do tarball), a atualização para lá e a entrada no
+FlatPark precisa de um PR. Sem o aviso, a varredura do FlatPark pega a release
+em até meio dia.
+
 O tarball sai do `scripts/binario.sh`, que compila no SDK do GNOME 51 e guarda
 o resultado em `target/sdk/`. O arquivo tem `bin/remoteid` e
 `lib/libremoteid.so` na raiz, e o nome não muda entre versões.
