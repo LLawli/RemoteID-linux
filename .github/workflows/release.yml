@@ -1,8 +1,10 @@
 # Dispara por tag, e só por tag: a versão é um ato deliberado, feito pelo
 # bin/release. O workflow_dispatch refaz a release de uma tag que já existe.
 #
-# A extensão chega a quem usa pelo remote do Âncora. A release leva o código e
-# o binário compilado no GNOME 51, cada um com sha256, e as notas do CHANGELOG.
+# A extensão chega a quem usa pelo remote do Âncora e pelo FlatPark. A release
+# leva o código, o binário compilado no GNOME 51 (com a janela e o módulo) e o
+# binário para servidores (sem a janela, estático), cada um com sha256, e as
+# notas do CHANGELOG.
 name: Release
 
 on:
@@ -46,8 +48,32 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # O binário para servidores: sem a janela, estático com musl, roda em
+  # qualquer Linux x86_64. O script vê o Alpine e compila direto.
+  servidor:
+    runs-on: ubuntu-24.04
+    container:
+      image: rust:1.92-alpine
+    steps:
+      - name: Ferramentas do checkout e do script
+        run: apk add -q bash git
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Compila e empacota
+        run: scripts/servidor.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: servidor
+          path: target/servidor/remoteid-servidor-x86_64.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
   release:
-    needs: binario
+    needs: [binario, servidor]
     runs-on: ubuntu-24.04
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
@@ -88,12 +114,21 @@ jobs:
 
           ## Instalar
 
-          O RemoteID é uma extensão do Âncora: instale pela tela de extensões dele, ou pelo terminal:
+          No Âncora, pela tela de extensões dele ou pelo terminal:
 
           ```bash
           flatpak remote-add --user --if-not-exists ancora https://flatpak.lukakuuhaku.dev/ancora.flatpakrepo
           flatpak install --user ancora dev.lukakuuhaku.Ancora dev.lukakuuhaku.Ancora.Driver.RemoteID
           ```
+
+          No Tessera, pelo FlatPark:
+
+          ```bash
+          flatpak remote-add --user --if-not-exists flatpark https://dl.flatpark.org/flatpark.flatpakrepo
+          flatpak install --user flatpark io.github.pedrohqb.Tessera io.github.pedrohqb.Tessera.Driver.RemoteID
+          ```
+
+          Num servidor, `remoteid-servidor-x86_64.tar.gz` traz o `remoteid` sem a janela, estático, para qualquer Linux x86_64; `remoteid servir` é a API. `remoteid-x86_64.tar.gz` traz o programa com a janela e o módulo PKCS#11, compilados no GNOME 51.
           FIM
 
       - name: Código, com checksum
@@ -106,6 +141,10 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: binario
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: servidor
 
       - name: Binário, com checksum
         run: |
@@ -122,12 +161,27 @@ jobs:
           sha256sum "$binario" > "$binario.sha256"
           cat "$binario.sha256"
 
+      - name: Binário para servidores, com checksum
+        run: |
+          servidor=remoteid-servidor-x86_64.tar.gz
+          [ "$(tar tzf "$servidor" | grep -cx 'bin/remoteid')" = 1 ] || {
+              echo "o $servidor não traz o programa" >&2
+              exit 1
+          }
+          [ "$(stat -c %s "$servidor")" -gt 1000000 ] || {
+              echo "o $servidor é pequeno demais" >&2
+              exit 1
+          }
+          sha256sum "$servidor" > "$servidor.sha256"
+          cat "$servidor.sha256"
+
       - name: Publica
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           arquivos=("remoteid-$VERSAO.tar.gz" "remoteid-$VERSAO.tar.gz.sha256"
-              remoteid-x86_64.tar.gz remoteid-x86_64.tar.gz.sha256)
+              remoteid-x86_64.tar.gz remoteid-x86_64.tar.gz.sha256
+              remoteid-servidor-x86_64.tar.gz remoteid-servidor-x86_64.tar.gz.sha256)
           if gh release view "$TAG" >/dev/null 2>&1; then
               gh release edit "$TAG" --title "$VERSAO" --notes-file notas.md
               gh release upload "$TAG" --clobber "${arquivos[@]}"

@@ -4,7 +4,9 @@
 
 - Rust estável (1.92 ou mais novo).
 - GTK 4.18 e libadwaita 1.7, ou mais novos, com os cabeçalhos
-  (`gtk4-devel libadwaita-devel` no Fedora).
+  (`gtk4-devel libadwaita-devel` no Fedora). Só para a janela: sem eles,
+  `cargo build --no-default-features` constrói o módulo e o `remoteid` sem a
+  janela nem o diálogo, com todos os outros subcomandos.
 - `appstream`, para validar o metainfo.
 - `openssl`, que os testes usam para conferir o `.p7s`.
 - `cargo-audit`.
@@ -18,8 +20,8 @@
 scripts/ci.sh
 ```
 
-Formatação, clippy com avisos como erro, testes, `cargo audit` e validação do
-metainfo. A CI roda o mesmo script, num contêiner Fedora 44, porque o Ubuntu
+Formatação, clippy com avisos como erro e testes (com e sem a feature
+`janela`), `cargo audit` e validação do metainfo. A CI roda o mesmo script, num contêiner Fedora 44, porque o Ubuntu
 dos runners traz GTK e libadwaita mais antigos que os do runtime.
 
 ## Dependências Rust e o Flatpak
@@ -135,10 +137,21 @@ bin/release 0.5.0 --sem-push   # para no commit local; jj undo desfaz
 ```
 
 A tag dispara o `.github/workflows/release.yml`, que confere a versão e cria a
-release com as notas do CHANGELOG, o código e o `remoteid-x86_64.tar.gz`. Para
+release com as notas do CHANGELOG, o código, o `remoteid-x86_64.tar.gz` e o
+`remoteid-servidor-x86_64.tar.gz`. Para
 refazer a release de uma tag que já existe:
 `gh workflow run release.yml -f tag=v0.5.0`.
 
 O tarball sai do `scripts/binario.sh`, que compila no SDK do GNOME 51 e guarda
 o resultado em `target/sdk/`. O arquivo tem `bin/remoteid` e
 `lib/libremoteid.so` na raiz, e o nome não muda entre versões.
+
+O de servidores sai do `scripts/servidor.sh`: o `remoteid` sem a janela,
+ligado estaticamente ao musl no `rust:1.92-alpine` (fora do Alpine, o script
+se roda num contêiner), em `target/servidor/`, só com `bin/remoteid`. O script
+falha se o programa não sair estático. Vai sem o módulo porque um `.so` musl
+não carrega num p11-kit com glibc. Medido em 2026-11-13: o mesmo binário roda
+no Rocky 8, no Ubuntu 20.04, no Debian 11 e no Alpine, e o TLS fecha sem
+certificados de CA no sistema (as raízes vêm no binário); um build glibc
+feito no Debian 11 já não roda no Rocky 8 (pede `GLIBC_2.29`). Contra o
+servidor falso, o musl custa cerca de 1 ms a mais por assinatura.

@@ -55,7 +55,7 @@ use x509_cert::time::Time;
 
 use crate::cripto::{de_b64, sha256};
 use crate::motor::{self, Autorizador, Motor};
-use crate::protocolo::Algoritmo;
+use crate::protocolo::{Algoritmo, Certificado};
 
 /// id-data, RFC 5652 §4
 const OID_DATA: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.7.1");
@@ -275,12 +275,24 @@ pub fn assinar(
     momento: u64,
     autorizador: &dyn Autorizador,
 ) -> Result<Vec<u8>, motor::Erro> {
-    let envelope = |e: Erro| motor::Erro::Envelope(e.to_string());
     let certificado = motor
         .estado
         .certificado()
         .cloned()
         .ok_or(motor::Erro::NaoPreparado("a carteira está vazia"))?;
+    assinar_com(motor, &certificado, digest, anexar, momento, autorizador)
+}
+
+/// Como [`assinar`], com `certificado` em vez do ativo.
+pub fn assinar_com(
+    motor: &mut Motor,
+    certificado: &Certificado,
+    digest: &[u8],
+    anexar: Option<Vec<u8>>,
+    momento: u64,
+    autorizador: &dyn Autorizador,
+) -> Result<Vec<u8>, motor::Erro> {
+    let envelope = |e: Erro| motor::Erro::Envelope(e.to_string());
     let der = certificado
         .base64
         .as_deref()
@@ -290,7 +302,7 @@ pub fn assinar(
         ))?;
     let montador = Montador::novo(&der, digest, momento, anexar, Some(&AD_RB)).map_err(envelope)?;
     let assinatura = motor.assinar_com(
-        &certificado,
+        certificado,
         Algoritmo::Sha256,
         montador.a_assinar(),
         autorizador,

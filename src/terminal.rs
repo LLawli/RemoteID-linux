@@ -4,23 +4,26 @@ use std::cell::Cell;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, IsTerminal, Read, Write};
 use std::os::fd::AsRawFd;
+use std::os::unix::fs::FileTypeExt;
+use std::os::unix::net::UnixListener;
 use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 
 use flate2::Compression;
 use flate2::write::GzEncoder;
-
-use gtk::glib::ExitCode;
 use remoteid::cades;
 use remoteid::caminhos::{self, Caminhos};
 use remoteid::cofre;
-use remoteid::cripto::de_b64;
+use remoteid::cripto::{de_b64, de_hex};
 use remoteid::diagnostico::{self, Diagnostico};
+use remoteid::estado::Estado;
 use remoteid::harness;
 use remoteid::motor::{Autorizador, Credencial, Erro, Fatores, Motor};
 use remoteid::pedido::Dialogo;
 use remoteid::pin;
 use remoteid::protocolo::requisicao::Maquina;
 use remoteid::protocolo::{Algoritmo, Certificado};
+use remoteid::servico;
 use remoteid::transporte::{Http, TEMPO_LIMITE};
 use remoteid::x509;
 use sha2::{Digest, Sha256};
@@ -30,6 +33,28 @@ pub const ENTRAR: &str = "entrar";
 pub const ASSINAR: &str = "assinar";
 pub const HARNESS: &str = "harness";
 pub const DIAGNOSTICO: &str = "diagnostico";
+pub const ESTADO: &str = "estado";
+pub const ATUALIZAR: &str = "atualizar";
+pub const USAR: &str = "usar";
+pub const REAUTORIZAR: &str = "reautorizar";
+pub const SAIR: &str = "sair";
+pub const SERVIR: &str = "servir";
+pub const AJUDA: &str = "ajuda";
+
+const USO: &str = "\
+uso: remoteid <comando>
+
+  entrar <email>       entra na conta e registra esta máquina (senha pelo stdin)
+  estado [--json]      a conta e os certificados, sem ir à rede
+  atualizar            baixa de novo a carteira
+  usar <chave|série>   escolhe o certificado que assina
+  assinar [--ajuda]    assina o stdin; --ajuda mostra as opções
+  reautorizar          a próxima assinatura pede o código de novo
+  sair                 sai da conta neste computador
+  servir [--socket <caminho>]
+                       a API em JSON por linha, no stdin e stdout ou num socket
+  harness              testa o fluxo inteiro e grava um relatório
+  diagnostico          os registros, num .tar.gz pelo stdout";
 
 const USO_DIAGNOSTICO: &str = "uso: remoteid diagnostico > remoteid-diagnostico.tar.gz";
 
@@ -37,12 +62,15 @@ const USO_DIAGNOSTICO: &str = "uso: remoteid diagnostico > remoteid-diagnostico.
 const PASTA_DO_PACOTE: &str = "remoteid-diagnostico";
 
 const USO_ASSINAR: &str = "\
-uso: remoteid assinar [--anexar | --cru] [--hash <hex>] < documento > saída
+uso: remoteid assinar [--anexar | --cru] [--hash <hex>] [--certificado <chave|série>]
+                       < documento > saída
 
   sem opção     .p7s destacado do documento, na política AD-RB da ICP-Brasil
   --anexar      .p7s com o documento dentro
   --cru         a assinatura RSA (PKCS#1 v1.5, SHA-256) sem envelope
   --hash <hex>  assina este SHA-256 em vez de ler o documento
+  --certificado <chave|série>
+                assina com este certificado em vez do ativo
 
 O código do autenticador é pedido no terminal ou, sem terminal, numa janela.";
 
@@ -87,7 +115,7 @@ pub fn entrar(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     }
     let senha = senha.trim_end_matches(['\r', '\n']);
-    let (maquina_nome, usuario) = desta_maquina();
+    let (maquina_nome, usuario) = remoteid::desta_maquina();
     let maquina = Maquina {
         nome: &maquina_nome,
         usuario_local: &usuario,
@@ -132,11 +160,13 @@ enum Saida {
 struct Pedido {
     saida: Saida,
     hash: Option<[u8; 32]>,
+    certificado: Option<String>,
 }
 
 fn analisar(args: &[String]) -> Result<Pedido, String> {
     let mut saida = Saida::Destacado;
     let mut hash = None;
+    let mut certificado = None;
     let mut resto = args.iter();
     while let Some(arg) = resto.next() {
         match arg.as_str() {
@@ -151,30 +181,32 @@ fn analisar(args: &[String]) -> Result<Pedido, String> {
                     .ok_or("--hash precisa do SHA-256 em hexadecimal")?;
                 hash = Some(de_hex(hex).ok_or("--hash quer 64 dígitos hexadecimais (SHA-256)")?);
             }
+            "--certificado" => {
+                let c = resto
+                    .next()
+                    .ok_or("--certificado precisa da chave ou da série")?;
+                certificado = Some(c.clone());
+            }
             outro => return Err(format!("opção desconhecida: {outro}")),
         }
     }
     if saida == Saida::Anexado && hash.is_some() {
         return Err("--anexar precisa do documento, e --hash é só o resumo".into());
     }
-    Ok(Pedido { saida, hash })
-}
-
-fn de_hex(texto: &str) -> Option<[u8; 32]> {
-    let texto = texto.trim();
-    if texto.len() != 64 || !texto.is_ascii() {
-        return None;
-    }
-    let mut bytes = [0; 32];
-    for (i, b) in bytes.iter_mut().enumerate() {
-        *b = u8::from_str_radix(&texto[2 * i..2 * i + 2], 16).ok()?;
-    }
-    Some(bytes)
+    Ok(Pedido {
+        saida,
+        hash,
+        certificado,
+    })
 }
 
 /// `remoteid assinar`: o documento entra pelo stdin e a assinatura sai pelo
 /// stdout, porque o sandbox do Âncora não enxerga a pasta pessoal.
 pub fn assinar(args: &[String]) -> ExitCode {
+    if args.iter().any(|a| a == "--ajuda") {
+        println!("{USO_ASSINAR}");
+        return ExitCode::SUCCESS;
+    }
     let pedido = match analisar(args) {
         Ok(p) => p,
         Err(e) => {
@@ -201,9 +233,28 @@ pub fn assinar(args: &[String]) -> ExitCode {
         Ok(m) => m,
         Err(e) => return falhar(e, None),
     };
+    let certificado = match &pedido.certificado {
+        Some(c) => servico::achar(&motor.estado, c).cloned(),
+        None => motor.estado.certificado().cloned(),
+    };
+    let Some(certificado) = certificado else {
+        return falhar("o certificado não está na carteira", None);
+    };
     let resultado = match pedido.saida {
-        Saida::Cru => motor.assinar(Algoritmo::Sha256, &digest, autorizador.as_ref()),
-        _ => cades::assinar(&mut motor, &digest, conteudo, agora(), autorizador.as_ref()),
+        Saida::Cru => motor.assinar_com(
+            &certificado,
+            Algoritmo::Sha256,
+            &digest,
+            autorizador.as_ref(),
+        ),
+        _ => cades::assinar_com(
+            &mut motor,
+            &certificado,
+            &digest,
+            conteudo,
+            agora(),
+            autorizador.as_ref(),
+        ),
     };
     let bytes = match resultado {
         Ok(b) => b,
@@ -356,6 +407,182 @@ fn acrescentar<W: Write>(
     cabecalho.set_mtime(quando);
     cabecalho.set_cksum();
     pacote.append_data(&mut cabecalho, format!("{PASTA_DO_PACOTE}/{nome}"), dados)
+}
+
+pub fn ajuda() -> ExitCode {
+    println!("{USO}");
+    ExitCode::SUCCESS
+}
+
+/// Recusa argumentos que o comando não aceita.
+fn sem_argumentos(args: &[String], uso: &str) -> Result<(), ExitCode> {
+    if args.is_empty() {
+        Ok(())
+    } else {
+        eprintln!("uso: remoteid {uso}");
+        Err(ExitCode::FAILURE)
+    }
+}
+
+/// Roda `op` num motor do terminal.
+fn com_motor(comando: &str, op: impl FnOnce(&mut Motor) -> Result<(), Erro>) -> ExitCode {
+    let (mut motor, _, diagnostico) = match abrir_motor(comando) {
+        Ok(m) => m,
+        Err(e) => return falhar(e, None),
+    };
+    match op(&mut motor) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => falhar(e, diagnostico.as_ref()),
+    }
+}
+
+/// `remoteid estado [--json]`: a conta e os certificados, como a janela os
+/// mostra, sem ir à rede.
+pub fn estado(args: &[String]) -> ExitCode {
+    let json = match args {
+        [] => false,
+        [a] if a == "--json" => true,
+        _ => {
+            eprintln!("uso: remoteid estado [--json]");
+            return ExitCode::FAILURE;
+        }
+    };
+    let estado = match Estado::carregar(&Caminhos::do_ambiente().estado()) {
+        Ok(e) => e,
+        Err(e) => return falhar(Erro::Disco(e), None),
+    };
+    let visao = servico::visao(&estado, agora());
+    if json {
+        println!("{visao}");
+    } else {
+        print!("{}", em_texto(&visao));
+    }
+    ExitCode::SUCCESS
+}
+
+/// A [`servico::visao`] para gente ler.
+fn em_texto(visao: &serde_json::Value) -> String {
+    let texto = |v: &serde_json::Value| v.as_str().unwrap_or("").to_string();
+    let Some(conta) = visao["conta"].as_object() else {
+        return "fora da conta: remoteid entrar <email>\n".into();
+    };
+    let mut saida = format!("conta       {}\n", texto(&conta["email"]));
+    if let Some(computador) = visao["computador"].as_str() {
+        saida += &format!("computador  {computador}\n");
+    }
+    if let Some(pareado) = visao["celular_pareado"].as_bool() {
+        saida += &format!(
+            "celular     {}\n",
+            if pareado { "pareado" } else { "sem celular" }
+        );
+    }
+    for c in visao["certificados"].as_array().into_iter().flatten() {
+        let marca = if c["ativo"] == true { "*" } else { " " };
+        saida += &format!("\n{marca} {}\n", texto(&c["titular"]));
+        if let Some(documento) = c["documento"].as_str() {
+            saida += &format!("  {} {documento}\n", texto(&c["tipo"]));
+        }
+        saida += &format!("  emissor   {}\n", texto(&c["emissor"]));
+        saida += &format!("  série     {}\n", texto(&c["serie"]));
+        if let Some(dias) = c["dias_restantes"].as_i64() {
+            saida += &format!("  validade  {dias} dias\n");
+        }
+        let sessao = if c["sessao"]["aberta"] == true {
+            "aberta: a próxima assinatura não pede código"
+        } else {
+            "fechada: a próxima assinatura pede o código"
+        };
+        saida += &format!("  sessão    {sessao}\n");
+    }
+    saida
+}
+
+/// `remoteid atualizar`: baixa de novo a carteira e o estado do celular.
+pub fn atualizar(args: &[String]) -> ExitCode {
+    if let Err(c) = sem_argumentos(args, ATUALIZAR) {
+        return c;
+    }
+    com_motor(ATUALIZAR, |m| {
+        let _ = m.atualizar_celular();
+        m.atualizar_carteira()
+    })
+}
+
+/// `remoteid usar <chave|série>`: escolhe o certificado que assina.
+pub fn usar(args: &[String]) -> ExitCode {
+    let [certificado] = args else {
+        eprintln!("uso: remoteid usar <chave|série>  (veja remoteid estado)");
+        return ExitCode::FAILURE;
+    };
+    com_motor(USAR, |m| {
+        let chave = servico::achar(&m.estado, certificado)
+            .map(Certificado::chave)
+            .ok_or(Erro::NaoPreparado("o certificado não está na carteira"))?;
+        m.escolher_certificado(&chave)
+    })
+}
+
+/// `remoteid reautorizar`: a próxima assinatura pede o código de novo.
+pub fn reautorizar(args: &[String]) -> ExitCode {
+    if let Err(c) = sem_argumentos(args, REAUTORIZAR) {
+        return c;
+    }
+    com_motor(REAUTORIZAR, Motor::reautorizar_proxima)
+}
+
+/// `remoteid sair`: esquece a conta, a carteira e a senha neste computador.
+pub fn sair(args: &[String]) -> ExitCode {
+    if let Err(c) = sem_argumentos(args, SAIR) {
+        return c;
+    }
+    com_motor(SAIR, Motor::sair)
+}
+
+/// `remoteid servir`: a API de [`servico`], no stdin e stdout ou, com
+/// `--socket`, num socket Unix só do usuário, uma conversa por conexão.
+pub fn servir(args: &[String]) -> ExitCode {
+    let motor = || abrir_motor(SERVIR).map(|(m, _, _)| m);
+    match args {
+        [] => {
+            servico::atender(motor(), io::stdin().lock(), io::stdout().lock());
+            ExitCode::SUCCESS
+        }
+        [opcao, caminho] if opcao == "--socket" => match ouvir(Path::new(caminho)) {
+            Ok(ouvinte) => {
+                eprintln!("remoteid: servindo em {caminho}");
+                for conexao in ouvinte.incoming().flatten() {
+                    std::thread::spawn(move || {
+                        let Ok(leitura) = conexao.try_clone() else {
+                            return;
+                        };
+                        servico::atender(motor(), BufReader::new(leitura), conexao);
+                    });
+                }
+                ExitCode::SUCCESS
+            }
+            Err(e) => falhar(format!("não abriu o socket {caminho}: {e}"), None),
+        },
+        _ => {
+            eprintln!("uso: remoteid servir [--socket <caminho>]");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Abre o socket com permissão só do dono desde o primeiro instante, e
+/// troca um socket velho que tenha ficado no caminho. Outro tipo de arquivo
+/// ali não é apagado.
+fn ouvir(caminho: &Path) -> io::Result<UnixListener> {
+    if fs::symlink_metadata(caminho).is_ok_and(|m| m.file_type().is_socket()) {
+        fs::remove_file(caminho)?;
+    }
+    // SAFETY: umask só troca a máscara do processo, devolvida logo abaixo;
+    // ainda não há outra thread criando arquivos.
+    let antes = unsafe { libc::umask(0o177) };
+    let ouvinte = UnixListener::bind(caminho);
+    // SAFETY: idem.
+    unsafe { libc::umask(antes) };
+    ouvinte
 }
 
 /// Quem pergunta os fatores: o terminal, ou, sem ele, o diálogo do módulo.
@@ -535,15 +762,6 @@ fn agora() -> u64 {
         .map_or(0, |d| d.as_secs())
 }
 
-/// O nome desta máquina e o usuário local, como o registro os manda à
-/// Certisign.
-pub fn desta_maquina() -> (String, String) {
-    let nome = std::fs::read_to_string("/proc/sys/kernel/hostname")
-        .map(|h| h.trim().to_string())
-        .unwrap_or_default();
-    (nome, std::env::var("USER").unwrap_or_default())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -558,7 +776,8 @@ mod tests {
             analisar(&[]),
             Ok(Pedido {
                 saida: Saida::Destacado,
-                hash: None
+                hash: None,
+                certificado: None,
             })
         );
     }

@@ -160,6 +160,43 @@ fn assinar_cru_devolve_a_assinatura_rsa_do_sha256() {
     assert_eq!(pelo_hash.stdout, saida.stdout);
 }
 
+/// O que a janela faz, pela linha de comando.
+#[test]
+fn estado_usar_reautorizar_e_sair_sem_a_janela() {
+    let mock = Mock::subir();
+    let conta = Conta::entrar(&mock, "conta");
+    let estado = |conta: &Conta| -> serde_json::Value {
+        let saida = conta.rodar(&["estado", "--json"], b"");
+        assert!(saida.status.success());
+        serde_json::from_slice(&saida.stdout).unwrap()
+    };
+    let e = estado(&conta);
+    assert_eq!(e["conta"]["email"], "teste@remoteid.local");
+    let serie = e["certificados"][0]["serie"].as_str().unwrap().to_string();
+    let texto = conta.rodar(&["estado"], b"");
+    assert!(String::from_utf8_lossy(&texto.stdout).contains(&serie));
+
+    assert!(conta.rodar(&["usar", &serie], b"").status.success());
+    assert!(!conta.rodar(&["usar", "outro"], b"").status.success());
+    assert!(conta.rodar(&["atualizar"], b"").status.success());
+
+    assert!(
+        conta
+            .rodar(&["assinar", "--cru"], DOCUMENTO)
+            .status
+            .success()
+    );
+    assert_eq!(estado(&conta)["certificados"][0]["sessao"]["aberta"], true);
+    assert!(conta.rodar(&["reautorizar"], b"").status.success());
+    assert_eq!(estado(&conta)["certificados"][0]["sessao"]["aberta"], false);
+    let saida = conta.rodar(&["assinar", "--cru", "--certificado", &serie], DOCUMENTO);
+    assert!(saida.status.success());
+    assert_eq!(conta.pedidos(), 2);
+
+    assert!(conta.rodar(&["sair"], b"").status.success());
+    assert_eq!(estado(&conta)["conta"], serde_json::Value::Null);
+}
+
 #[test]
 fn opcao_errada_nao_vai_a_rede_nem_escreve_nada() {
     let mock = Mock::subir();
