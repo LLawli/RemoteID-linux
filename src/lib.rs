@@ -19,6 +19,7 @@ pub mod pedido;
 pub mod pin;
 pub mod pkcs11;
 pub mod protocolo;
+pub mod servico;
 pub mod transporte;
 pub mod x509;
 
@@ -43,6 +44,15 @@ fn id_no_hospedeiro(hospedeiro: Option<&str>) -> String {
         Some(id) if !id.is_empty() => format!("{id}{SUFIXO_DO_ID}"),
         _ => APP_ID.to_string(),
     }
+}
+
+/// O nome desta máquina e o usuário local, como o registro os manda à
+/// Certisign.
+pub fn desta_maquina() -> (String, String) {
+    let nome = std::fs::read_to_string("/proc/sys/kernel/hostname")
+        .map(|h| h.trim().to_string())
+        .unwrap_or_default();
+    (nome, std::env::var("USER").unwrap_or_default())
 }
 
 #[cfg(test)]

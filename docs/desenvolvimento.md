@@ -4,7 +4,9 @@
 
 - Rust estável (1.92 ou mais novo).
 - GTK 4.18 e libadwaita 1.7, ou mais novos, com os cabeçalhos
-  (`gtk4-devel libadwaita-devel` no Fedora).
+  (`gtk4-devel libadwaita-devel` no Fedora). Só para a janela: sem eles,
+  `cargo build --no-default-features` constrói o módulo e o `remoteid` sem a
+  janela nem o diálogo, com todos os outros subcomandos.
 - `appstream`, para validar o metainfo.
 - `openssl`, que os testes usam para conferir o `.p7s`.
 - `cargo-audit`.
@@ -18,8 +20,8 @@
 scripts/ci.sh
 ```
 
-Formatação, clippy com avisos como erro, testes, `cargo audit` e validação do
-metainfo. A CI roda o mesmo script, num contêiner Fedora 44, porque o Ubuntu
+Formatação, clippy com avisos como erro e testes (com e sem a feature
+`janela`), `cargo audit` e validação do metainfo. A CI roda o mesmo script, num contêiner Fedora 44, porque o Ubuntu
 dos runners traz GTK e libadwaita mais antigos que os do runtime.
 
 ## Dependências Rust e o Flatpak

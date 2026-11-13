@@ -28,6 +28,19 @@ pub fn de_b64(texto: &str) -> Option<Vec<u8>> {
     STANDARD.decode(texto.trim()).ok()
 }
 
+/// Um SHA-256 em hexadecimal, como `sha256sum` o escreve.
+pub fn de_hex(texto: &str) -> Option<[u8; 32]> {
+    let texto = texto.trim();
+    if texto.len() != 64 || !texto.is_ascii() {
+        return None;
+    }
+    let mut bytes = [0; 32];
+    for (i, b) in bytes.iter_mut().enumerate() {
+        *b = u8::from_str_radix(&texto[2 * i..2 * i + 2], 16).ok()?;
+    }
+    Some(bytes)
+}
+
 pub fn sha256(dados: &[u8]) -> [u8; 32] {
     Sha256::digest(dados).into()
 }

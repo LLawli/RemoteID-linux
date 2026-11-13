@@ -20,6 +20,10 @@ A extensão traz duas peças, as duas rodando no sandbox do Âncora:
 | `lib/libremoteid.so` | o módulo PKCS#11, sem GTK, com o motor inteiro: estado, sessão em cache e a conversa com a Certisign | o `p11-kit server` que o `ancora servir` mantém no ar, e por ele os navegadores, o leitor de PDF e os assinadores |
 | `bin/remoteid` | a janela (entrar na conta, a carteira em cartões), o diálogo do código do autenticador, e os subcomandos de terminal | a pessoa, pelo atalho que o Âncora cria; o módulo, para pedir PIN e OTP |
 
+O mesmo `bin/remoteid` serve a outros programas pelo `remoteid servir`
+([docs/servico.md](servico.md)): tudo o que a janela faz, em JSON por linha,
+com o código do autenticador pedido por quem chama.
+
 **Assinar não depende da janela aberta.** Basta o que o Âncora mantém sempre
 ativo, o `ancora servir` publicando o driver. A chave do certificado fica no HSM
 da Certisign. No `C_Sign` o módulo, dentro do serviço do Âncora, usa a sessão
@@ -38,11 +42,19 @@ Um pacote Cargo só. A biblioteca é ao mesmo tempo o `cdylib` que o p11-kit
 carrega e o `rlib` que o binário usa; o GTK é dependência só do binário. Medido
 em 2026-10-30: o `.so` sai ligado apenas a `libc`, `libgcc_s` e `ld-linux`.
 
+O GTK fica atrás da feature `janela`, ligada por padrão, que traz a janela e o
+`remoteid pedir`. Com `--no-default-features`, o binário inteiro (todos os
+subcomandos e o `servir`) compila sem os cabeçalhos do GTK; medido em
+2026-11-13 num contêiner sem GTK nem `pkg-config`, o `remoteid` sai ligado só a
+`libc`, `libm` e `libgcc_s`. O `scripts/ci.sh` roda o clippy e os testes nos
+dois modos.
+
 O RemoteID-linux tinha 23 crates, com uma porta (trait) para cada efeito,
 pensadas para uma versão central multi-conta que nunca existiu. Aqui os
 domínios são módulos, e uma trait só existe quando há duas implementações de
 verdade hoje (a real e a de teste): o `Transporte` (HTTP ou falso) e o
-`Autorizador` (o diálogo, ou fatores fixos num teste) e o `Cofre` (o chaveiro
+`Autorizador` (o diálogo, o terminal, o canal do `servir`, ou fatores fixos
+num teste) e o `Cofre` (o chaveiro
 do sistema, ou um na memória).
 
 | módulo | o que faz |
@@ -64,6 +76,7 @@ do sistema, ou um na memória).
 | `diagnostico` | um JSONL por processo, criado na primeira linha, com segredos e dados do titular redigidos; 30 dias, até 64 MiB |
 | `cades` | o `.p7s` em duas fases, com a ida ao HSM no meio, na política AD-RB; sem política, igual byte a byte ao do antigo |
 | `harness` | o fluxo com a conta entrada, passo a passo, e o relatório para enviar |
+| `servico` | a API para outros programas: JSON por linha, um `Autorizador` que pede os fatores pelo próprio canal, e a visão da conta que o `remoteid estado` também mostra |
 | `bin/remoteid-mock` | o servidor falso dos testes |
 
 O motor roda em dois processos que dividem o mesmo estado em disco: o módulo,

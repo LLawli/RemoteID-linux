@@ -6,6 +6,18 @@ Todas as mudanças visíveis para quem usa ficam aqui. O formato segue o
 
 ## [Unreleased]
 
+### Adicionado
+
+- `remoteid servir`: tudo o que a janela faz, como API em JSON por linha, no
+  stdin e stdout ou num socket Unix só do usuário (`--socket <caminho>`). O
+  código do autenticador é pedido a quem chama, pelo mesmo canal, e a senha
+  guardada nunca sai por ele. O protocolo está em `docs/servico.md`.
+- Os subcomandos `estado` (com `--json`), `atualizar`, `usar`, `reautorizar`,
+  `sair` e `ajuda`, e `assinar --certificado` para assinar com um certificado
+  que não é o ativo.
+- O RemoteID compila sem GTK (`cargo build --no-default-features`): sem a
+  janela e o diálogo, com todos os outros subcomandos.
+
 ## [0.4.1] - 2026-11-07
 
 ### Adicionado

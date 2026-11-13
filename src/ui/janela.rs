@@ -31,7 +31,6 @@ use zeroize::Zeroizing;
 
 use super::cartao::{self, Grande, texto};
 use super::estilo;
-use crate::terminal;
 
 /// De quanto em quanto tempo a janela relê o estado.
 const RELEITURA: Duration = Duration::from_secs(2);
@@ -709,7 +708,7 @@ fn enviar(j: &Rc<Janela>) {
     j.senha.set_sensitive(false);
     j.botao_entrar.set_sensitive(false);
     j.botao_entrar.set_child(Some(&adw::Spinner::new()));
-    let (computador, usuario) = terminal::desta_maquina();
+    let (computador, usuario) = remoteid::desta_maquina();
     let senha_do_pin = Zeroizing::new(senha.clone());
     em_segundo_plano(
         j,

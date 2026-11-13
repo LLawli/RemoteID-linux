@@ -55,6 +55,16 @@ padrão porque o Âncora não enxerga a pasta pessoal, e o código do autenticad
 é pedido na janela do RemoteID. `$R harness` testa o fluxo
 e grava um relatório para mandar a quem investiga um problema.
 
+O que a janela faz também tem comando: `$R estado` mostra a conta e os
+certificados, `$R usar <série>` escolhe o que assina, `$R atualizar` baixa a
+carteira de novo, `$R reautorizar` faz a próxima assinatura pedir o código e
+`$R sair` sai da conta. `$R ajuda` lista todos.
+
+Para integrar o RemoteID a outro programa (um gateway, um webapp, o backend de
+um app de celular), `$R servir` fala JSON por linha no stdin e stdout, ou num
+socket com `--socket <caminho>`, e pede o código do autenticador a quem chama.
+O protocolo está em [docs/servico.md](docs/servico.md).
+
 Quando algo dá errado, `$R diagnostico > remoteid-diagnostico.tar.gz` junta os
 registros dos últimos 30 dias num arquivo para anexar ao relato. Ele não traz
 senha, PIN, OTP nem os dados do titular, mas identifica a conta: envie por um

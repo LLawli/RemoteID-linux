@@ -8,6 +8,7 @@
 
 use std::cell::Cell;
 use std::io::Write;
+use std::process::ExitCode;
 use std::rc::Rc;
 
 use adw::prelude::*;
@@ -19,7 +20,7 @@ use remoteid::{NOME, id_do_aplicativo};
 
 use super::{cartao, estilo};
 
-pub fn executar() -> glib::ExitCode {
+pub fn executar() -> ExitCode {
     let pedido: Pedido = serde_json::from_reader(std::io::stdin()).unwrap_or_default();
     // Outra instância do id (a janela aberta) não pode receber esta pergunta.
     let app = adw::Application::builder()
@@ -31,9 +32,9 @@ pub fn executar() -> glib::ExitCode {
     app.connect_activate(move |app| montar(app, &pedido, r.clone()));
     app.run_with_args::<&str>(&[]);
     if respondido.get() {
-        glib::ExitCode::SUCCESS
+        ExitCode::SUCCESS
     } else {
-        glib::ExitCode::FAILURE
+        ExitCode::FAILURE
     }
 }
 
