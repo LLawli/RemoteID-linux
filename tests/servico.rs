@@ -204,6 +204,68 @@ fn a_api_faz_tudo_o_que_a_janela_faz() {
 }
 
 #[test]
+fn a_visao_traz_o_der_e_o_cru_assina_um_digest_info_pronto() {
+    use rsa::RsaPrivateKey;
+    use rsa::pkcs1v15::Pkcs1v15Sign;
+    use rsa::pkcs8::DecodePrivateKey;
+
+    let mock = Mock::subir();
+    let raiz = raiz("digest-info");
+    let mut s = Servico::subir(&raiz, &mock);
+    let r = s.pedir(
+        json!({"id": 1, "op": "entrar", "email": "teste@remoteid.local",
+                           "senha": "teste-1234", "pin": "1234"}),
+    );
+    assert!(r["ok"].is_object(), "{r}");
+
+    // O certificado sai inteiro, para quem o expõe como token.
+    let r = s.pedir(json!({"id": 2, "op": "estado"}));
+    let der = STANDARD
+        .decode(
+            r["ok"]["certificados"][0]["certificado"]
+                .as_str()
+                .expect("DER"),
+        )
+        .unwrap();
+    assert_eq!(der, include_bytes!("mock/fake-cert.der"));
+
+    // O DigestInfo de um SHA-384, como o TLS 1.2 pede: o servidor assina o
+    // bloco como veio, e a assinatura confere com a chave do titular.
+    let mut bloco = vec![
+        0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02,
+        0x05, 0x00, 0x04, 0x30,
+    ];
+    bloco.extend([0x5a; 48]);
+    s.enviar(
+        &json!({"id": "c", "op": "assinar", "formato": "cru",
+                "digest_info": STANDARD.encode(&bloco)})
+        .to_string(),
+    );
+    assert!(s.receber()["pedir"].is_object());
+    s.enviar(r#"{"id":"c","fatores":{"pin":"1234","otp":"123456"}}"#);
+    let r = s.receber();
+    let assinatura = STANDARD
+        .decode(r["ok"]["assinatura"].as_str().expect("assinatura"))
+        .unwrap();
+    let titular = RsaPrivateKey::from_pkcs8_pem(include_str!("mock/fake-key.pem")).unwrap();
+    titular
+        .to_public_key()
+        .verify(Pkcs1v15Sign::new_unprefixed(), &bloco, &assinatura)
+        .expect("a assinatura do DigestInfo confere");
+
+    // O DigestInfo é só do cru, e não divide o pedido com o hash.
+    let bloco = STANDARD.encode(&bloco);
+    let r = s.pedir(json!({"id": 3, "op": "assinar", "digest_info": bloco}));
+    assert_eq!(r["erro"]["tipo"], "pedido_invalido", "{r}");
+    let r = s.pedir(json!({"id": 4, "op": "assinar", "formato": "cru",
+                           "digest_info": bloco, "hash": "ab".repeat(32)}));
+    assert_eq!(r["erro"]["tipo"], "pedido_invalido", "{r}");
+    let r = s.pedir(json!({"id": 5, "op": "assinar", "formato": "cru",
+                           "digest_info": "não é base64"}));
+    assert_eq!(r["erro"]["tipo"], "pedido_invalido", "{r}");
+}
+
+#[test]
 fn o_socket_e_so_do_dono_e_atende_cada_conexao() {
     let mock = Mock::subir();
     let raiz = raiz("socket");

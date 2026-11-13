@@ -54,9 +54,10 @@ cifra no disco, e as assinaturas passam a pedir esse PIN em vez da senha.
 
 | campo | |
 |---|---|
-| `formato` | `destacado` (padrão): `.p7s` sem o documento, na política AD-RB; `anexado`: `.p7s` com o documento; `cru`: a assinatura RSA PKCS#1 v1.5 do SHA-256 |
+| `formato` | `destacado` (padrão): `.p7s` sem o documento, na política AD-RB; `anexado`: `.p7s` com o documento; `cru`: a assinatura RSA PKCS#1 v1.5 do SHA-256 ou do `digest_info` |
 | `hash` | o SHA-256 do documento em hexadecimal (não serve para `anexado`) |
 | `documento` | o documento em base64, no lugar do `hash` |
+| `digest_info` | só no `cru`: o DigestInfo pronto em base64, no lugar do `hash` e do `documento`, para um resumo de outro algoritmo (o TLS 1.2 pede SHA-384 e SHA-512, por exemplo) |
 | `certificado` | chave ou série; sem ele, o certificado ativo |
 
 ## Os fatores
@@ -98,12 +99,15 @@ e espera, no mesmo `id`, uma destas:
     "documento": "CPF 000.000.000-00", "emissor": "…", "serie": "…",
     "validade": 1790000000, "dias_restantes": 300, "ativo": true,
     "sessao": {"aberta": true, "ate": 1763050000},
-    "cadeia": ["AC …", "AC Raiz …"]
+    "cadeia": ["AC …", "AC Raiz …"],
+    "certificado": "<DER em base64>"
   }]
 }
 ```
 
-Fora da conta, `conta` é `null` e `certificados` vem vazio. `sessao.ate` é
+Fora da conta, `conta` é `null` e `certificados` vem vazio. `certificado` é o
+DER do certificado, para quem o expõe como token; é `null` quando a carteira
+não o trouxe. `sessao.ate` é
 `null` quando não dá para saber até quando a sessão vale.
 
 ## Segredos

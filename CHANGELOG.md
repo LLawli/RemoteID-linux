@@ -6,6 +6,12 @@ Todas as mudanças visíveis para quem usa ficam aqui. O formato segue o
 
 ## [Unreleased]
 
+### Adicionado
+
+- `remoteid servir`: a visão traz o DER de cada certificado (`certificado`), e o
+  formato `cru` aceita um DigestInfo pronto (`digest_info`), para assinar o
+  resumo de qualquer algoritmo, como o SHA-384 e o SHA-512 que o TLS 1.2 pede.
+
 ## [0.5.0] - 2026-11-13
 
 ### Adicionado

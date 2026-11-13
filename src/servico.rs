@@ -64,6 +64,11 @@ enum Operacao {
         /// O documento em base64, no lugar do `hash`.
         #[serde(default)]
         documento: Option<String>,
+        /// Só no `cru`: o DigestInfo pronto, em base64, no lugar do `hash`,
+        /// para assinar o resumo de qualquer algoritmo (o TLS 1.2 pede
+        /// SHA-384 e SHA-512, por exemplo).
+        #[serde(default)]
+        digest_info: Option<String>,
         /// A chave ou a série; sem ele, o certificado ativo.
         #[serde(default)]
         certificado: Option<String>,
@@ -78,7 +83,8 @@ enum Formato {
     Destacado,
     /// `.p7s` com o documento dentro.
     Anexado,
-    /// A assinatura RSA (PKCS#1 v1.5, SHA-256) do hash, sem envelope.
+    /// A assinatura RSA (PKCS#1 v1.5) do hash SHA-256 ou do DigestInfo, sem
+    /// envelope.
     Cru,
 }
 
@@ -219,6 +225,8 @@ pub fn visao(estado: &Estado, agora: u64) -> Value {
                 Sessao::Aberta { ate } => json!({ "aberta": true, "ate": ate }),
                 Sessao::Fechada => json!({ "aberta": false }),
             };
+            // O DER em base64, para quem expõe o certificado (um token virtual).
+            let der = achar(estado, &c.chave).and_then(|x| x.base64.clone());
             json!({
                 "chave": c.chave,
                 "titular": c.nome,
@@ -231,6 +239,7 @@ pub fn visao(estado: &Estado, agora: u64) -> Value {
                 "ativo": c.ativo,
                 "sessao": sessao,
                 "cadeia": c.autoridades,
+                "certificado": der,
             })
         })
         .collect();
@@ -369,30 +378,51 @@ fn executar<R: BufRead, W: Write>(
             formato,
             hash,
             documento,
+            digest_info,
             certificado,
         } => {
-            let (digest, anexar) = match (hash, documento) {
-                (Some(_), Some(_)) => {
+            // O que vai ao motor: o SHA-256 (com o documento, no anexado) ou,
+            // no cru, um DigestInfo pronto.
+            enum Entrada {
+                Resumo([u8; 32], Option<Vec<u8>>),
+                DigestInfo(Vec<u8>),
+            }
+            let entrada = match (digest_info, hash, documento) {
+                (Some(_), _, _) if formato != Formato::Cru => {
+                    return Err(Falha::Pedido("digest_info é só do formato cru".into()));
+                }
+                (Some(_), Some(_), _) | (Some(_), _, Some(_)) => {
+                    return Err(Falha::Pedido(
+                        "digest_info, hash ou documento: só um deles".into(),
+                    ));
+                }
+                (Some(texto), None, None) => Entrada::DigestInfo(
+                    de_b64(&texto)
+                        .ok_or_else(|| Falha::Pedido("digest_info não é base64".into()))?,
+                ),
+                (None, Some(_), Some(_)) => {
                     return Err(Falha::Pedido("hash ou documento, não os dois".into()));
                 }
-                (Some(_), None) if formato == Formato::Anexado => {
+                (None, Some(_), None) if formato == Formato::Anexado => {
                     return Err(Falha::Pedido(
                         "anexado precisa do documento, e o hash é só o resumo".into(),
                     ));
                 }
-                (Some(hex), None) => (
+                (None, Some(hex), None) => Entrada::Resumo(
                     de_hex(&hex).ok_or_else(|| {
                         Falha::Pedido("hash quer 64 dígitos hexadecimais (SHA-256)".into())
                     })?,
                     None,
                 ),
-                (None, Some(texto)) => {
+                (None, None, Some(texto)) => {
                     let bytes = de_b64(&texto)
                         .ok_or_else(|| Falha::Pedido("documento não é base64".into()))?;
                     let digest = sha256(&bytes);
-                    (digest, (formato == Formato::Anexado).then_some(bytes))
+                    Entrada::Resumo(digest, (formato == Formato::Anexado).then_some(bytes))
                 }
-                (None, None) => return Err(Falha::Pedido("falta o hash ou o documento".into())),
+                (None, None, None) => {
+                    return Err(Falha::Pedido("falta o hash ou o documento".into()));
+                }
             };
             let certificado = match certificado {
                 Some(c) => achar(&motor.estado, &c).cloned(),
@@ -400,11 +430,14 @@ fn executar<R: BufRead, W: Write>(
             }
             .ok_or(Erro::NaoPreparado("o certificado não está na carteira"))?;
             let autorizador = PeloCanal { id, canal };
-            let assinatura = match formato {
-                Formato::Cru => {
+            let assinatura = match (formato, entrada) {
+                (_, Entrada::DigestInfo(bloco)) => {
+                    motor.assinar_com(&certificado, Algoritmo::Cru, &bloco, &autorizador)?
+                }
+                (Formato::Cru, Entrada::Resumo(digest, _)) => {
                     motor.assinar_com(&certificado, Algoritmo::Sha256, &digest, &autorizador)?
                 }
-                _ => {
+                (_, Entrada::Resumo(digest, anexar)) => {
                     cades::assinar_com(motor, &certificado, &digest, anexar, agora(), &autorizador)?
                 }
             };
