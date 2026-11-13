@@ -46,9 +46,9 @@ fn sem_comando() -> ExitCode {
     }
 }
 
-/// Sem a janela, o que não é um comando mostra os comandos.
+/// Sem a janela, o que não é um comando mostra os comandos e falha.
 #[cfg(not(feature = "janela"))]
 fn sem_comando() -> ExitCode {
-    terminal::ajuda();
+    let _ = terminal::ajuda();
     ExitCode::FAILURE
 }
