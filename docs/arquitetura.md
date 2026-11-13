@@ -278,6 +278,21 @@ como devolver o terminal ao grupo de antes, invisível dali.
 `remoteid harness` não redireciona nada e pergunta no terminal mesmo no
 Flatpak.
 
+A senha da conta, o PIN e o OTP passam em claro pela memória dos comandos de
+terminal, e o `servir` os guarda a conversa inteira. Por isso o `main` zera o
+`RLIMIT_CORE` e faz `prctl(PR_SET_DUMPABLE, 0)` antes de despachar, e o comando
+sai com erro se uma das duas falhar. Tem de ser no próprio processo: o
+`execve` volta o `dumpable` para 1, e quem lança o `remoteid` só consegue
+passar o limite de core. Dentro do Flatpak o portal de segredos segue
+funcionando: medido na VM em 2026-11-13 (xdg-desktop-portal 1.22.1, Flatpak
+1.18.4, `testar-cofre.sh portal`), o `entrar` guardou a senha pelo portal e o
+módulo a leu, com o `servir` do sandbox de `mem` no root e core `0 0`. O
+Âncora não tem `--socket=session-bus`, então o par que o portal vê é o
+`xdg-dbus-proxy` do sandbox, não o `remoteid`. A janela e o diálogo (`pedir`)
+ficam de fora até serem testados com os portais deles, e o módulo PKCS#11
+porque roda no processo de quem o carrega. `tests/protecao.rs` confere pelo
+`/proc` do `servir`.
+
 ## A senha da conta
 
 O que o servidor chama de PIN, no pedido da sessão de assinatura, é a senha da

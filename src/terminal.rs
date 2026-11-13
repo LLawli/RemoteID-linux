@@ -90,6 +90,26 @@ fn abrir_motor(comando: &str) -> Result<(Motor, Caminhos, Option<PathBuf>), Erro
     Ok((motor, caminhos, arquivo))
 }
 
+/// Fecha a memória do processo, onde a senha, o PIN e o OTP passam em
+/// claro: sem core dump numa queda, e sem `ptrace` nem `/proc/<pid>/mem`
+/// para outro processo do mesmo usuário. Tem de rodar no próprio processo:
+/// o `execve` volta o `dumpable` para 1.
+pub fn proteger_processo() -> io::Result<()> {
+    let sem_core = libc::rlimit {
+        rlim_cur: 0,
+        rlim_max: 0,
+    };
+    // SAFETY: setrlimit só lê a struct, que vive até o fim da chamada.
+    if unsafe { libc::setrlimit(libc::RLIMIT_CORE, &sem_core) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: prctl com PR_SET_DUMPABLE só lê o segundo argumento.
+    if unsafe { libc::prctl(libc::PR_SET_DUMPABLE, 0) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
 fn falhar(mensagem: impl std::fmt::Display, diagnostico: Option<&PathBuf>) -> ExitCode {
     eprintln!("remoteid: {mensagem}");
     if let Some(d) = diagnostico {
