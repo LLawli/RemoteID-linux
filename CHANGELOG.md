@@ -6,6 +6,8 @@ Todas as mudanças visíveis para quem usa ficam aqui. O formato segue o
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-13
+
 ### Adicionado
 
 - `remoteid servir`: tudo o que a janela faz, como API em JSON por linha, no

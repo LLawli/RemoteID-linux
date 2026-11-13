@@ -12,6 +12,12 @@
   <url type="homepage">https://github.com/LLawli/RemoteID-linux</url>
   <url type="bugtracker">https://github.com/LLawli/RemoteID-linux/issues</url>
   <releases>
+    <release version="0.5.0" date="2026-11-13">
+      <description>
+        <p>Tudo o que a janela faz também tem comando no terminal: ver a conta e os certificados, escolher o que assina, atualizar a carteira, pedir o código de novo na próxima assinatura e sair.</p>
+        <p>O comando remoteid servir deixa outros programas usarem o certificado, pedindo o código do autenticador a quem chama. Para servidores, a release traz um programa sem interface gráfica que roda em qualquer Linux.</p>
+      </description>
+    </release>
     <release version="0.4.1" date="2026-11-07">
       <description>
         <p>O RemoteID guarda um registro do que os navegadores e assinadores pedem ao certificado, sem PIN, senha nem código do autenticador. Quando algo falha, o comando remoteid diagnostico junta esse registro num arquivo para anexar ao relato.</p>

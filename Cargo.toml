@@ -1,6 +1,6 @@
 [package]
 name = "remoteid"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2024"
 rust-version = "1.92"
 description = "Certificado em nuvem RemoteID (Certisign) no Linux, como extensão do Âncora"
