@@ -78,7 +78,9 @@ impl Conta {
             });
         }
         let mut filho = cmd.spawn().unwrap();
-        filho.stdin.take().unwrap().write_all(entrada).unwrap();
+        // Um comando recusado sai sem ler a entrada: escrever nele pode dar
+        // BrokenPipe, e o que vale é a saída dele.
+        let _ = filho.stdin.take().unwrap().write_all(entrada);
         filho.wait_with_output().unwrap()
     }
 
