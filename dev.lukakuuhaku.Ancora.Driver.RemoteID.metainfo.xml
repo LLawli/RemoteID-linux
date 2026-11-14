@@ -12,6 +12,11 @@
   <url type="homepage">https://github.com/LLawli/RemoteID-linux</url>
   <url type="bugtracker">https://github.com/LLawli/RemoteID-linux/issues</url>
   <releases>
+    <release version="0.5.2" date="2026-11-14">
+      <description>
+        <p>Os comandos do RemoteID protegem a senha, o PIN e o código do autenticador enquanto estão na memória: outro programa não consegue lê-los, e uma falha não os grava em disco.</p>
+      </description>
+    </release>
     <release version="0.5.1" date="2026-11-13">
       <description>
         <p>O comando remoteid servir entrega o certificado de cada conta e assina resumos de outros algoritmos além do SHA-256, para que outros programas possam apresentar o certificado como token.</p>

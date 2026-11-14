@@ -6,6 +6,8 @@ Todas as mudanças visíveis para quem usa ficam aqui. O formato segue o
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-14
+
 ### Segurança
 
 - Os comandos de terminal (`servir`, `entrar`, `assinar` e os demais) não
