@@ -6,6 +6,13 @@ Todas as mudanças visíveis para quem usa ficam aqui. O formato segue o
 
 ## [Unreleased]
 
+### Segurança
+
+- Os comandos de terminal (`servir`, `entrar`, `assinar` e os demais) não
+  geram core dump numa queda e fecham a memória do processo para outro
+  processo do mesmo usuário (`ptrace`, `/proc/<pid>/mem`). Se a proteção não
+  pegar, o comando sai com erro.
+
 ## [0.5.1] - 2026-11-13
 
 ### Adicionado

@@ -15,22 +15,28 @@ fn main() -> ExitCode {
         return sem_comando();
     };
     let resto = &args[1..];
-    match comando {
+    let executar: fn(&[String]) -> ExitCode = match comando {
         #[cfg(feature = "janela")]
-        pedido::SUBCOMANDO => ui::pedido::executar(),
-        terminal::ENTRAR => terminal::entrar(resto),
-        terminal::ASSINAR => terminal::assinar(resto),
-        terminal::HARNESS => terminal::harness(resto),
-        terminal::DIAGNOSTICO => terminal::diagnostico(resto),
-        terminal::ESTADO => terminal::estado(resto),
-        terminal::ATUALIZAR => terminal::atualizar(resto),
-        terminal::USAR => terminal::usar(resto),
-        terminal::REAUTORIZAR => terminal::reautorizar(resto),
-        terminal::SAIR => terminal::sair(resto),
-        terminal::SERVIR => terminal::servir(resto),
-        terminal::AJUDA | "--help" | "-h" => terminal::ajuda(),
-        _ => sem_comando(),
+        pedido::SUBCOMANDO => return ui::pedido::executar(),
+        terminal::AJUDA | "--help" | "-h" => return terminal::ajuda(),
+        terminal::ENTRAR => terminal::entrar,
+        terminal::ASSINAR => terminal::assinar,
+        terminal::HARNESS => terminal::harness,
+        terminal::DIAGNOSTICO => terminal::diagnostico,
+        terminal::ESTADO => terminal::estado,
+        terminal::ATUALIZAR => terminal::atualizar,
+        terminal::USAR => terminal::usar,
+        terminal::REAUTORIZAR => terminal::reautorizar,
+        terminal::SAIR => terminal::sair,
+        terminal::SERVIR => terminal::servir,
+        _ => return sem_comando(),
+    };
+    // Antes de qualquer segredo: sem a proteção, o comando não roda.
+    if let Err(e) = terminal::proteger_processo() {
+        eprintln!("remoteid: não protegeu a memória do processo: {e}");
+        return ExitCode::FAILURE;
     }
+    executar(resto)
 }
 
 #[cfg(feature = "janela")]
