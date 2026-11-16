@@ -23,7 +23,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use rsa::pkcs1v15::Pkcs1v15Sign;
 use rsa::pkcs8::{DecodePrivateKey, DecodePublicKey};
-use rsa::{RsaPrivateKey, RsaPublicKey};
+use rsa::{PrivateKey, PublicKey};
 use serde_json::{Value, json};
 use sha2::Sha256;
 
@@ -51,7 +51,7 @@ const RECUSA_ASSINATURA: &str = "Erro ao gerar assinatura RSA.";
 #[derive(Default)]
 struct Servidor {
     /// A chave pública que o registro entregou: a única que assina `Bearer`.
-    instalacao: Option<RsaPublicKey>,
+    instalacao: Option<PublicKey>,
     sessoes: HashSet<String>,
 }
 
@@ -66,7 +66,7 @@ fn main() {
     std::io::stdout().flush().unwrap();
     eprintln!("login {EMAIL} / {SENHA}, OTP {OTP}");
 
-    let titular = RsaPrivateKey::from_pkcs8_pem(CHAVE_TITULAR).unwrap();
+    let titular = PrivateKey::from_pkcs8_pem(CHAVE_TITULAR).unwrap();
     let mut servidor = Servidor::default();
     for conexao in ouvinte.incoming().flatten() {
         if let Err(e) = atender(conexao, &mut servidor, &titular) {
@@ -78,7 +78,7 @@ fn main() {
 fn atender(
     mut conexao: TcpStream,
     servidor: &mut Servidor,
-    titular: &RsaPrivateKey,
+    titular: &PrivateKey,
 ) -> std::io::Result<()> {
     let mut leitor = BufReader::new(conexao.try_clone()?);
     let mut linha = String::new();
@@ -123,7 +123,7 @@ fn rotear(
     corpo: &Value,
     autorizacao: &str,
     servidor: &mut Servidor,
-    titular: &RsaPrivateKey,
+    titular: &PrivateKey,
 ) -> (u16, Value) {
     let texto = |chave: &str| corpo.get(chave).and_then(Value::as_str).unwrap_or("");
     let recusa = |mensagem: &str| (200, json!({"status": false, "message": mensagem}));
@@ -157,7 +157,7 @@ fn rotear(
         if texto("dominioRede").is_empty() {
             return (500, json!({"message": "DomainNameLeftBlank"}));
         }
-        let Ok(chave) = RsaPublicKey::from_public_key_pem(texto("chavePublica")) else {
+        let Ok(chave) = PublicKey::from_public_key_pem(texto("chavePublica")) else {
             return (500, json!({"message": "ConstraintViolation: chavePublica"}));
         };
         servidor.instalacao = Some(chave);
@@ -235,7 +235,7 @@ fn bearer_confere(servidor: &Servidor, corpo: &Value, autorizacao: &str) -> bool
 /// Assina como o HSM, nos dois modos medidos: `"SHA256"` recebe o hash de 32
 /// bytes e embrulha em DigestInfo; `""` recebe o bloco pronto (1 a 245 bytes)
 /// e só aplica o padding. Qualquer outro valor é recusado.
-fn assinar(corpo: &Value, titular: &RsaPrivateKey) -> Option<Vec<u8>> {
+fn assinar(corpo: &Value, titular: &PrivateKey) -> Option<Vec<u8>> {
     let bloco = corpo["hashArray"][0]["hash"].as_str().and_then(de_b64)?;
     let esquema = match corpo["algorithm"].as_str()? {
         "SHA256" if bloco.len() == 32 => Pkcs1v15Sign::new::<Sha256>(),

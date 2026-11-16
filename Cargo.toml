@@ -27,11 +27,13 @@ janela = ["dep:gtk", "dep:adw"]
 gtk = { package = "gtk4", version = "0.11", features = ["v4_18"], optional = true }
 adw = { package = "libadwaita", version = "0.9", features = ["v1_7"], optional = true }
 serde_json = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 base64 = "0.23"
-rsa = { version = "0.9", features = ["sha2"] }
+rsa = { version = "0.10", features = ["pkcs1v15"] }
 serde = { version = "1", features = ["derive"] }
-rand = "0.8"
+# A aleatoriedade do sistema: a chave da instalação, o padding do
+# C_Encrypt, e o sal e o nonce do PIN local.
+getrandom = { version = "0.4", features = ["std", "sys_rng"] }
 ureq = "3"
 # A ABI do Cryptoki 2.40 (tipos e constantes, sem gerar nada no build) e a
 # leitura do X.509 do titular, de onde saem os atributos dos objetos do token.

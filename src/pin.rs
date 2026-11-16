@@ -18,7 +18,6 @@ use std::path::Path;
 use argon2::{Algorithm, Argon2, Params, Version};
 use chacha20poly1305::aead::{Aead, KeyInit, Payload};
 use chacha20poly1305::{ChaCha20Poly1305, Nonce};
-use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
@@ -85,8 +84,8 @@ pub fn cifrar(caminho: &Path, email: &str, senha: &str, pin: &str) -> io::Result
     }
     let mut sal = [0u8; 16];
     let mut nonce = [0u8; 12];
-    rand::rngs::OsRng.fill_bytes(&mut sal);
-    rand::rngs::OsRng.fill_bytes(&mut nonce);
+    getrandom::fill(&mut sal).map_err(io::Error::other)?;
+    getrandom::fill(&mut nonce).map_err(io::Error::other)?;
     let cifra = ChaCha20Poly1305::new(chave(pin, &sal)?.as_ref().into());
     let cifrado = cifra
         .encrypt(

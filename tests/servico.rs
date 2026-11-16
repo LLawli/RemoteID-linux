@@ -205,7 +205,7 @@ fn a_api_faz_tudo_o_que_a_janela_faz() {
 
 #[test]
 fn a_visao_traz_o_der_e_o_cru_assina_um_digest_info_pronto() {
-    use rsa::RsaPrivateKey;
+    use rsa::PrivateKey;
     use rsa::pkcs1v15::Pkcs1v15Sign;
     use rsa::pkcs8::DecodePrivateKey;
 
@@ -247,7 +247,7 @@ fn a_visao_traz_o_der_e_o_cru_assina_um_digest_info_pronto() {
     let assinatura = STANDARD
         .decode(r["ok"]["assinatura"].as_str().expect("assinatura"))
         .unwrap();
-    let titular = RsaPrivateKey::from_pkcs8_pem(include_str!("mock/fake-key.pem")).unwrap();
+    let titular = PrivateKey::from_pkcs8_pem(include_str!("mock/fake-key.pem")).unwrap();
     titular
         .to_public_key()
         .verify(Pkcs1v15Sign::new_unprefixed(), &bloco, &assinatura)

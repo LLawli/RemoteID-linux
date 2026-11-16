@@ -6,7 +6,7 @@
 //! hora.
 
 use cryptoki_sys::*;
-use rsa::RsaPublicKey;
+use rsa::PublicKey;
 use rsa::traits::PublicKeyParts;
 
 use super::objetos::{HANDLE_CERTIFICADO, HANDLE_PRIMEIRA_AUTORIDADE, Objeto};
@@ -23,7 +23,7 @@ pub struct Token {
     /// assina.
     pub certificado: Certificado,
     pub objetos: Vec<Objeto>,
-    pub publica: RsaPublicKey,
+    pub publica: PublicKey,
 }
 
 impl Token {
@@ -46,9 +46,10 @@ impl Token {
             .nome
             .clone()
             .unwrap_or_else(|| format!("RemoteID {}", certificado.serial_number));
-        // `to_bytes_be` tira os zeros à esquerda, como o Cryptoki manda.
-        let modulo = publica.n().to_bytes_be();
-        let expoente = publica.e().to_bytes_be();
+        // Sem os zeros à esquerda, como o Cryptoki manda. O tempo variável
+        // não importa: a chave é pública.
+        let modulo = publica.n().to_be_bytes_trimmed_vartime();
+        let expoente = publica.e().to_be_bytes_trimmed_vartime();
         // Os objetos do titular primeiro: há hospedeiro que pega o primeiro
         // certificado de uma busca e o toma pelo do titular.
         let mut objetos = vec![
