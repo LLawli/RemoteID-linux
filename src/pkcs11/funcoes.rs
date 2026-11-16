@@ -9,6 +9,7 @@
 use std::ffi::c_void;
 
 use cryptoki_sys::*;
+use getrandom::SysRng;
 use rsa::Pkcs1v15Encrypt;
 use serde_json::json;
 
@@ -931,7 +932,7 @@ pub(super) unsafe extern "C" fn C_Encrypt(
             Ok(_) => return CKR_DATA_LEN_RANGE,
             Err(rv) => return rv,
         };
-        match publica.encrypt(&mut rand::thread_rng(), Pkcs1v15Encrypt, dados) {
+        match publica.encrypt(&mut SysRng, Pkcs1v15Encrypt, dados) {
             Ok(cifrado) => entregar(&cifrado, bytes, pEncryptedData, pulEncryptedDataLen),
             Err(_) => CKR_FUNCTION_FAILED,
         }

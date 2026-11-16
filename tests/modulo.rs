@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 use cryptoki_sys::*;
 use rsa::pkcs1v15::Pkcs1v15Sign;
 use rsa::pkcs8::DecodePrivateKey;
-use rsa::{Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey};
+use rsa::{Pkcs1v15Encrypt, PrivateKey, PublicKey};
 use sha2::{Digest, Sha256};
 
 use comum::Mock;
@@ -106,8 +106,8 @@ fn lista() -> &'static CK_FUNCTION_LIST {
     unsafe { &*p }
 }
 
-fn chave_do_titular() -> RsaPrivateKey {
-    RsaPrivateKey::from_pkcs8_pem(include_str!("mock/fake-key.pem")).unwrap()
+fn chave_do_titular() -> PrivateKey {
+    PrivateKey::from_pkcs8_pem(include_str!("mock/fake-key.pem")).unwrap()
 }
 
 fn mecanismo(tipo: CK_MECHANISM_TYPE) -> CK_MECHANISM {
@@ -306,7 +306,7 @@ fn o_modulo_assina_pelo_motor_e_pede_os_fatores_so_quando_precisa() {
             atributo(f, sessao, certificado, CKA_ID)
         );
 
-        let titular = RsaPublicKey::from(&chave_do_titular());
+        let titular = PublicKey::from(&chave_do_titular());
 
         // A primeira assinatura abre a sessão no servidor: pede os fatores uma
         // vez.

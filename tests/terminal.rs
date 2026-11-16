@@ -12,7 +12,7 @@ use std::process::{Command, Output, Stdio};
 
 use rsa::pkcs1v15::Pkcs1v15Sign;
 use rsa::pkcs8::DecodePrivateKey;
-use rsa::{RsaPrivateKey, RsaPublicKey};
+use rsa::{PrivateKey, PublicKey};
 use sha2::{Digest, Sha256};
 
 use comum::Mock;
@@ -144,8 +144,8 @@ fn assinar_cru_devolve_a_assinatura_rsa_do_sha256() {
         "{}",
         String::from_utf8_lossy(&saida.stderr)
     );
-    let titular = RsaPrivateKey::from_pkcs8_pem(include_str!("mock/fake-key.pem")).unwrap();
-    RsaPublicKey::from(&titular)
+    let titular = PrivateKey::from_pkcs8_pem(include_str!("mock/fake-key.pem")).unwrap();
+    PublicKey::from(&titular)
         .verify(
             Pkcs1v15Sign::new::<Sha256>(),
             &Sha256::digest(DOCUMENTO),

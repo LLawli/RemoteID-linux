@@ -11,7 +11,7 @@ use std::process::Command;
 
 use rsa::pkcs1v15::Pkcs1v15Sign;
 use rsa::pkcs8::DecodePrivateKey;
-use rsa::{RsaPrivateKey, RsaPublicKey};
+use rsa::{PrivateKey, PublicKey};
 use sha2::Sha256;
 
 use comum::Mock;
@@ -123,9 +123,9 @@ impl Autorizador for Roteiro {
     }
 }
 
-fn chave_do_titular() -> RsaPublicKey {
-    let privada = RsaPrivateKey::from_pkcs8_pem(include_str!("mock/fake-key.pem")).unwrap();
-    RsaPublicKey::from(&privada)
+fn chave_do_titular() -> PublicKey {
+    let privada = PrivateKey::from_pkcs8_pem(include_str!("mock/fake-key.pem")).unwrap();
+    PublicKey::from(&privada)
 }
 
 #[test]

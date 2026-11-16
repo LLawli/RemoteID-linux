@@ -10,9 +10,10 @@ use std::path::Path;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
+use getrandom::SysRng;
 use rsa::pkcs1v15::Pkcs1v15Sign;
 use rsa::pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey, LineEnding};
-use rsa::{RsaPrivateKey, RsaPublicKey};
+use rsa::{PrivateKey, PublicKey};
 use sha2::{Digest, Sha256};
 
 use crate::estado::gravar_privado;
@@ -48,12 +49,12 @@ pub fn sha256(dados: &[u8]) -> [u8; 32] {
 /// O tamanho da chave da instalação, o mesmo do app oficial.
 const BITS: usize = 2048;
 
-pub struct ChaveInstalacao(RsaPrivateKey);
+pub struct ChaveInstalacao(PrivateKey);
 
 impl ChaveInstalacao {
     /// Lê uma chave PKCS#8 em PEM.
     pub fn de_pem(pem: &str) -> Option<ChaveInstalacao> {
-        RsaPrivateKey::from_pkcs8_pem(pem).ok().map(ChaveInstalacao)
+        PrivateKey::from_pkcs8_pem(pem).ok().map(ChaveInstalacao)
     }
 
     /// A chave gravada em `caminho`, ou uma nova, gravada ali com 0600.
@@ -70,8 +71,7 @@ impl ChaveInstalacao {
                 )
             }),
             Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                let chave =
-                    RsaPrivateKey::new(&mut rand::thread_rng(), BITS).map_err(io::Error::other)?;
+                let chave = PrivateKey::new(&mut SysRng, BITS).map_err(io::Error::other)?;
                 let pem = chave
                     .to_pkcs8_pem(LineEnding::LF)
                     .map_err(io::Error::other)?;
@@ -85,7 +85,7 @@ impl ChaveInstalacao {
     /// A chave pública em PEM completo, com as linhas BEGIN e END: é o que o
     /// registro exige. Base64 do DER cru é recusado com ConstraintViolation.
     pub fn publica_pem(&self) -> String {
-        RsaPublicKey::from(&self.0)
+        PublicKey::from(&self.0)
             .to_public_key_pem(LineEnding::LF)
             .expect("uma chave RSA válida sempre vira PEM")
     }

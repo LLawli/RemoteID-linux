@@ -1,7 +1,7 @@
 //! O pouco de X.509 que o RemoteID lê do certificado da carteira: os campos
 //! que o token PKCS#11 publica e o nome do titular.
 
-use rsa::RsaPublicKey;
+use rsa::PublicKey;
 use rsa::pkcs1::DecodeRsaPublicKey;
 use x509_cert::Certificate;
 use x509_cert::der::{self, Decode, Encode};
@@ -31,7 +31,7 @@ pub struct Campos {
     /// O fim da validade (`notAfter`), em segundos desde 1970.
     pub validade: u64,
     /// `None` quando a chave não é RSA.
-    pub publica: Option<RsaPublicKey>,
+    pub publica: Option<PublicKey>,
 }
 
 /// Quantos bytes do SHA-256 do SPKI viram o `CKA_ID`.
@@ -50,7 +50,7 @@ pub fn ler(der: &[u8]) -> Result<Campos, String> {
         nome: nome_comum(&tbs.subject),
         emissor: nome_comum(&tbs.issuer),
         validade: tbs.validity.not_after.to_unix_duration().as_secs(),
-        publica: RsaPublicKey::from_pkcs1_der(
+        publica: PublicKey::from_pkcs1_der(
             tbs.subject_public_key_info.subject_public_key.raw_bytes(),
         )
         .ok(),

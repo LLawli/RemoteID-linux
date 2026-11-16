@@ -303,8 +303,17 @@ fn ler_documento(pedido: &Pedido) -> std::io::Result<([u8; 32], Option<Vec<u8>>)
         entrada.read_to_end(&mut bytes)?;
         return Ok((Sha256::digest(&bytes).into(), Some(bytes)));
     }
+    // O sha2 0.11 não é `io::Write`: o stdin vai ao hasher em blocos.
     let mut hasher = Sha256::new();
-    std::io::copy(&mut entrada, &mut hasher)?;
+    let mut bloco = [0u8; 64 * 1024];
+    loop {
+        match entrada.read(&mut bloco) {
+            Ok(0) => break,
+            Ok(n) => hasher.update(&bloco[..n]),
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(e),
+        }
+    }
     Ok((hasher.finalize().into(), None))
 }
 

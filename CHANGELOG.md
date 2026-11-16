@@ -6,6 +6,12 @@ Todas as mudanças visíveis para quem usa ficam aqui. O formato segue o
 
 ## [Unreleased]
 
+### Segurança
+
+- A chave da instalação assina com a `rsa` 0.10, de tempo constante, que
+  corrige o Marvin Attack (RUSTSEC-2023-0071). A exceção que o `cargo audit`
+  tinha para ele saiu.
+
 ## [0.5.2] - 2026-11-14
 
 ### Segurança
