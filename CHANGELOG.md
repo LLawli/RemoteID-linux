@@ -6,6 +6,8 @@ Todas as mudanças visíveis para quem usa ficam aqui. O formato segue o
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-11-16
+
 ### Segurança
 
 - A chave da instalação assina com a `rsa` 0.10, de tempo constante, que
